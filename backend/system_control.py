@@ -1,0 +1,1865 @@
+import os
+import sys
+import re
+import subprocess
+import webbrowser
+import psutil
+import ctypes
+import datetime
+import glob
+import time
+import shutil
+import json
+import urllib.parse
+from typing import Dict, Any, Optional, List
+from PIL import Image
+
+try:
+    import winreg
+    _HAS_WINREG = True
+except Exception:
+    _HAS_WINREG = False
+
+try:
+    import win32gui
+    import win32con
+    _HAS_WIN32 = True
+    _HAS_WIN32GUI = True
+except Exception:
+    _HAS_WIN32 = False
+    _HAS_WIN32GUI = False
+
+try:
+    import pyautogui
+    import pyperclip
+    pyautogui.FAILSAFE = False
+    _HAS_PYAUTOGUI = True
+except Exception:
+    _HAS_PYAUTOGUI = False
+
+try:
+    from comtypes import CLSCTX_ALL
+    from pycaw.pycaw import AudioUtilities
+    _HAS_PYCAW = True
+except Exception:
+    _HAS_PYCAW = False
+
+try:
+    import screen_brightness_control as sbc
+    _HAS_SBC = True
+except Exception:
+    _HAS_SBC = False
+
+# Windows Virtual Keys with Extended Key flag
+VK_VOLUME_MUTE = 0xAD
+VK_VOLUME_DOWN = 0xAE
+VK_VOLUME_UP = 0xAF
+VK_MEDIA_NEXT_TRACK = 0xB0
+VK_MEDIA_PREV_TRACK = 0xB1
+VK_MEDIA_STOP = 0xB2
+VK_MEDIA_PLAY_PAUSE = 0xB3
+KEYEVENTF_EXTENDEDKEY = 0x0001
+KEYEVENTF_KEYUP = 0x0002
+
+def _press_key(vk_code: int):
+    if sys.platform == "win32":
+        try:
+            ctypes.windll.user32.keybd_event(vk_code, 0, KEYEVENTF_EXTENDEDKEY, 0)
+            ctypes.windll.user32.keybd_event(vk_code, 0, KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP, 0)
+        except Exception:
+            pass
+
+# ─── VOLUME CONTROLS (CROSS-PLATFORM) ───────────────────────────
+def get_volume() -> int:
+    """Get current master audio volume percentage (0-100)."""
+    if sys.platform == "darwin":
+        try:
+            out = subprocess.check_output(["osascript", "-e", "output volume of (get volume settings)"]).decode().strip()
+            return int(out)
+        except Exception:
+            return 50
+    if _HAS_PYCAW:
+        try:
+            speakers = AudioUtilities.GetSpeakers()
+            vol = speakers.EndpointVolume
+            return int(round(vol.GetMasterVolumeLevelScalar() * 100))
+        except Exception as e:
+            print("pycaw get volume error:", e)
+    return 50
+
+def set_volume(level: int) -> int:
+    """Set master volume percentage (0-100)."""
+    level = max(0, min(100, level))
+    if sys.platform == "darwin":
+        try:
+            subprocess.run(["osascript", "-e", f"set volume output volume {level}"], check=False)
+            return level
+        except Exception:
+            return level
+    if _HAS_PYCAW:
+        try:
+            speakers = AudioUtilities.GetSpeakers()
+            vol = speakers.EndpointVolume
+            vol.SetMasterVolumeLevelScalar(level / 100.0, None)
+            return level
+        except Exception as e:
+            print("pycaw set volume error:", e)
+    return level
+
+def change_volume(delta: int) -> int:
+    """Increase or decrease volume by delta."""
+    curr = get_volume()
+    target = max(0, min(100, curr + delta))
+    return set_volume(target)
+
+def toggle_mute() -> bool:
+    """Toggle master audio mute."""
+    if sys.platform == "darwin":
+        try:
+            subprocess.run(["osascript", "-e", "set volume output muted (not (output muted of (get volume settings)))"], check=False)
+            return True
+        except Exception:
+            return False
+    if _HAS_PYCAW:
+        try:
+            speakers = AudioUtilities.GetSpeakers()
+            vol = speakers.EndpointVolume
+            curr = vol.GetMute()
+            vol.SetMute(not curr, None)
+            return bool(not curr)
+        except Exception:
+            pass
+    _press_key(VK_VOLUME_MUTE)
+    return True
+
+# ─── BRIGHTNESS CONTROLS ────────────────────────────────────────
+def get_brightness() -> int:
+    """Get current screen brightness (0-100)."""
+    if _HAS_SBC:
+        try:
+            val = sbc.get_brightness()
+            if isinstance(val, list) and len(val) > 0:
+                return int(val[0])
+            elif isinstance(val, int):
+                return val
+        except Exception:
+            pass
+    return 80
+
+def set_brightness(level: int) -> int:
+    """Set screen brightness (0-100)."""
+    level = max(0, min(100, level))
+    if _HAS_SBC:
+        try:
+            sbc.set_brightness(level)
+            return level
+        except Exception as e:
+            print("sbc set brightness error:", e)
+            
+    try:
+        ps_cmd = f"(Get-WmiObject -Namespace root/WMI -Class WmiMonitorBrightnessMethods).WmiSetBrightness(1,{level})"
+        subprocess.run(["powershell", "-NoProfile", "-Command", ps_cmd], capture_output=True, timeout=3)
+    except Exception:
+        pass
+    return level
+
+def change_brightness(delta: int) -> int:
+    """Increase or decrease brightness."""
+    curr = get_brightness()
+    target = max(0, min(100, curr + delta))
+    return set_brightness(target)
+
+# ─── SCREENSHOT SYSTEM (NATIVE GDI TO ANY FOLDER) ────────────────
+def take_screenshot(target_folder: Optional[str] = "desktop") -> str:
+    """Capture full monitor and save directly to specified Windows folder (Desktop, Downloads, Documents, Pictures) as PNG."""
+    user_home = os.path.expanduser('~')
+    folder_map = {
+        "desktop": os.path.join(user_home, "Desktop"),
+        "рабочий стол": os.path.join(user_home, "Desktop"),
+        "downloads": os.path.join(user_home, "Downloads"),
+        "загрузки": os.path.join(user_home, "Downloads"),
+        "documents": os.path.join(user_home, "Documents"),
+        "документы": os.path.join(user_home, "Documents"),
+        "pictures": os.path.join(user_home, "Pictures"),
+        "изображения": os.path.join(user_home, "Pictures"),
+        "картинки": os.path.join(user_home, "Pictures"),
+    }
+    dest_dir = folder_map.get((target_folder or "desktop").lower().strip(), os.path.join(user_home, "Desktop"))
+    if not os.path.exists(dest_dir):
+        os.makedirs(dest_dir, exist_ok=True)
+
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"screenshot_{timestamp}.png"
+    filepath = os.path.join(dest_dir, filename)
+
+    if sys.platform == "darwin":
+        try:
+            subprocess.run(["screencapture", "-x", filepath], check=True)
+            return filepath
+        except Exception as e:
+            print("macOS screenshot error:", e)
+            return dest_dir
+
+    try:
+        user32 = ctypes.windll.user32
+        gdi32 = ctypes.windll.gdi32
+
+        width = user32.GetSystemMetrics(0)
+        height = user32.GetSystemMetrics(1)
+
+        hdc_screen = user32.GetDC(0)
+        hdc_mem = gdi32.CreateCompatibleDC(hdc_screen)
+        hbm = gdi32.CreateCompatibleBitmap(hdc_screen, width, height)
+        hbm_old = gdi32.SelectObject(hdc_mem, hbm)
+
+        SRCCOPY = 0x00CC0020
+        CAPTUREBLT = 0x40000000
+        gdi32.BitBlt(hdc_mem, 0, 0, width, height, hdc_screen, 0, 0, SRCCOPY | CAPTUREBLT)
+
+        class BITMAPINFOHEADER(ctypes.Structure):
+            _fields_ = [
+                ('biSize', ctypes.c_uint32),
+                ('biWidth', ctypes.c_int32),
+                ('biHeight', ctypes.c_int32),
+                ('biPlanes', ctypes.c_uint16),
+                ('biBitCount', ctypes.c_uint16),
+                ('biCompression', ctypes.c_uint32),
+                ('biSizeImage', ctypes.c_uint32),
+                ('biXPelsPerMeter', ctypes.c_int32),
+                ('biYPelsPerMeter', ctypes.c_int32),
+                ('biClrUsed', ctypes.c_uint32),
+                ('biClrImportant', ctypes.c_uint32),
+            ]
+
+        bmi = BITMAPINFOHEADER()
+        bmi.biSize = ctypes.sizeof(BITMAPINFOHEADER)
+        bmi.biWidth = width
+        bmi.biHeight = -height
+        bmi.biPlanes = 1
+        bmi.biBitCount = 32
+        bmi.biCompression = 0
+
+        buf = ctypes.create_string_buffer(width * height * 4)
+        gdi32.GetDIBits(hdc_mem, hbm, 0, height, buf, ctypes.byref(bmi), 0)
+
+        gdi32.SelectObject(hdc_mem, hbm_old)
+        gdi32.DeleteObject(hbm)
+        gdi32.DeleteDC(hdc_mem)
+        user32.ReleaseDC(0, hdc_screen)
+
+        img = Image.frombuffer('RGBA', (width, height), buf, 'raw', 'BGRA', 0, 1)
+        img.convert('RGB').save(filepath, 'PNG')
+        return filepath
+    except Exception as e:
+        print("GDI screenshot error:", e)
+        trigger_screenshot_tool()
+        return dest_dir
+
+def take_screenshot_to_desktop() -> str:
+    return take_screenshot("desktop")
+
+def trigger_screenshot_tool():
+    """Trigger system Snipping Tool (Win + Shift + S on Windows, screencapture on Mac)."""
+    if sys.platform == "darwin":
+        try:
+            subprocess.Popen(["screencapture", "-i", "-c"])
+            return
+        except Exception:
+            return
+    VK_LWIN = 0x5B
+    VK_SHIFT = 0x10
+    VK_S = 0x53
+    try:
+        ctypes.windll.user32.keybd_event(VK_LWIN, 0, 0, 0)
+        ctypes.windll.user32.keybd_event(VK_SHIFT, 0, 0, 0)
+        ctypes.windll.user32.keybd_event(VK_S, 0, 0, 0)
+        ctypes.windll.user32.keybd_event(VK_S, 0, 2, 0)
+        ctypes.windll.user32.keybd_event(VK_SHIFT, 0, 2, 0)
+        ctypes.windll.user32.keybd_event(VK_LWIN, 0, 2, 0)
+    except Exception:
+        pass
+
+# ─── DYNAMIC PC APPLICATION SCANNER & CATALOG ────────────────────
+_APP_CATALOG: Dict[str, str] = {}
+_LAST_SCAN_TIME: float = 0.0
+
+def scan_all_installed_apps(force: bool = False) -> Dict[str, str]:
+    """
+    Dynamically scans all user and system locations for installed applications:
+    - Start Menu Shortcuts (User & All Users)
+    - Desktop Shortcuts (.lnk)
+    - Registry App Paths (HKLM & HKCU)
+    - User AppData (Local/Programs, Local, Roaming)
+    - Program Files & Program Files (x86)
+    Caches results in memory for instant lookups.
+    """
+    global _APP_CATALOG, _LAST_SCAN_TIME
+    now = time.time()
+    if not force and _APP_CATALOG and (now - _LAST_SCAN_TIME < 300):
+        return _APP_CATALOG
+
+    catalog: Dict[str, str] = {}
+
+    # macOS Applications scanning
+    if sys.platform == "darwin":
+        mac_dirs = ["/Applications", "/System/Applications", "/Applications/Utilities", os.path.expanduser("~/Applications")]
+        for m_dir in mac_dirs:
+            if os.path.exists(m_dir):
+                for app_bundle in glob.glob(os.path.join(m_dir, "*.app")):
+                    b_name = os.path.splitext(os.path.basename(app_bundle))[0].lower().strip()
+                    catalog[b_name] = app_bundle
+                    no_sp = re.sub(r'[^a-z0-9а-яё]', '', b_name)
+                    if no_sp:
+                        catalog[no_sp] = app_bundle
+        catalog["safari"] = "/Applications/Safari.app"
+        catalog["сафари"] = "/Applications/Safari.app"
+        catalog["chrome"] = catalog.get("google chrome", "/Applications/Google Chrome.app")
+        catalog["хром"] = catalog.get("chrome")
+        catalog["telegram"] = catalog.get("telegram", "/Applications/Telegram.app")
+        catalog["телеграм"] = catalog.get("telegram")
+        catalog["vscode"] = catalog.get("visual studio code", "/Applications/Visual Studio Code.app")
+        catalog["terminal"] = "/System/Applications/Utilities/Terminal.app"
+        catalog["терминал"] = "/System/Applications/Utilities/Terminal.app"
+        catalog["калькулятор"] = "/System/Applications/Calculator.app"
+        catalog["calculator"] = "/System/Applications/Calculator.app"
+        catalog["музыка"] = "/System/Applications/Music.app"
+        catalog["music"] = "/System/Applications/Music.app"
+        catalog["spotify"] = catalog.get("spotify", "/Applications/Spotify.app")
+        catalog["спотифай"] = catalog.get("spotify")
+        _APP_CATALOG = catalog
+        _LAST_SCAN_TIME = now
+        return _APP_CATALOG
+
+    # 1. Registry App Paths
+    if _HAS_WINREG:
+        reg_roots = [
+            (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths"),
+            (winreg.HKEY_CURRENT_USER, r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths"),
+        ]
+        for hkey, subkey in reg_roots:
+            try:
+                with winreg.OpenKey(hkey, subkey) as key:
+                    count = winreg.QueryInfoKey(key)[0]
+                    for i in range(count):
+                        try:
+                            k_name = winreg.EnumKey(key, i)
+                            with winreg.OpenKey(key, k_name) as app_key:
+                                raw_val = winreg.QueryValue(app_key, None)
+                                if raw_val:
+                                    path = raw_val.strip('"').strip("'")
+                                    if os.path.exists(path):
+                                        base = k_name.lower().replace(".exe", "")
+                                        catalog[base] = path
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+
+    # 2. Start Menu Shortcuts (.lnk) - User & All Users
+    start_menu_dirs = [
+        os.path.expandvars(r"%APPDATA%\Microsoft\Windows\Start Menu\Programs"),
+        os.path.expandvars(r"%ProgramData%\Microsoft\Windows\Start Menu\Programs"),
+        os.path.expandvars(r"%USERPROFILE%\Desktop"),
+        os.path.expandvars(r"%PUBLIC%\Desktop"),
+        r"C:\Users\Public\Desktop",
+        os.path.join(os.path.expanduser("~"), "Desktop")
+    ]
+    for s_dir in start_menu_dirs:
+        if os.path.exists(s_dir):
+            for lnk in glob.glob(os.path.join(s_dir, "**", "*.lnk"), recursive=True):
+                base = os.path.splitext(os.path.basename(lnk))[0].lower().strip()
+                if not any(x in base for x in ["uninstall", "деинсталл", "readme", "help", "documentation"]):
+                    catalog[base] = lnk
+                    # Also register version-stripped and space-stripped variants
+                    clean_no_version = re.sub(r'[\d\.\-_]+', ' ', base).strip()
+                    if clean_no_version and clean_no_version != base:
+                        catalog[clean_no_version] = lnk
+                    # Without spaces (e.g. "goland" for "goland 2026.2.1" or "visualstudiocode")
+                    no_spaces = re.sub(r'[^a-z0-9а-яё]', '', base)
+                    if no_spaces:
+                        catalog[no_spaces] = lnk
+
+    # 3. Direct AppData and Program Files Executables
+    user_home = os.path.expanduser("~")
+    common_patterns = [
+        os.path.join(user_home, "AppData", "Local", "*", "*.exe"),
+        os.path.join(user_home, "AppData", "Local", "Programs", "*", "*.exe"),
+        os.path.join(user_home, "AppData", "Local", "Programs", "*", "*", "*.exe"),
+        os.path.join(user_home, "AppData", "Local", "Postman", "app-*", "Postman.exe"),
+        os.path.join(user_home, "AppData", "Local", "Postman", "Postman.exe"),
+        os.path.join(user_home, "AppData", "Roaming", "*", "*.exe"),
+        os.path.join(user_home, "AppData", "Roaming", "Telegram Desktop", "Telegram.exe"),
+        r"C:\Program Files\*\*.exe",
+        r"C:\Program Files\*\*\*.exe",
+        r"C:\Program Files (x86)\*\*.exe",
+        r"C:\Program Files (x86)\*\*\*.exe"
+    ]
+    for pat in common_patterns:
+        for p in glob.glob(pat):
+            f_name = os.path.splitext(os.path.basename(p))[0].lower()
+            if not any(x in f_name for x in ["update", "unins", "setup", "helper", "crash", "installer"]):
+                catalog[f_name] = p
+                no_spaces = re.sub(r'[^a-z0-9а-яё]', '', f_name)
+                if no_spaces:
+                    catalog[no_spaces] = p
+
+    # Standard built-ins
+    catalog["calc"] = "calc.exe"
+    catalog["калькулятор"] = "calc.exe"
+    catalog["calculator"] = "calc.exe"
+    catalog["notepad"] = "notepad.exe"
+    catalog["блокнот"] = "notepad.exe"
+    catalog["paint"] = "mspaint.exe"
+    catalog["пейнт"] = "mspaint.exe"
+    catalog["taskmgr"] = "taskmgr.exe"
+    catalog["диспетчер задач"] = "taskmgr.exe"
+    catalog["explorer"] = "explorer.exe"
+    catalog["проводник"] = "explorer.exe"
+    catalog["cmd"] = "cmd.exe"
+    catalog["powershell"] = "powershell.exe"
+    catalog["терминал"] = "wt.exe"
+    catalog["terminal"] = "wt.exe"
+    catalog["goland"] = catalog.get("goland") or catalog.get("goland 2026.2.1") or "goland"
+    catalog["go land"] = catalog.get("goland") or "goland"
+
+    _APP_CATALOG = catalog
+    _LAST_SCAN_TIME = now
+    return _APP_CATALOG
+
+# ─── BROWSER DETECTION & AMBIGUITY RESOLVER ───────────────────────
+def detect_installed_browsers() -> List[Dict[str, str]]:
+    """Detect all web browsers installed on the machine."""
+    if sys.platform == "darwin":
+        mac_browsers = [
+            {"id": "safari", "name": "Apple Safari", "path": "/Applications/Safari.app"},
+            {"id": "chrome", "name": "Google Chrome", "path": "/Applications/Google Chrome.app"},
+            {"id": "yandex", "name": "Яндекс Браузер", "path": "/Applications/Yandex.app"},
+            {"id": "firefox", "name": "Mozilla Firefox", "path": "/Applications/Firefox.app"},
+            {"id": "msedge", "name": "Microsoft Edge", "path": "/Applications/Microsoft Edge.app"},
+            {"id": "brave", "name": "Brave Browser", "path": "/Applications/Brave Browser.app"},
+            {"id": "opera", "name": "Opera", "path": "/Applications/Opera.app"},
+        ]
+        res = []
+        for b in mac_browsers:
+            if os.path.exists(b["path"]):
+                res.append(b)
+        if not res:
+            res.append({"id": "safari", "name": "Apple Safari", "path": "/Applications/Safari.app"})
+        return res
+
+    catalog = scan_all_installed_apps()
+    found: Dict[str, Dict[str, str]] = {}
+
+    browser_defs = [
+        {"id": "chrome", "name": "Google Chrome", "tokens": ["chrome", "google chrome"]},
+        {"id": "msedge", "name": "Microsoft Edge", "tokens": ["msedge", "edge", "microsoft edge"]},
+        {"id": "yandex", "name": "Яндекс Браузер", "tokens": ["yandex", "yandex browser", "browser.exe", "яндекс"]},
+        {"id": "firefox", "name": "Mozilla Firefox", "tokens": ["firefox", "mozilla firefox"]},
+        {"id": "opera", "name": "Opera", "tokens": ["opera", "opera gx"]},
+        {"id": "brave", "name": "Brave Browser", "tokens": ["brave", "brave.exe"]},
+    ]
+
+    prog_files = os.environ.get('ProgramFiles', 'C:\\Program Files')
+    prog_files_x86 = os.environ.get('ProgramFiles(x86)', 'C:\\Program Files (x86)')
+    local_appdata = os.environ.get('LOCALAPPDATA', os.path.expanduser('~\\AppData\\Local'))
+
+    default_paths = {
+        "chrome": [
+            os.path.join(prog_files, "Google", "Chrome", "Application", "chrome.exe"),
+            os.path.join(prog_files_x86, "Google", "Chrome", "Application", "chrome.exe"),
+            os.path.join(local_appdata, "Google", "Chrome", "Application", "chrome.exe")
+        ],
+        "msedge": [
+            os.path.join(prog_files_x86, "Microsoft", "Edge", "Application", "msedge.exe"),
+            os.path.join(prog_files, "Microsoft", "Edge", "Application", "msedge.exe")
+        ],
+        "yandex": [
+            os.path.join(local_appdata, "Yandex", "YandexBrowser", "Application", "browser.exe")
+        ],
+        "firefox": [
+            os.path.join(prog_files, "Mozilla Firefox", "firefox.exe"),
+            os.path.join(prog_files_x86, "Mozilla Firefox", "firefox.exe")
+        ],
+        "brave": [
+            os.path.join(prog_files, "BraveSoftware", "Brave-Browser", "Application", "brave.exe")
+        ],
+        "opera": [
+            os.path.join(local_appdata, "Programs", "Opera", "launcher.exe"),
+            os.path.join(local_appdata, "Programs", "Opera GX", "launcher.exe")
+        ]
+    }
+
+    # 1. Check known executable paths
+    for b in browser_defs:
+        b_id = b["id"]
+        for p in default_paths.get(b_id, []):
+            if os.path.exists(p):
+                found[b_id] = {"id": b_id, "name": b["name"], "path": p}
+                break
+
+    # 2. Check catalog shortcuts
+    for cat_name, cat_path in catalog.items():
+        for b in browser_defs:
+            b_id = b["id"]
+            if b_id not in found and any(t in cat_name for t in b["tokens"]):
+                if not any(x in cat_path.lower() for x in ["uninstall", "helper", "crash"]):
+                    found[b_id] = {"id": b_id, "name": b["name"], "path": cat_path}
+
+    return list(found.values())
+
+# Initial scan
+try:
+    scan_all_installed_apps()
+except Exception:
+    pass
+
+# ─── FOREGROUND WINDOW ACTIVATOR ─────────────────────────────────
+_LAST_NON_ARGUS_HWND = None
+
+def force_foreground_window(hwnd: int) -> bool:
+    """Forces target HWND into absolute foreground using Win32 API."""
+    global _LAST_NON_ARGUS_HWND
+    if not _HAS_WIN32GUI:
+        return False
+    try:
+        user32 = ctypes.windll.user32
+        fg_hwnd = user32.GetForegroundWindow()
+        if fg_hwnd == hwnd:
+            _LAST_NON_ARGUS_HWND = hwnd
+            return True
+        fg_tid = user32.GetWindowThreadProcessId(fg_hwnd, None)
+        target_tid = user32.GetWindowThreadProcessId(hwnd, None)
+        
+        # Attach threads to inherit foreground activation rights
+        if fg_tid != target_tid:
+            user32.AttachThreadInput(fg_tid, target_tid, True)
+            
+        user32.ShowWindow(hwnd, win32con.SW_RESTORE)
+        user32.SetForegroundWindow(hwnd)
+        user32.BringWindowToTop(hwnd)
+        user32.SetFocus(hwnd)
+        
+        if fg_tid != target_tid:
+            user32.AttachThreadInput(fg_tid, target_tid, False)
+        _LAST_NON_ARGUS_HWND = hwnd
+        return True
+    except Exception:
+        try:
+            win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+            win32gui.SetForegroundWindow(hwnd)
+            _LAST_NON_ARGUS_HWND = hwnd
+            return True
+        except Exception:
+            return False
+
+WINDOW_TITLE_ALIASES: Dict[str, List[str]] = {
+    "telegram": ["telegram", "телеграм", "телега"],
+    "телеграм": ["telegram", "телеграм", "телега"],
+    "телега": ["telegram", "телеграм", "телега"],
+    "тг": ["telegram", "телеграм", "телега"],
+    "discord": ["discord", "дискорд"],
+    "дискорд": ["discord", "дискорд"],
+    "whatsapp": ["whatsapp", "ватсап"],
+    "ватсап": ["whatsapp", "ватсап"],
+    "vk": ["vk", "вконтакте", "вк"],
+    "вконтакте": ["vk", "вконтакте", "вк"],
+    "вк": ["vk", "вконтакте", "вк"],
+    "notepad": ["notepad", "блокнот", "текстовый документ", "untitled - notepad", "безымянный - блокнот"],
+    "блокнот": ["notepad", "блокнот", "текстовый документ", "untitled - notepad", "безымянный - блокнот"],
+    "word": ["word", "ворд", "документ microsoft word", "документ - word"],
+    "ворд": ["word", "ворд", "документ microsoft word", "документ - word"],
+    "excel": ["excel", "эксель", "книга excel"],
+    "эксель": ["excel", "эксель", "книга excel"],
+    "chrome": ["chrome", "хром", "google chrome"],
+    "хром": ["chrome", "хром", "google chrome"],
+    "edge": ["edge", "эдж", "microsoft edge"],
+    "yandex": ["yandex", "яндекс"],
+    "яндекс": ["yandex", "яндекс"],
+    "code": ["visual studio code", "vscode", "code"],
+    "vscode": ["visual studio code", "vscode", "code"],
+    "вскод": ["visual studio code", "vscode", "code"],
+    "terminal": ["windows terminal", "powershell", "cmd", "терминал", "консоль", "командная строка"],
+    "терминал": ["windows terminal", "powershell", "cmd", "терминал", "консоль", "командная строка"],
+    "explorer": ["проводник", "explorer", "этот компьютер", "папка"],
+    "проводник": ["проводник", "explorer", "этот компьютер", "папка"],
+}
+
+def activate_running_window(app_query: str) -> bool:
+    """
+    If an application window is already open, brings it to foreground.
+    Supports Windows (Win32 + AttachThreadInput) and macOS (AppleScript / osascript).
+    If the application is not running or minimized to tray, automatically launches it.
+    """
+    if sys.platform == "darwin":
+        try:
+            mac_app_map = {
+                "telegram": "Telegram",
+                "discord": "Discord",
+                "whatsapp": "WhatsApp",
+                "chrome": "Google Chrome",
+                "browser": "Safari",
+                "safari": "Safari",
+                "notepad": "TextEdit",
+                "word": "Microsoft Word",
+                "vscode": "Visual Studio Code"
+            }
+            target = mac_app_map.get(app_query.lower().strip(), app_query)
+            script = f'tell application "{target}" to activate'
+            subprocess.run(['osascript', '-e', script], capture_output=True, timeout=5)
+            return True
+        except Exception as e:
+            print("macOS activate error:", e)
+            return False
+
+    if not _HAS_WIN32GUI:
+        return False
+    query = app_query.lower().strip()
+    found_hwnds = []
+
+    browser_aliases = ["chrome", "edge", "yandex", "opera", "firefox", "brave", "vivaldi"]
+    target_aliases = WINDOW_TITLE_ALIASES.get(query, [query])
+
+    def enum_cb(hwnd, _):
+        try:
+            if win32gui.IsWindow(hwnd) and win32gui.IsWindowVisible(hwnd):
+                title = win32gui.GetWindowText(hwnd).lower()
+                if not title:
+                    return True
+                if query in ["браузер", "browser", "интернет"]:
+                    if any(b in title for b in browser_aliases):
+                        found_hwnds.append(hwnd)
+                elif any(alias in title for alias in target_aliases):
+                    found_hwnds.append(hwnd)
+                elif query in title or title.startswith(query):
+                    found_hwnds.append(hwnd)
+        except Exception:
+            pass
+        return True
+
+    try:
+        win32gui.EnumWindows(enum_cb, None)
+    except Exception as e:
+        if not (hasattr(e, 'args') and len(e.args) > 0 and e.args[0] == 1400):
+            print("activate_running_window error:", e)
+
+    if found_hwnds:
+        target = found_hwnds[0]
+        force_foreground_window(target)
+        return True
+    return False
+
+# ─── UNIVERSAL APPLICATION LAUNCHER ──────────────────────────────
+# ─── UNIVERSAL APPLICATION LAUNCHER ──────────────────────────────
+APP_CANONICAL_KEYS = {
+    # Browsers
+    "хром": "chrome", "хром браузер": "chrome", "хромбраузер": "chrome",
+    "chrome": "chrome", "google chrome": "chrome", "googlechrome": "chrome",
+    "гугл": "chrome", "гугл хром": "chrome", "гуглхром": "chrome",
+    "браузер": "chrome", "browser": "chrome", "интернет": "chrome",
+    "эдж": "msedge", "edge": "msedge", "microsoft edge": "msedge",
+    "яндекс": "yandex", "yandex": "yandex", "яндекс браузер": "yandex",
+    "опера": "opera", "opera": "opera", "файрфокс": "firefox", "firefox": "firefox",
+    "сафари": "safari", "safari": "safari",
+    # Music & Streaming
+    "саундклауд": "soundcloud", "саунд клауд": "soundcloud", "саунд-клауд": "soundcloud",
+    "soundcloud": "soundcloud", "sound cloud": "soundcloud", "sound-cloud": "soundcloud",
+    "спотифай": "spotify", "spotify": "spotify", "музыка": "spotify",
+    "яндекс музыка": "yandexmusic", "яндекс.музыка": "yandexmusic", "яндексмузыка": "yandexmusic",
+    "yandex music": "yandexmusic", "ямузыка": "yandexmusic",
+    "вк музыка": "vkmusic", "музыка вк": "vkmusic", "vk music": "vkmusic",
+    "ютуб музыка": "ytmusic", "youtube music": "ytmusic",
+    # Messengers & Social
+    "телега": "telegram", "телеграм": "telegram", "тг": "telegram", "telegram": "telegram",
+    "дискорд": "discord", "диск": "discord", "дс": "discord", "discord": "discord",
+    "ватсап": "whatsapp", "whatsapp": "whatsapp",
+    "стим": "steam", "steam": "steam",
+    "твич": "twitch", "twitch": "twitch", "ютуб": "youtube", "youtube": "youtube",
+    "рутуб": "rutube", "rutube": "rutube",
+    # Dev & Productivity
+    "постман": "postman", "postman": "postman", "post man": "postman",
+    "код": "code", "вскод": "code", "vscode": "code", "vs code": "code", "visual studio code": "code",
+    "голенд": "goland", "голэнд": "goland", "го ленд": "goland", "goland": "goland", "go land": "goland",
+    "пайчарм": "pycharm", "pycharm": "pycharm", "вебшторм": "webstorm", "webstorm": "webstorm",
+    "гитхаб": "github", "github": "github",
+    "калькулятор": "calc", "кальк": "calc", "calc": "calc", "calculator": "calc",
+    "блокнот": "notepad", "notepad": "notepad", "заметки": "notes", "notes": "notes",
+    "пейнт": "mspaint", "паинт": "mspaint", "paint": "mspaint",
+    "проводник": "explorer", "explorer": "explorer", "папки": "explorer", "файлы": "explorer",
+    "терминал": "wt", "консоль": "powershell", "powershell": "powershell", "cmd": "cmd",
+    "диспетчер задач": "taskmgr", "диспетчер": "taskmgr",
+    "настройки": "ms-settings:", "параметры": "ms-settings:",
+    "зум": "zoom", "zoom": "zoom", "обска": "obs", "obs": "obs", "obs studio": "obs"
+}
+
+WEB_SERVICE_FALLBACKS = {
+    "soundcloud": "https://soundcloud.com",
+    "саундклауд": "https://soundcloud.com",
+    "саунд клауд": "https://soundcloud.com",
+    "sound cloud": "https://soundcloud.com",
+    "spotify": "https://open.spotify.com",
+    "спотифай": "https://open.spotify.com",
+    "yandexmusic": "https://music.yandex.ru",
+    "яндекс музыка": "https://music.yandex.ru",
+    "яндекс.музыка": "https://music.yandex.ru",
+    "яндексмузыка": "https://music.yandex.ru",
+    "vkmusic": "https://vk.com/music",
+    "вк музыка": "https://vk.com/music",
+    "ytmusic": "https://music.youtube.com",
+    "ютуб музыка": "https://music.youtube.com",
+    "youtube music": "https://music.youtube.com",
+    "youtube": "https://www.youtube.com",
+    "ютуб": "https://www.youtube.com",
+    "twitch": "https://twitch.tv",
+    "твич": "https://twitch.tv",
+    "github": "https://github.com",
+    "гитхаб": "https://github.com",
+    "netflix": "https://netflix.com",
+    "нетфликс": "https://netflix.com",
+    "kinopoisk": "https://kinopoisk.ru",
+    "кинопоиск": "https://kinopoisk.ru",
+    "vk": "https://vk.com",
+    "вк": "https://vk.com",
+    "wildberries": "https://wildberries.ru",
+    "вайлдберриз": "https://wildberries.ru",
+    "вб": "https://wildberries.ru",
+    "ozon": "https://ozon.ru",
+    "озон": "https://ozon.ru",
+    "avito": "https://avito.ru",
+    "авито": "https://avito.ru",
+    "whatsapp": "https://web.whatsapp.com",
+    "ватсап": "https://web.whatsapp.com",
+    "rutube": "https://rutube.ru",
+    "рутуб": "https://rutube.ru"
+}
+
+def launch_application(app_name: str) -> Dict[str, Any]:
+    """
+    Universally launches ANY application installed on Windows or macOS.
+    Resolves Russian and English synonyms, scans installed programs catalog,
+    and seamlessly falls back to official web services (SoundCloud, Spotify, YouTube, etc.) if not installed.
+    """
+    raw_query = app_name.strip()
+    app_lower = raw_query.lower()
+    
+    # 0. Lone command verb protection (never try to launch an app called "открой" or "запусти")
+    if app_lower in ["открой", "открыть", "запусти", "запустить", "включи", "включить", "стартуй", "open", "launch", "start", "run", "приложение", "программу", "софт"]:
+        return {"success": False, "error": "Пожалуйста, укажите, какое приложение или сайт открыть (например: «открой soundcloud» или «открой блокнот»)"}
+
+    # Strip common launch command verbs
+    clean_app = re.sub(r'^(?:открой|открыть|запусти|запустить|включи|включить|стартуй|стартани|зайди\s+в|зайди\s+на|зайди|перейди\s+в|перейди\s+на|перейди|open|launch|start|run)\s+(?:приложение\s+|программу\s+|софт\s+)?', '', app_lower).strip()
+    clean_app = clean_app.replace('пожалуйста', '').replace('пж', '').strip()
+    if not clean_app:
+        return {"success": False, "error": "Пожалуйста, укажите название приложения или сайта"}
+
+    # Special handling for macOS
+    if sys.platform == "darwin":
+        mac_aliases = {
+            "chrome": "Google Chrome", "хром": "Google Chrome",
+            "telegram": "Telegram", "телеграм": "Telegram", "телега": "Telegram", "тг": "Telegram",
+            "discord": "Discord", "дискорд": "Discord",
+            "spotify": "Spotify", "спотифай": "Spotify",
+            "vscode": "Visual Studio Code", "код": "Visual Studio Code", "vs code": "Visual Studio Code",
+            "code": "Visual Studio Code",
+            "calculator": "Calculator", "калькулятор": "Calculator",
+            "notes": "Notes", "заметки": "Notes", "блокнот": "TextEdit", "textedit": "TextEdit",
+            "terminal": "Terminal", "терминал": "Terminal",
+            "safari": "Safari", "сафари": "Safari",
+            "finder": "Finder", "файлы": "Finder",
+            "settings": "System Settings", "настройки": "System Settings", "параметры": "System Settings",
+            "яндекс": "Yandex", "яндекс браузер": "Yandex",
+            "яндекс музыка": "Yandex Music", "саундклауд": "SoundCloud", "sound cloud": "SoundCloud", "soundcloud": "SoundCloud"
+        }
+        target_mac = mac_aliases.get(clean_app, clean_app)
+        try:
+            res = subprocess.run(["open", "-a", target_mac], capture_output=True)
+            if res.returncode == 0:
+                return {"success": True, "launched": target_mac, "os": "mac"}
+        except Exception:
+            pass
+        # Check web fallback on macOS
+        target_key_check = APP_CANONICAL_KEYS.get(clean_app) or clean_app
+        if clean_app in WEB_SERVICE_FALLBACKS or target_key_check in WEB_SERVICE_FALLBACKS:
+            web_u = WEB_SERVICE_FALLBACKS.get(clean_app) or WEB_SERVICE_FALLBACKS.get(target_key_check)
+            open_url(web_u)
+            return {"success": True, "launched": f"{clean_app.title()} (веб-сервис)", "type": "web_service", "url": web_u}
+
+    # 1. Try bringing running window to foreground first (Windows & Mac)
+    try:
+        if activate_running_window(clean_app or app_lower):
+            return {"success": True, "launched": app_name, "type": "activated_window"}
+    except Exception:
+        pass
+
+    # 2. Protocol handlers
+    protocols = {
+        "telegram": "tg:", "телеграм": "tg:", "телега": "tg:", "тг": "tg:",
+        "discord": "discord:", "дискорд": "discord:",
+        "steam": "steam://open/main", "стим": "steam://open/main",
+        "spotify": "spotify:", "спотифай": "spotify:",
+        "settings": "ms-settings:", "настройки": "ms-settings:", "параметры": "ms-settings:"
+    }
+    for proto_k, proto_uri in protocols.items():
+        if proto_k == clean_app or proto_k == app_lower:
+            try:
+                os.startfile(proto_uri)
+                return {"success": True, "launched": app_name, "type": "protocol", "path": proto_uri}
+            except Exception:
+                pass
+
+    # 3. Dynamic Catalog Lookup (matches 300+ programs, shortcuts and PWAs on user's PC)
+    catalog = scan_all_installed_apps()
+    
+    # Check canonical mapping
+    target_key = APP_CANONICAL_KEYS.get(clean_app) or APP_CANONICAL_KEYS.get(app_lower)
+    
+    matched_path = None
+    if target_key and target_key in catalog:
+        matched_path = catalog[target_key]
+    elif clean_app in catalog:
+        matched_path = catalog[clean_app]
+    elif app_lower in catalog:
+        matched_path = catalog[app_lower]
+
+    # Substring / fuzzy search in catalog
+    if not matched_path:
+        no_space = re.sub(r'[^a-z0-9а-яё]', '', clean_app or app_lower)
+        for cat_k, cat_p in catalog.items():
+            cat_norm = re.sub(r'[^a-z0-9а-яё]', '', cat_k)
+            if target_key and (target_key == cat_k or target_key in cat_k):
+                matched_path = cat_p
+                break
+            if no_space and (no_space == cat_norm or no_space in cat_norm or cat_norm in no_space):
+                matched_path = cat_p
+                break
+
+    # 4. Built-in Windows System commands
+    system_execs = {
+        "calc": "calc.exe", "калькулятор": "calc.exe",
+        "notepad": "notepad.exe", "блокнот": "notepad.exe",
+        "mspaint": "mspaint.exe", "пейнт": "mspaint.exe",
+        "explorer": "explorer.exe", "проводник": "explorer.exe",
+        "taskmgr": "taskmgr.exe", "диспетчер": "taskmgr.exe",
+        "cmd": "cmd.exe", "powershell": "powershell.exe",
+        "chrome": "chrome.exe", "msedge": "msedge.exe"
+    }
+
+    if not matched_path:
+        for sys_k, sys_exe in system_execs.items():
+            if sys_k == clean_app or sys_k == app_lower or (target_key and target_key == sys_k):
+                matched_path = sys_exe
+                break
+
+    # 5. Execute resolved path using native Windows ShellExecute
+    if matched_path:
+        try:
+            os.startfile(matched_path)
+            return {"success": True, "launched": app_name, "type": "executable", "path": matched_path}
+        except Exception:
+            try:
+                if matched_path.endswith('.lnk'):
+                    subprocess.Popen(['explorer.exe', matched_path])
+                else:
+                    item_dir = os.path.dirname(matched_path) if os.path.isabs(matched_path) else None
+                    subprocess.Popen([matched_path], cwd=item_dir)
+                return {"success": True, "launched": app_name, "type": "executable", "path": matched_path}
+            except Exception as e:
+                return {"success": False, "error": f"Ошибка запуска {matched_path}: {e}"}
+
+    # 6. Web Service Fallback (SoundCloud, Spotify, Yandex Music, YouTube, Twitch, etc.)
+    # If desktop app is not installed, open the official web app seamlessly without error!
+    web_fallback = WEB_SERVICE_FALLBACKS.get(clean_app) or WEB_SERVICE_FALLBACKS.get(target_key or "") or WEB_SERVICE_FALLBACKS.get(app_lower)
+    if not web_fallback:
+        no_space = re.sub(r'[^a-z0-9а-яё]', '', clean_app)
+        web_fallback = WEB_SERVICE_FALLBACKS.get(no_space)
+
+    if web_fallback:
+        open_url(web_fallback)
+        return {"success": True, "launched": f"{clean_app.title()} (веб-сервис)", "type": "web_service", "url": web_fallback}
+
+    # 7. Direct Website / URL
+    if clean_app.startswith('http://') or clean_app.startswith('https://') or clean_app.endswith('.com') or clean_app.endswith('.ru'):
+        url = clean_app if clean_app.startswith('http') else f"https://{clean_app}"
+        try:
+            open_url(url)
+            return {"success": True, "launched": url, "type": "url"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    return {"success": False, "error": f"Приложение '{app_name}' не найдено на вашем компьютере"}
+
+# ─── IN-APP AUTOMATION: TYPING, HOTKEYS & KEY PRESSES ───────────
+def get_foreground_window_title() -> str:
+    """Returns the title of the current foreground Windows or macOS window."""
+    global _LAST_NON_ARGUS_HWND
+    if sys.platform == "darwin":
+        try:
+            script = 'tell application "System Events" to get name of first process whose frontmost is true'
+            res = subprocess.run(['osascript', '-e', script], capture_output=True, text=True, timeout=2)
+            return res.stdout.strip()
+        except Exception:
+            return ""
+    if not _HAS_WIN32GUI:
+        return ""
+    try:
+        hwnd = win32gui.GetForegroundWindow()
+        t = win32gui.GetWindowText(hwnd) or ""
+        if t:
+            tl = t.lower()
+            if not any(k in tl for k in ["argus", "vite", "electron"]):
+                _LAST_NON_ARGUS_HWND = hwnd
+        return t
+    except Exception:
+        return ""
+
+def focus_input_in_active_window(field_hint: Optional[str] = None):
+    """
+    Intelligently focuses the target text field or address bar in external apps and browsers.
+    Supports Windows and macOS.
+    """
+    if not _HAS_PYAUTOGUI:
+        return
+    title = get_foreground_window_title().lower()
+    hint = (field_hint or "").lower()
+    is_mac = sys.platform == "darwin"
+    mod_key = 'command' if is_mac else 'ctrl'
+
+    # Browser search bar / address bar
+    if any(b in title for b in ["chrome", "edge", "yandex", "firefox", "opera", "brave", "safari"]) or any(k in hint for k in ["поиск", "search", "сайт", "url", "строк", "адрес"]):
+        if any(k in hint for k in ["внутри", "страниц", "page", "inpage"]):
+            pyautogui.press('/')
+            time.sleep(0.08)
+        else:
+            pyautogui.hotkey(mod_key, 'l')
+            time.sleep(0.08)
+    elif any(m in title for m in ["telegram", "телеграм", "discord", "дискорд", "slack"]):
+        if any(k in hint for k in ["поиск", "search", "чат", "chat", "контакт", "contact"]):
+            pyautogui.press('esc')
+            time.sleep(0.05)
+            pyautogui.hotkey(mod_key, 'k')
+            time.sleep(0.12)
+        else:
+            pyautogui.press('esc')
+            time.sleep(0.05)
+
+def type_text(text: str, target_app: Optional[str] = None, field: Optional[str] = None) -> bool:
+    """
+    Types arbitrary Unicode text (Russian, English, symbols) into active window or specified target application
+    using clipboard + paste to avoid layout desynchronization.
+    If target_app is omitted and Argus is foreground, automatically switches to previous app first.
+    Supports Windows and macOS.
+    """
+    global _LAST_NON_ARGUS_HWND
+    if not _HAS_PYAUTOGUI:
+        return False
+    try:
+        is_mac = sys.platform == "darwin"
+        mod_key = 'command' if is_mac else 'ctrl'
+
+        if target_app:
+            if not activate_running_window(target_app):
+                launch_application(target_app)
+                time.sleep(1.3)
+            else:
+                time.sleep(0.35)
+        else:
+            # If Argus is currently the foreground window, don't type into Argus!
+            # Switch back to the previous external window via _LAST_NON_ARGUS_HWND or Alt+Tab / Cmd+Tab
+            curr_title = get_foreground_window_title().lower()
+            if any(k in curr_title for k in ["argus", "vite", "electron"]):
+                if not is_mac and _LAST_NON_ARGUS_HWND and _HAS_WIN32GUI and win32gui.IsWindow(_LAST_NON_ARGUS_HWND):
+                    force_foreground_window(_LAST_NON_ARGUS_HWND)
+                    time.sleep(0.3)
+                else:
+                    switch_key = 'command' if is_mac else 'alt'
+                    pyautogui.hotkey(switch_key, 'tab')
+                    time.sleep(0.25)
+
+        if field:
+            focus_input_in_active_window(field)
+            time.sleep(0.12)
+
+        pyperclip.copy(text)
+        time.sleep(0.06)
+        pyautogui.hotkey(mod_key, 'v')
+        return True
+    except Exception as e:
+        print("type_text error:", e)
+        return False
+
+def press_key(key_name: str) -> bool:
+    """Presses a single keyboard key (Enter, Esc, Tab, Space, Backspace, etc.)."""
+    if not _HAS_PYAUTOGUI:
+        return False
+    key_map = {
+        "enter": "enter", "ввод": "enter", "ентр": "enter",
+        "esc": "escape", "escape": "escape", "эскейп": "escape",
+        "tab": "tab", "таб": "tab",
+        "space": "space", "пробел": "space",
+        "backspace": "backspace", "бэкспейс": "backspace", "стереть": "backspace",
+        "delete": "delete", "делит": "delete",
+        "up": "up", "вверх": "up",
+        "down": "down", "вниз": "down",
+        "left": "left", "влево": "left",
+        "right": "right", "вправо": "right"
+    }
+    k = key_map.get(key_name.lower().strip(), key_name.lower().strip())
+    try:
+        pyautogui.press(k)
+        return True
+    except Exception as e:
+        print("press_key error:", e)
+        return False
+
+def send_hotkey(*keys: str) -> bool:
+    """
+    Sends keyboard shortcut with automatic cross-platform adaptation
+    (e.g. maps 'ctrl' -> 'command' on macOS, and 'cmd' -> 'ctrl' on Windows).
+    """
+    if not _HAS_PYAUTOGUI:
+        return False
+    try:
+        is_mac = sys.platform == "darwin"
+        adapted = []
+        for k in keys:
+            kl = k.lower().strip()
+            if is_mac:
+                if kl in ["ctrl", "control"]:
+                    adapted.append("command")
+                elif kl in ["win", "windows"]:
+                    adapted.append("command")
+                else:
+                    adapted.append(kl)
+            else:
+                if kl in ["cmd", "command"]:
+                    adapted.append("ctrl")
+                else:
+                    adapted.append(kl)
+        pyautogui.hotkey(*adapted)
+        return True
+    except Exception as e:
+        print("send_hotkey error:", e)
+        return False
+
+def click_mouse(x: Optional[int] = None, y: Optional[int] = None) -> bool:
+    """Clicks the mouse at current or specified coordinate."""
+    if not _HAS_PYAUTOGUI:
+        return False
+    try:
+        if x is not None and y is not None:
+            pyautogui.click(x, y)
+        else:
+            pyautogui.click()
+        return True
+    except Exception as e:
+        print("click_mouse error:", e)
+        return False
+
+# ─── CLOSE APPLICATION / KILL PROCESS ───────────────────────────
+def close_application(app_name: str) -> Dict[str, Any]:
+    """Close running Windows applications by process name."""
+    app_lower = app_name.lower().strip()
+    
+    target_procs = {
+        "telegram": ["telegram.exe"],
+        "телеграм": ["telegram.exe"],
+        "телега": ["telegram.exe"],
+        "discord": ["discord.exe"],
+        "дискорд": ["discord.exe"],
+        "chrome": ["chrome.exe"],
+        "хром": ["chrome.exe"],
+        "браузер": ["chrome.exe", "msedge.exe", "browser.exe"],
+        "steam": ["steam.exe"],
+        "стим": ["steam.exe"],
+        "spotify": ["spotify.exe"],
+        "спотифай": ["spotify.exe"],
+        "vscode": ["code.exe"],
+        "код": ["code.exe"],
+        "calculator": ["calculatorapp.exe", "calc.exe", "calculator.exe"],
+        "калькулятор": ["calculatorapp.exe", "calc.exe", "calculator.exe"],
+        "notepad": ["notepad.exe"],
+        "блокнот": ["notepad.exe"],
+        "paint": ["mspaint.exe"],
+        "пейнт": ["mspaint.exe"],
+        "диспетчер": ["taskmgr.exe"],
+        "task manager": ["taskmgr.exe"],
+    }
+    
+    targets = None
+    for key, proc_list in target_procs.items():
+        if key in app_lower or app_lower in key:
+            targets = proc_list
+            break
+            
+    if not targets:
+        targets = [app_lower + ".exe", app_lower]
+
+    killed = 0
+    # Method 1: psutil terminate
+    for p in psutil.process_iter(['name']):
+        try:
+            p_name = p.name().lower()
+            if any(t in p_name for t in targets):
+                p.terminate()
+                killed += 1
+        except Exception:
+            pass
+
+    # Method 2: Windows taskkill for stubborn or UWP apps
+    for t in targets:
+        proc_im = t if t.endswith(".exe") else f"{t}.exe"
+        try:
+            res = subprocess.run(f"taskkill /F /IM {proc_im} /T", shell=True, capture_output=True, timeout=2)
+            if res.returncode == 0:
+                killed += 1
+        except Exception:
+            pass
+
+    return {"success": killed > 0, "killed_count": killed, "app": app_name}
+
+def close_all_except(keep_apps: List[str]) -> Dict[str, Any]:
+    """Closes all user applications except specified ones."""
+    keep_lower = [k.lower().strip() for k in keep_apps]
+    apps_pool = [
+        ("telegram", ["telegram.exe"]),
+        ("discord", ["discord.exe"]),
+        ("chrome", ["chrome.exe", "msedge.exe"]),
+        ("steam", ["steam.exe"]),
+        ("spotify", ["spotify.exe"]),
+        ("vscode", ["code.exe"]),
+        ("calculator", ["calculatorapp.exe", "calc.exe"]),
+        ("notepad", ["notepad.exe"]),
+        ("paint", ["mspaint.exe"])
+    ]
+    closed = []
+    for app_id, proc_list in apps_pool:
+        # Check if should be kept
+        should_keep = any(k in app_id or app_id in k for k in keep_lower)
+        if not should_keep:
+            res = close_application(app_id)
+            if res.get("success"):
+                closed.append(app_id.capitalize())
+    return {"success": True, "closed": closed, "kept": keep_apps}
+
+# ─── EMPTY RECYCLE BIN ──────────────────────────────────────────
+def empty_recycle_bin() -> bool:
+    """Silently empty Trash / Recycle Bin."""
+    if sys.platform == "darwin":
+        try:
+            subprocess.run(["osascript", "-e", 'tell application "Finder" to empty trash'], check=False)
+            return True
+        except Exception as e:
+            print("Mac trash error:", e)
+            return False
+    try:
+        flags = 0x00000001 | 0x00000002 | 0x00000004
+        res = ctypes.windll.shell32.SHEmptyRecycleBinW(None, None, flags)
+        return res == 0
+    except Exception as e:
+        print("Recycle bin error:", e)
+        return False
+
+# ─── FOLDER OPENING ─────────────────────────────────────────────
+def open_folder(folder_name: str) -> bool:
+    """Open standard user folder."""
+    user_home = os.path.expanduser("~")
+    folder_map = {
+        "downloads": os.path.join(user_home, "Downloads"),
+        "загрузки": os.path.join(user_home, "Downloads"),
+        "desktop": os.path.join(user_home, "Desktop"),
+        "рабочий стол": os.path.join(user_home, "Desktop"),
+        "documents": os.path.join(user_home, "Documents"),
+        "документы": os.path.join(user_home, "Documents"),
+        "pictures": os.path.join(user_home, "Pictures"),
+        "изображения": os.path.join(user_home, "Pictures"),
+        "music": os.path.join(user_home, "Music"),
+        "музыка": os.path.join(user_home, "Music"),
+        "c": "C:\\" if sys.platform == "win32" else "/",
+        "диск c": "C:\\" if sys.platform == "win32" else "/"
+    }
+    target = folder_map.get(folder_name.lower().strip())
+    if target and os.path.exists(target):
+        if sys.platform == "darwin":
+            subprocess.Popen(["open", target])
+            return True
+        elif sys.platform == "win32":
+            os.startfile(target)
+            return True
+        else:
+            subprocess.Popen(["xdg-open", target])
+            return True
+    return False
+
+# ─── MEDIA PLAYBACK & MUSIC SERVICES ────────────────────────────
+def media_control(action: str) -> bool:
+    """Control system media playback with cross-platform support."""
+    action = action.lower()
+    if sys.platform == "darwin":
+        if any(k in action for k in ["stop", "стоп", "pause", "пауз", "выключи", "останови", "выруби"]):
+            script = '''
+            if application "Spotify" is running then
+                tell application "Spotify" to pause
+            else if application "Music" is running then
+                tell application "Music" to pause
+            end if
+            '''
+            try:
+                subprocess.run(["osascript", "-e", script], check=False)
+                return True
+            except Exception:
+                return False
+        elif any(k in action for k in ["play", "воспроизве", "продолжи", "играй"]):
+            script = '''
+            if application "Spotify" is running then
+                tell application "Spotify" to play
+            else if application "Music" is running then
+                tell application "Music" to play
+            end if
+            '''
+            try:
+                subprocess.run(["osascript", "-e", script], check=False)
+                return True
+            except Exception:
+                return False
+        elif any(k in action for k in ["next", "след", "скип"]):
+            script = '''
+            if application "Spotify" is running then
+                tell application "Spotify" to next track
+            else if application "Music" is running then
+                tell application "Music" to next track
+            end if
+            '''
+            try:
+                subprocess.run(["osascript", "-e", script], check=False)
+                return True
+            except Exception:
+                return False
+        elif any(k in action for k in ["prev", "пред", "back", "назад"]):
+            script = '''
+            if application "Spotify" is running then
+                tell application "Spotify" to previous track
+            else if application "Music" is running then
+                tell application "Music" to previous track
+            end if
+            '''
+            try:
+                subprocess.run(["osascript", "-e", script], check=False)
+                return True
+            except Exception:
+                return False
+        return False
+
+    if any(k in action for k in ["stop", "стоп"]):
+        _press_key(VK_MEDIA_STOP)
+        _press_key(VK_MEDIA_PLAY_PAUSE)
+    elif any(k in action for k in ["play", "pause", "пауз", "воспроизве", "выключи", "останови", "продолжи", "играй"]):
+        _press_key(VK_MEDIA_PLAY_PAUSE)
+    elif any(k in action for k in ["next", "след", "скип"]):
+        _press_key(VK_MEDIA_NEXT_TRACK)
+    elif any(k in action for k in ["prev", "пред", "back", "назад"]):
+        _press_key(VK_MEDIA_PREV_TRACK)
+    else:
+        return False
+    return True
+
+def play_music(service: str = "auto", query: str = "", playlist: str = "", action: str = "play") -> Dict[str, Any]:
+    """
+    Universal music controller with deep support for:
+    - Spotify (Спотифай)
+    - Yandex Music (Яндекс Музыка)
+    - SoundCloud (Саундклауд)
+    - VK Music (ВК Музыка)
+    - YouTube Music (Ютуб Музыка)
+    Handles play, pause, stop, next/prev track, search by song/artist, and playlists.
+    """
+    action = action.lower().strip()
+    service = (service or "auto").lower().strip()
+    query = (query or "").strip()
+    playlist = (playlist or "").strip()
+
+    # 1. Action: Pause / Stop / Turn off
+    if any(k in action for k in ["pause", "stop", "пауз", "выключи", "стоп", "останови", "выруби"]):
+        media_control("stop")
+        return {
+            "success": True,
+            "action": "pause",
+            "message": "Музыка поставлена на паузу."
+        }
+
+    # 2. Action: Next track
+    if any(k in action for k in ["next", "след", "скип"]):
+        media_control("next")
+        return {
+            "success": True,
+            "action": "next",
+            "message": "Включен следующий трек."
+        }
+
+    # 3. Action: Previous track
+    if any(k in action for k in ["prev", "пред", "назад"]):
+        media_control("prev")
+        return {
+            "success": True,
+            "action": "prev",
+            "message": "Включен предыдущий трек."
+        }
+
+    # 4. Action: Resume without query/playlist
+    if not query and not playlist and any(k in action for k in ["resume", "возобнови", "продолжи", "сними с паузы"]):
+        media_control("play")
+        return {
+            "success": True,
+            "action": "resume",
+            "message": "Воспроизведение музыки продолжено."
+        }
+
+    # 5. Determine Target Music Platform
+    if any(k in service for k in ["спотифай", "spotify"]):
+        target_service = "spotify"
+        service_label = "Spotify"
+    elif any(k in service for k in ["яндекс", "yandex", "я.музыка", "ямузыка"]):
+        target_service = "yandex"
+        service_label = "Яндекс Музыке"
+    elif any(k in service for k in ["саундклауд", "саунд", "soundcloud"]):
+        target_service = "soundcloud"
+        service_label = "SoundCloud"
+    elif any(k in service for k in ["вк", "vk"]):
+        target_service = "vk"
+        service_label = "VK Музыке"
+    elif any(k in service for k in ["ютуб", "youtube", "yt"]):
+        target_service = "youtube"
+        service_label = "YouTube Music"
+    else:
+        # Auto service resolution: check if Spotify desktop app is running
+        spotify_running = False
+        try:
+            for p in psutil.process_iter(['name']):
+                if "spotify" in (p.name() or "").lower():
+                    spotify_running = True
+                    break
+        except Exception:
+            pass
+
+        if spotify_running:
+            target_service = "spotify"
+            service_label = "Spotify"
+        else:
+            target_service = "yandex"
+            service_label = "Яндекс Музыке"
+
+    target_url = ""
+    app_to_launch = ""
+    encoded_search = urllib.parse.quote_plus(playlist or query)
+
+    if target_service == "spotify":
+        app_to_launch = "spotify"
+        if playlist:
+            target_url = f"https://open.spotify.com/search/{encoded_search}/playlists"
+        elif query:
+            target_url = f"https://open.spotify.com/search/{encoded_search}"
+        else:
+            target_url = "https://open.spotify.com"
+
+    elif target_service == "yandex":
+        if playlist:
+            target_url = f"https://music.yandex.ru/search?text={encoded_search}&type=playlists"
+        elif query:
+            target_url = f"https://music.yandex.ru/search?text={encoded_search}"
+        else:
+            target_url = "https://music.yandex.ru"
+
+    elif target_service == "soundcloud":
+        if playlist:
+            target_url = f"https://soundcloud.com/search/sets?q={encoded_search}"
+        elif query:
+            target_url = f"https://soundcloud.com/search?q={encoded_search}"
+        else:
+            target_url = "https://soundcloud.com"
+
+    elif target_service == "vk":
+        if playlist or query:
+            target_url = f"https://vk.com/audio"
+        else:
+            target_url = "https://vk.com/music"
+
+    elif target_service == "youtube":
+        if playlist:
+            target_url = f"https://music.youtube.com/search?q={encoded_search}"
+        elif query:
+            target_url = f"https://music.youtube.com/search?q={encoded_search}"
+        else:
+            target_url = "https://music.youtube.com"
+
+    # Launch desktop app if available (for generic play without query) or open target URL
+    desktop_launched = False
+    if app_to_launch and not playlist and not query:
+        res = launch_application(app_to_launch)
+        if res.get("success"):
+            desktop_launched = True
+            time.sleep(0.8)
+            _press_key(VK_MEDIA_PLAY_PAUSE)
+
+    if not desktop_launched and target_url:
+        open_url(target_url)
+
+    if playlist:
+        resp_msg = f"Открыт плейлист «{playlist}» в {service_label}."
+    elif query:
+        resp_msg = f"Включен поиск и воспроизведение «{query}» в {service_label}."
+    else:
+        resp_msg = f"Запущена музыка в {service_label}."
+
+    return {
+        "success": True,
+        "service": target_service,
+        "query": query,
+        "playlist": playlist,
+        "action": action,
+        "url": target_url,
+        "message": resp_msg
+    }
+
+# ─── POWER & WORKSTATION ────────────────────────────────────────
+def lock_workstation() -> bool:
+    """Lock the computer (cross-platform)."""
+    if sys.platform == "darwin":
+        try:
+            subprocess.run(["pmset", "displaysleepnow"], check=False)
+            return True
+        except Exception:
+            return False
+    try:
+        ctypes.windll.user32.LockWorkStation()
+        return True
+    except Exception:
+        return False
+
+def system_power(action: str) -> bool:
+    """Manage system power states (cross-platform)."""
+    action = action.lower()
+    if sys.platform == "darwin":
+        if "reboot" in action or "restart" in action or "перезагруз" in action:
+            subprocess.Popen(["osascript", "-e", 'tell application "System Events" to restart'])
+            return True
+        elif "shutdown" in action or "выключ" in action or "отключ" in action:
+            subprocess.Popen(["osascript", "-e", 'tell application "System Events" to shut down'])
+            return True
+        elif "sleep" in action or "сон" in action or "спящ" in action:
+            subprocess.Popen(["pmset", "sleepnow"])
+            return True
+        return False
+
+    if "reboot" in action or "restart" in action or "перезагруз" in action:
+        subprocess.Popen("shutdown /r /t 5", shell=True)
+        return True
+    elif "shutdown" in action or "выключ" in action or "отключ" in action:
+        subprocess.Popen("shutdown /s /t 10", shell=True)
+        return True
+    elif "cancel" in action or "отмен" in action:
+        subprocess.Popen("shutdown /a", shell=True)
+        return True
+    elif "sleep" in action or "сон" in action or "спящ" in action:
+        subprocess.Popen("rundll32.exe powrprof.dll,SetSuspendState 0,1,0", shell=True)
+        return True
+    return False
+
+def get_user_settings() -> Dict[str, Any]:
+    try:
+        import backend.app_paths as app_paths
+        settings_file = app_paths.get_data_file_path("user_settings.json")
+    except Exception:
+        settings_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "user_settings.json")
+    if os.path.exists(settings_file):
+        try:
+            with open(settings_file, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+def open_url(url: str, browser: Optional[str] = None) -> bool:
+    """Open website in user-selected default browser or system default."""
+    if not url.startswith("http://") and not url.startswith("https://"):
+        url = "https://" + url
+
+    target_browser = browser
+    if not target_browser:
+        settings = get_user_settings()
+        target_browser = settings.get("default_browser", "auto")
+
+    if target_browser and target_browser != "auto":
+        browsers = detect_installed_browsers()
+        matched = next((b for b in browsers if b["id"].lower() == target_browser.lower() or b["name"].lower() == target_browser.lower()), None)
+        if matched and os.path.exists(matched.get("path", "")):
+            if sys.platform == "darwin":
+                try:
+                    subprocess.Popen(["open", "-a", matched["path"], url])
+                    return True
+                except Exception:
+                    pass
+            else:
+                try:
+                    subprocess.Popen([matched["path"], url])
+                    return True
+                except Exception:
+                    pass
+
+    # Fallback to default
+    if sys.platform == "darwin":
+        try:
+            subprocess.Popen(["open", url])
+            return True
+        except Exception:
+            pass
+    webbrowser.open(url)
+    return True
+
+# ─── HARDWARE TELEMETRY ─────────────────────────────────────────
+def get_system_stats() -> Dict[str, Any]:
+    """Retrieve full system hardware health and metrics."""
+    cpu_percent = psutil.cpu_percent(interval=0.1)
+    cpu_freq = psutil.cpu_freq()
+    vm = psutil.virtual_memory()
+    disk_path = "/" if sys.platform != "win32" else "C:\\"
+    try:
+        disk = psutil.disk_usage(disk_path)
+    except Exception:
+        disk = psutil.disk_usage(os.path.expanduser("~"))
+    battery = psutil.sensors_battery()
+    
+    battery_info = None
+    if battery:
+        battery_info = {
+            "percent": int(battery.percent),
+            "power_plugged": battery.power_plugged,
+            "secsleft": battery.secsleft if battery.secsleft != psutil.POWER_TIME_UNLIMITED else None
+        }
+
+    return {
+        "cpu": {
+            "percent": cpu_percent,
+            "cores": psutil.cpu_count(logical=True),
+            "freq_mhz": int(cpu_freq.current) if cpu_freq else 0
+        },
+        "memory": {
+            "total_gb": round(vm.total / (1024**3), 1),
+            "used_gb": round(vm.used / (1024**3), 1),
+            "free_gb": round(vm.available / (1024**3), 1),
+            "percent": vm.percent
+        },
+        "disk": {
+            "total_gb": round(disk.total / (1024**3), 1),
+            "used_gb": round(disk.used / (1024**3), 1),
+            "free_gb": round(disk.free / (1024**3), 1),
+            "percent": disk.percent
+        },
+        "battery": battery_info,
+        "volume": get_volume(),
+        "brightness": get_brightness()
+    }
+
+# ─── BROWSER TAB & WEBSITE INTERACTION ────────────────────────────
+def close_browser_tab() -> bool:
+    """Closes active browser tab (Ctrl+W on Windows/Linux, Cmd+W on macOS)."""
+    if _HAS_PYAUTOGUI:
+        try:
+            if sys.platform == "darwin":
+                pyautogui.hotkey('command', 'w')
+            else:
+                pyautogui.hotkey('ctrl', 'w')
+            return True
+        except Exception as e:
+            print("close_browser_tab error:", e)
+    return False
+
+def new_browser_tab() -> bool:
+    """Opens a new browser tab (Ctrl+T on Windows/Linux, Cmd+T on macOS)."""
+    if _HAS_PYAUTOGUI:
+        try:
+            if sys.platform == "darwin":
+                pyautogui.hotkey('command', 't')
+            else:
+                pyautogui.hotkey('ctrl', 't')
+            return True
+        except Exception:
+            pass
+    return False
+
+def refresh_browser_page() -> bool:
+    """Refreshes the current web page (F5 / Ctrl+R)."""
+    if _HAS_PYAUTOGUI:
+        try:
+            pyautogui.hotkey('ctrl', 'r')
+            return True
+        except Exception:
+            pass
+    return False
+
+def switch_browser_tab(direction: str = "next") -> bool:
+    """Switches to next or previous browser tab."""
+    if _HAS_PYAUTOGUI:
+        try:
+            if direction == "prev":
+                pyautogui.hotkey('ctrl', 'shift', 'tab')
+            else:
+                pyautogui.hotkey('ctrl', 'tab')
+            return True
+        except Exception:
+            pass
+    return False
+
+def scroll_browser_page(direction: str = "down") -> bool:
+    """Scrolls active page up or down."""
+    if _HAS_PYAUTOGUI:
+        try:
+            amount = -650 if direction == "down" else 650
+            pyautogui.scroll(amount)
+            return True
+        except Exception:
+            pass
+    return False
+
+def click_website_button(button_name: str) -> bool:
+    """
+    Interacts with active browser page to find and click a button or link by text.
+    Brings browser window to front, searches for element text via Ctrl+F, and activates it.
+    """
+    if not _HAS_PYAUTOGUI or not button_name:
+        return False
+    try:
+        # 1. Bring running browser to front
+        for b_name in ["chrome", "edge", "yandex", "opera", "firefox", "brave", "vivaldi"]:
+            if activate_running_window(b_name):
+                time.sleep(0.4)
+                break
+
+        # 2. Focus browser inline search (Ctrl+F)
+        pyautogui.hotkey('ctrl', 'f')
+        time.sleep(0.2)
+
+        # 3. Copy and paste button text via clipboard
+        clean_btn = button_name.strip()
+        pyperclip.copy(clean_btn)
+        time.sleep(0.05)
+        pyautogui.hotkey('ctrl', 'v')
+        time.sleep(0.25)
+
+        # 4. Hit Enter to scroll element into view & highlight
+        pyautogui.press('enter')
+        time.sleep(0.2)
+
+        # 5. Dismiss search box while keeping element active
+        pyautogui.press('escape')
+        time.sleep(0.15)
+
+        # 6. Click/activate the focused button or link
+        pyautogui.press('enter')
+        time.sleep(0.2)
+        return True
+    except Exception as e:
+        print("click_website_button error:", e)
+        return False
+
+# ─── CROSS-PLATFORM TERMINAL COMMAND RUNNER ───────────────────────
+def detect_system_os() -> str:
+    """Returns detected operating system ('windows', 'macos', or 'linux')."""
+    if sys.platform.startswith('win'):
+        return 'windows'
+    elif sys.platform == 'darwin':
+        return 'macos'
+    elif sys.platform.startswith('linux'):
+        return 'linux'
+    return 'unknown'
+
+def execute_terminal_command(command: str, shell_type: Optional[str] = None, timeout: int = 30) -> Dict[str, Any]:
+    """
+    Safely executes terminal commands cross-platform:
+    - Windows: PowerShell or CMD
+    - macOS: Bash or Zsh
+    - Linux: Bash
+    Returns stdout, stderr, execution time, and exit code.
+    """
+    os_name = detect_system_os()
+    start_time = time.time()
+
+    # ─── ADVANCED SECURITY GUARD: CATASTROPHIC COMMAND INTERCEPTOR ───
+    dangerous_patterns = [
+        r"\bformat\s+[a-z]:",
+        r"\bformat-volume\b",
+        r"\brmdir\s+/[sS]\s+/[qQ]\s+[cC]:\\",
+        r"\bdel\s+/[fF]\s+/[sS]\s+/[qQ]\s+[cC]:\\(windows|system32)?",
+        r"\brm\s+-(rf|fr|r)\s+(/|/\*|~|\$HOME)",
+        r"\bmkfs\b",
+        r"\bdd\s+if=.*of=/dev/[sh]d",
+        r":\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;\s*:",
+    ]
+    norm_cmd = command.strip().lower()
+    for pat in dangerous_patterns:
+        if re.search(pat, norm_cmd):
+            return {
+                "success": False,
+                "exit_code": 403,
+                "output": "",
+                "error": "Команда заблокирована встроенной защитой Argus Guard: обнаружена деструктивная операция.",
+                "duration_ms": 0,
+                "os": os_name
+            }
+    
+    cmd_args: List[str] = []
+    if os_name == "windows":
+        chosen_shell = (shell_type or "powershell").lower()
+        if chosen_shell == "cmd":
+            cmd_args = ["cmd.exe", "/c", command]
+        else:
+            cmd_args = ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command]
+    elif os_name == "macos":
+        chosen_shell = (shell_type or "zsh").lower()
+        shell_bin = "/bin/zsh" if chosen_shell == "zsh" else "/bin/bash"
+        cmd_args = [shell_bin, "-c", command]
+    else: # Linux
+        cmd_args = ["/bin/bash", "-c", command]
+
+    try:
+        proc = subprocess.run(
+            cmd_args,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+        )
+        duration_ms = int((time.time() - start_time) * 1000)
+        return {
+            "success": proc.returncode == 0,
+            "exit_code": proc.returncode,
+            "output": proc.stdout.strip() if proc.stdout else "",
+            "error": proc.stderr.strip() if proc.stderr else "",
+            "duration_ms": duration_ms,
+            "os": os_name
+        }
+    except subprocess.TimeoutExpired:
+        return {
+            "success": False,
+            "exit_code": -1,
+            "output": "",
+            "error": f"Превышено время ожидания выполнения команды ({timeout}s)",
+            "duration_ms": int((time.time() - start_time) * 1000),
+            "os": os_name
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "exit_code": -1,
+            "output": "",
+            "error": str(e),
+            "duration_ms": int((time.time() - start_time) * 1000),
+            "os": os_name
+        }
+
+# ─── FILE & FOLDER AUTOMATION ────────────────────────────────────
+def resolve_file_path(path_str: str) -> str:
+    """Resolves natural language or relative paths to real absolute Windows paths."""
+    s = path_str.strip().strip('"\'«»')
+    user_home = os.path.expanduser('~')
+    desktop = os.path.join(user_home, 'Desktop')
+    downloads = os.path.join(user_home, 'Downloads')
+    documents = os.path.join(user_home, 'Documents')
+
+    s_lower = s.lower()
+    if 'рабоч' in s_lower or 'desktop' in s_lower:
+        base = desktop
+    elif 'загруз' in s_lower or 'download' in s_lower:
+        base = downloads
+    elif 'документ' in s_lower or 'document' in s_lower:
+        base = documents
+    else:
+        base = desktop
+
+    # Clean location words from filename
+    clean_name = re.sub(r'^(?:на\s+рабочем\s+столе|на\s+рабочий\s+стол|в\s+загрузках|в\s+загрузки|в\s+документах|в\s+папке|в\s+папку)\s+', '', s, flags=re.IGNORECASE).strip()
+    clean_name = re.sub(r'\s+(?:на\s+рабочем\s+столе|на\s+рабочий\s+стол|в\s+загрузках|в\s+загрузки|в\s+документах)$', '', clean_name, flags=re.IGNORECASE).strip()
+
+    if os.path.isabs(clean_name):
+        return os.path.normpath(clean_name)
+    return os.path.normpath(os.path.join(base, clean_name))
+
+def create_file(target: str, content: str = "") -> Dict[str, Any]:
+    try:
+        path = resolve_file_path(target)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
+        return {"success": True, "path": path, "name": os.path.basename(path), "size": len(content)}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+def create_folder(target: str) -> Dict[str, Any]:
+    try:
+        path = resolve_file_path(target)
+        os.makedirs(path, exist_ok=True)
+        return {"success": True, "path": path, "name": os.path.basename(path)}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+def delete_file_or_folder(target: str) -> Dict[str, Any]:
+    try:
+        path = resolve_file_path(target)
+        norm = os.path.normpath(path).lower()
+        if norm in ["c:\\", "c:", "c:\\windows", "c:\\program files", "c:\\users"]:
+            return {"success": False, "error": "Запрещено удалять системные директории"}
+        if not os.path.exists(path):
+            return {"success": False, "error": f"Файл или папка '{os.path.basename(path)}' не найдены"}
+        if os.path.isdir(path):
+            shutil.rmtree(path)
+        else:
+            os.remove(path)
+        return {"success": True, "path": path, "name": os.path.basename(path)}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+def analyze_file(target: str) -> Dict[str, Any]:
+    try:
+        path = resolve_file_path(target)
+        if not os.path.exists(path):
+            return {"success": False, "error": f"Файл '{os.path.basename(path)}' не найден"}
+        size_bytes = os.path.getsize(path)
+        ext = os.path.splitext(path)[1].lower()
+        content_preview = ""
+        lines_count = 0
+        if size_bytes < 2 * 1024 * 1024:
+            try:
+                with open(path, "r", encoding="utf-8", errors="replace") as f:
+                    lines = f.readlines()
+                    lines_count = len(lines)
+                    content_preview = "".join(lines[:30])
+            except Exception:
+                pass
+        return {
+            "success": True,
+            "path": path,
+            "name": os.path.basename(path),
+            "size_kb": round(size_bytes / 1024, 2),
+            "ext": ext,
+            "lines": lines_count,
+            "preview": content_preview
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+def list_folder_files(target: str = "desktop") -> Dict[str, Any]:
+    try:
+        path = resolve_file_path(target)
+        if not os.path.exists(path):
+            return {"success": False, "error": "Папка не найдена"}
+        items = os.listdir(path)
+        files = []
+        dirs = []
+        for item in items[:40]:
+            fp = os.path.join(path, item)
+            if os.path.isdir(fp):
+                dirs.append(item)
+            else:
+                files.append(item)
+        return {"success": True, "path": path, "folder_name": os.path.basename(path), "files": files, "folders": dirs, "total": len(items)}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+

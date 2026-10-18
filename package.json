@@ -1,0 +1,142 @@
+{
+  "name": "argus-ai",
+  "version": "2.0.0",
+  "description": "Argus AI",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev:vite": "vite",
+    "dev:electron": "electron .",
+    "dev:py": "python -m uvicorn backend.server:app --host 127.0.0.1 --port 18274",
+    "dev": "concurrently -k -n \"VITE,ELECTRON\" -c \"cyan,green\" \"npm run dev:vite\" \"npm run dev:electron\"",
+    "build": "vite build",
+    "build:frontend": "vite build",
+    "build:backend": "pyinstaller --noconfirm --onedir --name argus-backend --distpath backend-dist run_backend.py",
+    "dist:win": "npm run build:frontend && npm run build:backend && electron-builder --win",
+    "dist:mac": "npm run build:frontend && npm run build:backend && electron-builder --mac",
+    "dist": "npm run build:frontend && npm run build:backend && electron-builder",
+    "start": "electron ."
+  },
+  "build": {
+    "appId": "com.argus.ai",
+    "productName": "Argus AI",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "backend-dist",
+        "to": "backend-dist",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "backend",
+        "to": "backend",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "run_backend.py",
+        "to": "run_backend.py"
+      },
+      {
+        "from": ".env",
+        "to": ".env"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Argus AI"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "category": "public.app-category.productivity",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false
+    },
+    "dmg": {
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ],
+      "window": {
+        "width": 540,
+        "height": 380
+      }
+    }
+  },
+  "keywords": [
+    "ai",
+    "argus",
+    "desktop-assistant",
+    "electron",
+    "react",
+    "python"
+  ],
+  "author": "Argus AI Team",
+  "license": "ISC",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.118.0",
+    "canvas-confetti": "^1.9.4",
+    "lucide-react": "^1.57.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/canvas-confetti": "^1.9.0",
+    "@types/node": "^26.6.5",
+    "@vitejs/plugin-react": "^6.1.2",
+    "concurrently": "^10.0.6",
+    "cross-env": "^10.1.0",
+    "electron": "^44.7.2",
+    "electron-builder": "^26.15.3",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4",
+    "wait-on": "^9.5.1"
+  }
+}
