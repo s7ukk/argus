@@ -21,7 +21,8 @@ import {
   deleteChatSession,
   renameChatSession,
   fetchMessages,
-  sendChatMessage
+  sendChatMessage,
+  API_BASE
 } from './api';
 import { VoiceAssistant } from './utils/voice';
 import './styles/globals.css';
@@ -298,7 +299,7 @@ export const App: React.FC = () => {
         if (res.audio_base64) {
           voiceAssistantRef.current.playBase64Audio(res.audio_base64, res.reply);
         } else {
-          fetch('http://127.0.0.1:18274/api/voice/tts', {
+          fetch(`${API_BASE}/voice/tts`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

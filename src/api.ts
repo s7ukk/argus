@@ -1,6 +1,7 @@
 import { UserProfile, ChatSession, ChatMessage, SystemStats, Scenario } from './types';
 
-const API_BASE = 'http://127.0.0.1:18274/api';
+export const CLOUD_SERVER_URL = 'http://153.52.69.55:18274';
+export const API_BASE = `${CLOUD_SERVER_URL}/api`;
 
 export async function verifyKey(keyCode: string): Promise<UserProfile> {
   try {

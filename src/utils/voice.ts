@@ -1,3 +1,5 @@
+import { API_BASE } from '../api';
+
 export class VoiceAssistant {
   private isListening = false;
   private isSpeaking = false;
@@ -206,7 +208,7 @@ export class VoiceAssistant {
       const wavBase64 = this.encodeWAV(downsampled, 16000);
 
       // Send to FastAPI STT endpoint
-      const res = await fetch('http://127.0.0.1:18274/api/voice/stt', {
+      const res = await fetch(`${API_BASE}/voice/stt`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ audio_base64: wavBase64 })
@@ -342,7 +344,7 @@ export class VoiceAssistant {
     this.isSpeaking = false;
     this.onSpeakingChange(false);
     try {
-      fetch('http://127.0.0.1:18274/api/voice/stop', { method: 'POST' }).catch(() => {});
+      fetch(`${API_BASE}/voice/stop`, { method: 'POST' }).catch(() => {});
     } catch (e) {}
   }
 
@@ -526,7 +528,7 @@ export class VoiceAssistant {
       const downsampled = this.downsampleBuffer(merged, inputRate, 16000);
       const wavB64 = this.encodeWAV(downsampled, 16000);
 
-      const res = await fetch('http://127.0.0.1:18274/api/voice/wake-check', {
+      const res = await fetch(`${API_BASE}/voice/wake-check`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

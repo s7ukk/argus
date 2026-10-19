@@ -121,25 +121,40 @@ function sanitizeLog(data) {
   return str;
 }
 
-async function checkBackendRunning() {
+const CLOUD_HEALTH_URL = 'http://153.52.69.55:18274/api/health';
+
+async function checkCloudServerRunning() {
   try {
-    const res = await fetch('http://127.0.0.1:18274/api/health', { signal: AbortSignal.timeout(800) });
+    const res = await fetch(CLOUD_HEALTH_URL, { signal: AbortSignal.timeout(1500) });
     return res.ok;
   } catch {
     return false;
   }
 }
 
+async function checkBackendRunning() {
+  return await checkCloudServerRunning();
+}
+
 async function startPythonBackend() {
-  const isRunning = await checkBackendRunning();
-  if (isRunning) {
-    logApp('[Argus]: Python backend already running and healthy on port 18274.');
+  const isCloudOk = await checkCloudServerRunning();
+  if (isCloudOk) {
+    logApp('[Argus]: Central Cloud API verified online at http://153.52.69.55:18274.');
+  }
+
+  // On macOS, run purely in cloud client mode directly to central server
+  if (process.platform === 'darwin') {
+    logApp('[Argus]: macOS client mode active — connecting directly to central cloud server.');
     return;
   }
 
   try {
     const cfg = getBackendConfig();
-    logApp(`[Argus]: Spawning backend: ${cfg.command} (args: ${JSON.stringify(cfg.args)})`);
+    logApp(`[Argus]: Spawning local backend: ${cfg.command} (args: ${JSON.stringify(cfg.args)})`);
+
+    if (process.platform !== 'win32' && cfg.isBinary) {
+      try { fs.chmodSync(cfg.command, 0o755); } catch {}
+    }
 
     pythonProcess = spawn(cfg.command, cfg.args, {
       cwd: cfg.cwd,
