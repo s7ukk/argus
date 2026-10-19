@@ -3,21 +3,28 @@ import { UserProfile, ChatSession, ChatMessage, SystemStats, Scenario } from './
 const API_BASE = 'http://127.0.0.1:18274/api';
 
 export async function verifyKey(keyCode: string): Promise<UserProfile> {
-  const res = await fetch(`${API_BASE}/auth/verify-key`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ key_code: keyCode }),
-    signal: AbortSignal.timeout(6000)
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: 'Ошибка проверки ключа' }));
-    const error: any = new Error(err.detail || 'Неверный ключ доступа');
-    if (res.status === 403 || res.status === 401) {
-      error.isInvalidKey = true;
+  try {
+    const res = await fetch(`${API_BASE}/auth/verify-key`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key_code: keyCode }),
+      signal: AbortSignal.timeout(8000)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Ошибка проверки ключа' }));
+      const error: any = new Error(err.detail || 'Неверный ключ доступа');
+      if (res.status === 403 || res.status === 401) {
+        error.isInvalidKey = true;
+      }
+      throw error;
     }
-    throw error;
+    return res.json();
+  } catch (err: any) {
+    if (err.name === 'AbortError' || err.message?.includes('timeout') || err.message?.includes('timed out')) {
+      throw new Error('Сервер проверки ключей не отвечает. Проверьте интернет или введите ключ повторно.');
+    }
+    throw err;
   }
-  return res.json();
 }
 
 export async function fetchCurrentSession(): Promise<UserProfile | null> {
