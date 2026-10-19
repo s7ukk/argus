@@ -163,8 +163,8 @@ export const App: React.FC = () => {
   const loadChats = async (keyCode: string) => {
     try {
       const list = await fetchChats(keyCode);
-      setChats(list);
-      if (list.length > 0) {
+      if (list && list.length > 0) {
+        setChats(list);
         setActiveChatId(list[0].id);
         loadMessages(list[0].id);
       } else {
@@ -173,7 +173,18 @@ export const App: React.FC = () => {
         setActiveChatId(newChat.id);
         setMessages([]);
       }
-    } catch (e) { console.error('Failed to load chats:', e); }
+    } catch (e) {
+      console.error('Failed to load chats:', e);
+      const fallbackChat: ChatSession = {
+        id: 'local-' + Date.now(),
+        title: 'Основной диалог',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      setChats([fallbackChat]);
+      setActiveChatId(fallbackChat.id);
+      setMessages([]);
+    }
   };
 
   const loadMessages = async (chatId: string) => {

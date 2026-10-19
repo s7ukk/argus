@@ -1,10 +1,11 @@
 import os
 import time
 import asyncio
-import aiohttp
 import json
 import uuid
-from typing import Optional, List, Dict, Any
+import urllib.request
+import urllib.error
+from typing import Optional, List, Dict, Any, Tuple
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 
@@ -81,31 +82,54 @@ def _save_disk_storage():
 
 _load_disk_storage()
 
+def _sync_http_request(method: str, url: str, data: Optional[dict] = None, headers: Optional[dict] = None, timeout: float = 3.5) -> Tuple[int, Any]:
+    try:
+        req_headers = {"User-Agent": "Argus/2.0"}
+        if headers:
+            req_headers.update(headers)
+        
+        req_body = None
+        if data is not None:
+            req_body = json.dumps(data).encode("utf-8")
+            req_headers["Content-Type"] = "application/json"
+        
+        req = urllib.request.Request(url, data=req_body, headers=req_headers, method=method)
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            code = resp.status
+            raw = resp.read().decode("utf-8")
+            try:
+                parsed = json.loads(raw)
+            except Exception:
+                parsed = raw
+            return code, parsed
+    except urllib.error.HTTPError as e:
+        raw = e.read().decode("utf-8")
+        try:
+            parsed = json.loads(raw)
+        except Exception:
+            parsed = raw
+        return e.code, parsed
+    except Exception as e:
+        return 0, str(e)
+
+async def _cloud_request(method: str, path: str, data: Optional[dict] = None, headers: Optional[dict] = None, timeout: float = 3.5) -> Tuple[int, Any]:
+    if not CLOUD_URL:
+        return 0, None
+    url = f"{CLOUD_URL}{path}"
+    return await asyncio.to_thread(_sync_http_request, method, url, data, headers, timeout)
+
 async def verify_access_key(key_code: str) -> Dict[str, Any]:
     key_code = key_code.strip()
     if key_code in _VERIFIED_KEYS_CACHE:
         return _VERIFIED_KEYS_CACHE[key_code]
     
     if CLOUD_URL:
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    f"{CLOUD_URL}/api/auth/verify-key",
-                    json={"key_code": key_code},
-                    timeout=aiohttp.ClientTimeout(total=4)
-                ) as resp:
-                    if resp.status == 200:
-                        data = await resp.json()
-                        _VERIFIED_KEYS_CACHE[key_code] = data
-                        return data
-                    elif resp.status in (401, 403):
-                        try:
-                            err_data = await resp.json()
-                            return {"valid": False, "error": err_data.get("detail", "Недействительный ключ доступа")}
-                        except Exception:
-                            return {"valid": False, "error": "Недействительный ключ доступа"}
-        except Exception:
-            pass
+        status, data = await _cloud_request("POST", "/api/auth/verify-key", data={"key_code": key_code}, timeout=3.5)
+        if status == 200 and isinstance(data, dict) and data.get("valid"):
+            _VERIFIED_KEYS_CACHE[key_code] = data
+            return data
+        elif status in (401, 403) and isinstance(data, dict):
+            return {"valid": False, "error": data.get("detail", "Недействительный ключ доступа")}
 
     return {"valid": False, "error": "Не удалось проверить ключ. Проверьте интернет-соединение."}
 
@@ -118,20 +142,17 @@ async def update_user_profile(key_code: str, display_name: str, voice_enabled: b
 
     if CLOUD_URL:
         async def _bg_sync():
-            try:
-                async with aiohttp.ClientSession() as session:
-                    await session.post(
-                        f"{CLOUD_URL}/api/profile/update",
-                        json={
-                            "key_code": key_code,
-                            "display_name": display_name,
-                            "voice_enabled": voice_enabled,
-                            "voice_speed": voice_speed
-                        },
-                        timeout=aiohttp.ClientTimeout(total=5)
-                    )
-            except Exception:
-                pass
+            await _cloud_request(
+                "POST",
+                "/api/profile/update",
+                data={
+                    "key_code": key_code,
+                    "display_name": display_name,
+                    "voice_enabled": voice_enabled,
+                    "voice_speed": voice_speed
+                },
+                timeout=4.0
+            )
         asyncio.create_task(_bg_sync())
     return True
 
@@ -141,20 +162,12 @@ async def list_chats(key_code: str) -> List[Dict[str, Any]]:
         return _LOCAL_CHATS[key_code]
 
     if CLOUD_URL:
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    f"{CLOUD_URL}/api/chats",
-                    headers={"X-Argus-Key": key_code},
-                    timeout=aiohttp.ClientTimeout(total=3)
-                ) as resp:
-                    if resp.status == 200:
-                        chats = await resp.json()
-                        _LOCAL_CHATS[key_code] = chats
-                        _save_disk_storage()
-                        return chats
-        except Exception:
-            pass
+        status, chats = await _cloud_request("GET", "/api/chats", headers={"X-Argus-Key": key_code}, timeout=3.0)
+        if status == 200 and isinstance(chats, list):
+            _LOCAL_CHATS[key_code] = chats
+            _save_disk_storage()
+            return chats
+
     return _LOCAL_CHATS.get(key_code, [])
 
 async def create_chat(key_code: str, title: str = "Новый диалог") -> Dict[str, Any]:
@@ -174,20 +187,16 @@ async def create_chat(key_code: str, title: str = "Новый диалог") -> 
 
     if CLOUD_URL:
         async def _bg_create():
-            try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.post(
-                        f"{CLOUD_URL}/api/chats/create",
-                        json={"key_code": key_code, "title": title},
-                        timeout=aiohttp.ClientTimeout(total=4)
-                    ) as resp:
-                        if resp.status == 200:
-                            data = await resp.json()
-                            if key_code in _LOCAL_CHATS and _LOCAL_CHATS[key_code]:
-                                _LOCAL_CHATS[key_code][0] = data
-                                _save_disk_storage()
-            except Exception:
-                pass
+            status, data = await _cloud_request(
+                "POST",
+                "/api/chats/create",
+                data={"key_code": key_code, "title": title},
+                timeout=4.0
+            )
+            if status == 200 and isinstance(data, dict):
+                if key_code in _LOCAL_CHATS and _LOCAL_CHATS[key_code]:
+                    _LOCAL_CHATS[key_code][0] = data
+                    _save_disk_storage()
         asyncio.create_task(_bg_create())
     return new_chat
 
@@ -204,15 +213,12 @@ async def update_chat_title(chat_id: str, key_code: str, new_title: str) -> bool
 
     if CLOUD_URL:
         async def _bg_rename():
-            try:
-                async with aiohttp.ClientSession() as session:
-                    await session.patch(
-                        f"{CLOUD_URL}/api/chats/{chat_id}",
-                        json={"key_code": key_code, "title": new_title},
-                        timeout=aiohttp.ClientTimeout(total=4)
-                    )
-            except Exception:
-                pass
+            await _cloud_request(
+                "PATCH",
+                f"/api/chats/{chat_id}",
+                data={"key_code": key_code, "title": new_title},
+                timeout=4.0
+            )
         asyncio.create_task(_bg_rename())
     return True
 
@@ -225,15 +231,12 @@ async def delete_chat(chat_id: str, key_code: str) -> bool:
 
     if CLOUD_URL:
         async def _bg_delete():
-            try:
-                async with aiohttp.ClientSession() as session:
-                    await session.delete(
-                        f"{CLOUD_URL}/api/chats/{chat_id}",
-                        headers={"X-Argus-Key": key_code},
-                        timeout=aiohttp.ClientTimeout(total=4)
-                    )
-            except Exception:
-                pass
+            await _cloud_request(
+                "DELETE",
+                f"/api/chats/{chat_id}",
+                headers={"X-Argus-Key": key_code},
+                timeout=4.0
+            )
         asyncio.create_task(_bg_delete())
     return True
 
@@ -242,19 +245,12 @@ async def get_messages(chat_id: str) -> List[Dict[str, Any]]:
         return _LOCAL_MESSAGES[chat_id]
 
     if CLOUD_URL:
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    f"{CLOUD_URL}/api/chats/{chat_id}/messages",
-                    timeout=aiohttp.ClientTimeout(total=3)
-                ) as resp:
-                    if resp.status == 200:
-                        msgs = await resp.json()
-                        _LOCAL_MESSAGES[chat_id] = msgs
-                        _save_disk_storage()
-                        return msgs
-        except Exception:
-            pass
+        status, msgs = await _cloud_request("GET", f"/api/chats/{chat_id}/messages", timeout=3.0)
+        if status == 200 and isinstance(msgs, list):
+            _LOCAL_MESSAGES[chat_id] = msgs
+            _save_disk_storage()
+            return msgs
+
     return _LOCAL_MESSAGES.get(chat_id, [])
 
 async def save_message(chat_id: str, role: str, content: str, action_type: Optional[str] = None, action_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -276,20 +272,17 @@ async def save_message(chat_id: str, role: str, content: str, action_type: Optio
 
     if CLOUD_URL:
         async def _bg_save():
-            try:
-                async with aiohttp.ClientSession() as session:
-                    await session.post(
-                        f"{CLOUD_URL}/api/chats/{chat_id}/messages",
-                        json={
-                            "role": role,
-                            "content": content,
-                            "action_type": action_type,
-                            "action_data": action_data
-                        },
-                        timeout=aiohttp.ClientTimeout(total=5)
-                    )
-            except Exception:
-                pass
+            await _cloud_request(
+                "POST",
+                f"/api/chats/{chat_id}/messages",
+                data={
+                    "role": role,
+                    "content": content,
+                    "action_type": action_type,
+                    "action_data": action_data
+                },
+                timeout=4.0
+            )
         asyncio.create_task(_bg_save())
 
     return msg

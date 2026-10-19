@@ -6,7 +6,8 @@ export async function verifyKey(keyCode: string): Promise<UserProfile> {
   const res = await fetch(`${API_BASE}/auth/verify-key`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ key_code: keyCode })
+    body: JSON.stringify({ key_code: keyCode }),
+    signal: AbortSignal.timeout(6000)
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Ошибка проверки ключа' }));
@@ -24,7 +25,10 @@ export async function fetchCurrentSession(): Promise<UserProfile | null> {
     const key = localStorage.getItem('argus_access_key') || '';
     const headers: Record<string, string> = {};
     if (key) headers['X-Argus-Key'] = key;
-    const res = await fetch(`${API_BASE}/auth/session`, { headers });
+    const res = await fetch(`${API_BASE}/auth/session`, {
+      headers,
+      signal: AbortSignal.timeout(2000)
+    });
     if (res.ok) {
       const data = await res.json();
       if (data && data.valid) return data;
@@ -35,7 +39,7 @@ export async function fetchCurrentSession(): Promise<UserProfile | null> {
 
 export async function logoutSession(): Promise<void> {
   try {
-    await fetch(`${API_BASE}/auth/logout`, { method: 'POST' });
+    await fetch(`${API_BASE}/auth/logout`, { method: 'POST', signal: AbortSignal.timeout(2000) });
   } catch (e) {}
 }
 
@@ -51,7 +55,8 @@ export async function updateProfile(keyCode: string, displayName: string, voiceE
       display_name: displayName,
       voice_enabled: voiceEnabled,
       voice_speed: voiceSpeed
-    })
+    }),
+    signal: AbortSignal.timeout(5000)
   });
   if (!res.ok) throw new Error('Ошибка обновления профиля');
   return res.json();
@@ -62,7 +67,8 @@ export async function fetchChats(keyCode: string): Promise<ChatSession[]> {
     headers: {
       'Content-Type': 'application/json',
       'X-Argus-Key': keyCode
-    }
+    },
+    signal: AbortSignal.timeout(4000)
   });
   if (!res.ok) throw new Error('Ошибка загрузки чатов');
   return res.json();
@@ -75,7 +81,8 @@ export async function createChatSession(keyCode: string, title = 'Новый д�
       'Content-Type': 'application/json',
       'X-Argus-Key': keyCode
     },
-    body: JSON.stringify({ key_code: keyCode, title })
+    body: JSON.stringify({ key_code: keyCode, title }),
+    signal: AbortSignal.timeout(4000)
   });
   if (!res.ok) throw new Error('Ошибка создания чата');
   return res.json();

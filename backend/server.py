@@ -11,38 +11,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List, Union
 
-if sys.platform == "win32":
-    try:
-        from asyncio.proactor_events import _ProactorBasePipeTransport
-        _orig_call_connection_lost = _ProactorBasePipeTransport._call_connection_lost
-
-        def _safe_call_connection_lost(self, exc):
-            if self._called_connection_lost:
-                return
-            try:
-                self._protocol.connection_lost(exc)
-            finally:
-                if hasattr(self._sock, 'shutdown') and self._sock.fileno() != -1:
-                    try:
-                        self._sock.shutdown(socket.SHUT_RDWR)
-                    except (ConnectionResetError, OSError):
-                        pass
-                try:
-                    if self._sock is not None:
-                        self._sock.close()
-                except (ConnectionResetError, OSError):
-                    pass
-                self._sock = None
-                server = self._server
-                if server is not None:
-                    server._detach(self)
-                    self._server = None
-                self._called_connection_lost = True
-
-        _ProactorBasePipeTransport._call_connection_lost = _safe_call_connection_lost
-    except Exception:
-        pass
-
 import backend.db as db
 import backend.system_control as sc
 import backend.voice as voice_engine
