@@ -577,8 +577,6 @@ async def ai_chat(req: ChatMessageRequest):
         ver = local_s
     elif req.key_code in db._VERIFIED_KEYS_CACHE:
         ver = db._VERIFIED_KEYS_CACHE[req.key_code]
-    elif req.key_code in [db.ADMIN_KEY, db.VIP_KEY]:
-        ver = {"valid": True, "display_name": "Повелитель", "voice_enabled": True}
     else:
         try:
             ver = await db.verify_access_key(req.key_code)

@@ -15,8 +15,6 @@ if os.path.exists(_env_file):
     load_dotenv(_env_file)
 
 CLOUD_URL = os.getenv("ARGUS_CLOUD_URL", "http://153.52.69.55:18274").rstrip('/')
-ADMIN_KEY = os.getenv("ARGUS_ADMIN_KEY", "ARGUS-ADMIN-SUPER-KEY")
-VIP_KEY = os.getenv("ARGUS_VIP_KEY", "ARGUS-ULTIMATE-2026-VIP")
 
 import backend.app_paths as app_paths
 
@@ -31,116 +29,8 @@ def is_valid_uuid(val: Any) -> bool:
     except (ValueError, AttributeError, TypeError):
         return False
 
-_VERIFIED_KEYS_CACHE: Dict[str, Dict[str, Any]] = {
-    ADMIN_KEY: {
-        "valid": True,
-        "key_code": ADMIN_KEY,
-        "tier": "Argus Founder Tier",
-        "assigned_to": "Повелитель",
-        "display_name": "Повелитель",
-        "voice_enabled": True,
-        "voice_speed": 1.0,
-        "theme": "black-purple",
-        "expires_at": "2030-01-01T00:00:00+00:00",
-        "days_left": 3650
-    },
-    VIP_KEY: {
-        "valid": True,
-        "key_code": VIP_KEY,
-        "tier": "Argus Ultimate VIP",
-        "assigned_to": "VIP Пользователь",
-        "display_name": "VIP Пользователь",
-        "voice_enabled": True,
-        "voice_speed": 1.0,
-        "theme": "black-purple",
-        "expires_at": "2027-01-01T00:00:00+00:00",
-        "days_left": 365
-    },
-    "ARGUS-JARVIS-2026-VIP": {
-        "valid": True,
-        "key_code": "ARGUS-JARVIS-2026-VIP",
-        "tier": "Argus Ultimate Jarvis VIP",
-        "assigned_to": "VIP Пользователь",
-        "display_name": "VIP Пользователь",
-        "voice_enabled": True,
-        "voice_speed": 1.0,
-        "theme": "black-purple",
-        "expires_at": "2027-01-01T00:00:00+00:00",
-        "days_left": 365
-    },
-    "ARGUS-DEV-ACCESS-KEY": {
-        "valid": True,
-        "key_code": "ARGUS-DEV-ACCESS-KEY",
-        "tier": "Developer Pro Access",
-        "assigned_to": "Разработчик",
-        "display_name": "Разработчик",
-        "voice_enabled": True,
-        "voice_speed": 1.0,
-        "theme": "black-purple",
-        "expires_at": "2028-01-01T00:00:00+00:00",
-        "days_left": 730
-    },
-    "ARGUS-TRIAL-30DAYS": {
-        "valid": True,
-        "key_code": "ARGUS-TRIAL-30DAYS",
-        "tier": "Argus AI 30-Day Pass",
-        "assigned_to": "Гость",
-        "display_name": "Гость",
-        "voice_enabled": True,
-        "voice_speed": 1.0,
-        "theme": "black-purple",
-        "expires_at": "2026-12-01T00:00:00+00:00",
-        "days_left": 45
-    },
-    "JESSE-ADMIN-SUPER-KEY": {
-        "valid": True,
-        "key_code": "JESSE-ADMIN-SUPER-KEY",
-        "tier": "Argus Founder Tier",
-        "assigned_to": "Повелитель",
-        "display_name": "Повелитель",
-        "voice_enabled": True,
-        "voice_speed": 1.0,
-        "theme": "black-purple",
-        "expires_at": "2030-01-01T00:00:00+00:00",
-        "days_left": 3650
-    },
-    "JESSE-JARVIS-2026-VIP": {
-        "valid": True,
-        "key_code": "JESSE-JARVIS-2026-VIP",
-        "tier": "Argus Ultimate Jarvis VIP",
-        "assigned_to": "VIP Пользователь",
-        "display_name": "VIP Пользователь",
-        "voice_enabled": True,
-        "voice_speed": 1.0,
-        "theme": "black-purple",
-        "expires_at": "2027-01-01T00:00:00+00:00",
-        "days_left": 365
-    },
-    "JESSE-DEV-ACCESS-KEY": {
-        "valid": True,
-        "key_code": "JESSE-DEV-ACCESS-KEY",
-        "tier": "Developer Pro Access",
-        "assigned_to": "Разработчик",
-        "display_name": "Разработчик",
-        "voice_enabled": True,
-        "voice_speed": 1.0,
-        "theme": "black-purple",
-        "expires_at": "2028-01-01T00:00:00+00:00",
-        "days_left": 730
-    },
-    "JESSE-TRIAL-30DAYS": {
-        "valid": True,
-        "key_code": "JESSE-TRIAL-30DAYS",
-        "tier": "Argus AI 30-Day Pass",
-        "assigned_to": "Гость",
-        "display_name": "Гость",
-        "voice_enabled": True,
-        "voice_speed": 1.0,
-        "theme": "black-purple",
-        "expires_at": "2026-12-01T00:00:00+00:00",
-        "days_left": 45
-    }
-}
+# Dynamic runtime cache (empty by default; populated strictly via central cloud server response)
+_VERIFIED_KEYS_CACHE: Dict[str, Dict[str, Any]] = {}
 
 _LOCAL_CHATS: Dict[str, List[Dict[str, Any]]] = {}
 _LOCAL_MESSAGES: Dict[str, List[Dict[str, Any]]] = {}
