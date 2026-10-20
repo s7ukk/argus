@@ -12,8 +12,13 @@ export const Header: React.FC<HeaderProps> = ({
   const [isMac, setIsMac] = useState(false);
 
   useEffect(() => {
-    const isDarwin = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
-    setIsMac(isDarwin);
+    const electronIsMac = (window as any).electronAPI?.isMac;
+    if (typeof electronIsMac === 'boolean') {
+      setIsMac(electronIsMac);
+    } else {
+      const isDarwin = typeof navigator !== 'undefined' && (/Mac|iPod|iPhone|iPad/.test(navigator.platform) || /Mac/i.test(navigator.userAgent));
+      setIsMac(isDarwin);
+    }
   }, []);
 
   const handleMinimize = () => {

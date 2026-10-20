@@ -14,7 +14,11 @@ def get_argus_data_dir() -> str:
     try:
         os.makedirs(target, exist_ok=True)
     except Exception:
-        target = os.path.dirname(os.path.abspath(__file__))
+        target = os.path.expanduser("~/.argus")
+        try:
+            os.makedirs(target, exist_ok=True)
+        except Exception:
+            target = os.path.expanduser("~")
     return target
 
 def get_data_file_path(filename: str) -> str:
@@ -28,5 +32,5 @@ def get_data_file_path(filename: str) -> str:
             try:
                 shutil.copy2(legacy_path, target_path)
             except Exception:
-                return legacy_path
+                pass
     return target_path

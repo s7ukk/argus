@@ -61,6 +61,31 @@ VK_MEDIA_PLAY_PAUSE = 0xB3
 KEYEVENTF_EXTENDEDKEY = 0x0001
 KEYEVENTF_KEYUP = 0x0002
 
+def universal_open_target(target: str) -> bool:
+    """Universally opens a file, protocol, or application path across Windows, macOS, and Linux."""
+    if sys.platform == "darwin":
+        try:
+            subprocess.Popen(["open", target])
+            return True
+        except Exception:
+            return False
+    elif sys.platform == "win32":
+        try:
+            os.startfile(target)
+            return True
+        except Exception:
+            try:
+                subprocess.Popen(["explorer.exe", target])
+                return True
+            except Exception:
+                return False
+    else:
+        try:
+            subprocess.Popen(["xdg-open", target])
+            return True
+        except Exception:
+            return False
+
 def _press_key(vk_code: int):
     if sys.platform == "win32":
         try:
@@ -803,11 +828,8 @@ def launch_application(app_name: str) -> Dict[str, Any]:
     }
     for proto_k, proto_uri in protocols.items():
         if proto_k == clean_app or proto_k == app_lower:
-            try:
-                os.startfile(proto_uri)
+            if universal_open_target(proto_uri):
                 return {"success": True, "launched": app_name, "type": "protocol", "path": proto_uri}
-            except Exception:
-                pass
 
     # 3. Dynamic Catalog Lookup (matches 300+ programs, shortcuts and PWAs on user's PC)
     catalog = scan_all_installed_apps()
@@ -852,14 +874,13 @@ def launch_application(app_name: str) -> Dict[str, Any]:
                 matched_path = sys_exe
                 break
 
-    # 5. Execute resolved path using native Windows ShellExecute
+    # 5. Execute resolved path using native ShellExecute or open
     if matched_path:
-        try:
-            os.startfile(matched_path)
+        if universal_open_target(matched_path):
             return {"success": True, "launched": app_name, "type": "executable", "path": matched_path}
-        except Exception:
+        else:
             try:
-                if matched_path.endswith('.lnk'):
+                if matched_path.endswith('.lnk') and sys.platform == "win32":
                     subprocess.Popen(['explorer.exe', matched_path])
                 else:
                     item_dir = os.path.dirname(matched_path) if os.path.isabs(matched_path) else None

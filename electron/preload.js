@@ -7,5 +7,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openExternal: (url) => ipcRenderer.send('open-external', url),
   takeScreenshot: () => ipcRenderer.invoke('take-desktop-screenshot'),
   onVoiceSunderTrigger: (cb) => ipcRenderer.on('voice-sunder-trigger', cb),
-  isElectron: true
+  isElectron: true,
+  isMac: process.platform === 'darwin',
+  platform: process.platform
 });

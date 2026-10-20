@@ -334,6 +334,59 @@ async function loadApp(window) {
   }
 }
 
+let ipcHandlersRegistered = false;
+
+function registerIpcHandlers() {
+  if (ipcHandlersRegistered) return;
+  ipcHandlersRegistered = true;
+
+  ipcMain.on('window-minimize', () => {
+    if (mainWindow) mainWindow.minimize();
+  });
+
+  ipcMain.on('window-maximize', () => {
+    if (mainWindow) {
+      if (mainWindow.isMaximized()) {
+        mainWindow.unmaximize();
+      } else {
+        mainWindow.maximize();
+      }
+    }
+  });
+
+  ipcMain.on('window-close', () => {
+    if (mainWindow) mainWindow.close();
+  });
+
+  ipcMain.on('open-external', (e, url) => {
+    if (url && (url.startsWith('https://') || url.startsWith('http://'))) {
+      shell.openExternal(url);
+    }
+  });
+
+  try {
+    ipcMain.removeHandler('take-desktop-screenshot');
+  } catch {}
+
+  ipcMain.handle('take-desktop-screenshot', async () => {
+    try {
+      const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 1920, height: 1080 } });
+      if (sources.length > 0) {
+        const image = sources[0].thumbnail;
+        const now = new Date();
+        const pad = (n) => String(n).padStart(2, '0');
+        const dateStr = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+        const desktopPath = path.join(app.getPath('desktop'), `screenshot_${dateStr}.png`);
+        fs.writeFileSync(desktopPath, image.toPNG());
+        return { success: true, path: desktopPath };
+      }
+    } catch (e) {
+      logApp(`[Argus Screenshot error]: ${e.message}`);
+    }
+    return { success: false };
+  });
+}
+
 function createWindow() {
   const isMac = process.platform === 'darwin';
   mainWindow = new BrowserWindow({
@@ -364,49 +417,6 @@ function createWindow() {
   });
 
   loadApp(mainWindow);
-
-  // Window IPC handlers
-  ipcMain.on('window-minimize', () => {
-    if (mainWindow) mainWindow.minimize();
-  });
-
-  ipcMain.on('window-maximize', () => {
-    if (mainWindow) {
-      if (mainWindow.isMaximized()) {
-        mainWindow.unmaximize();
-      } else {
-        mainWindow.maximize();
-      }
-    }
-  });
-
-  ipcMain.on('window-close', () => {
-    if (mainWindow) mainWindow.close();
-  });
-
-  ipcMain.on('open-external', (e, url) => {
-    if (url && (url.startsWith('https://') || url.startsWith('http://'))) {
-      shell.openExternal(url);
-    }
-  });
-
-  ipcMain.handle('take-desktop-screenshot', async () => {
-    try {
-      const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 1920, height: 1080 } });
-      if (sources.length > 0) {
-        const image = sources[0].thumbnail;
-        const now = new Date();
-        const pad = (n) => String(n).padStart(2, '0');
-        const dateStr = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-        const desktopPath = path.join(app.getPath('desktop'), `screenshot_${dateStr}.png`);
-        fs.writeFileSync(desktopPath, image.toPNG());
-        return { success: true, path: desktopPath };
-      }
-    } catch (e) {
-      console.error('Screenshot capture error:', e);
-    }
-    return { success: false };
-  });
 
   // Pipe all frontend logs and errors directly to the persistent runtime log
   mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
@@ -458,6 +468,7 @@ app.whenReady().then(async () => {
     }
   }
 
+  registerIpcHandlers();
   await startPythonBackend();
   createWindow();
 
