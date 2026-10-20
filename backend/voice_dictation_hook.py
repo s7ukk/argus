@@ -37,7 +37,10 @@ def _run_listener():
             print(f"[Argus Dictation Hook]: Failed to load user32 on Windows: {e}")
 
     VK_CONTROL = 0x11
+    VK_LCONTROL = 0xA2
+    VK_RCONTROL = 0xA3
     kCGEventFlagMaskControl = 0x00040000
+    kCGEventFlagMaskCommand = 0x00100000
 
     last_ctrl_down_time = 0.0
     ctrl_was_down = False
@@ -50,10 +53,15 @@ def _run_listener():
             if is_mac:
                 if cg:
                     flags = cg.CGEventSourceFlagsState(0)
-                    is_ctrl_down = bool(flags & kCGEventFlagMaskControl)
+                    # Support double Control or double Command on macOS
+                    is_ctrl_down = bool((flags & kCGEventFlagMaskControl) or (flags & kCGEventFlagMaskCommand))
             else:
                 if user32:
-                    is_ctrl_down = bool(user32.GetAsyncKeyState(VK_CONTROL) & 0x8000)
+                    is_ctrl_down = bool(
+                        (user32.GetAsyncKeyState(VK_CONTROL) & 0x8000) or
+                        (user32.GetAsyncKeyState(VK_LCONTROL) & 0x8000) or
+                        (user32.GetAsyncKeyState(VK_RCONTROL) & 0x8000)
+                    )
         except Exception:
             is_ctrl_down = False
 
@@ -61,16 +69,16 @@ def _run_listener():
         # On key press transition (up -> down)
         if is_ctrl_down and not ctrl_was_down:
             diff = now - last_ctrl_down_time
-            # Double tap interval between 80ms and 450ms
-            if 0.08 <= diff <= 0.45:
-                print(f"[Argus Dictation Hook]: Double-Ctrl detected (interval: {diff*1000:.1f}ms)! Triggering voice dictation...")
+            # Forgiving human double tap interval between 50ms and 650ms
+            if 0.05 <= diff <= 0.65:
+                print(f"[Argus Dictation Hook]: Double-Ctrl/Cmd detected (interval: {diff*1000:.1f}ms)! Triggering voice dictation...")
                 _DICTATION_EVENT.set()
                 last_ctrl_down_time = 0.0
             else:
                 last_ctrl_down_time = now
 
         ctrl_was_down = is_ctrl_down
-        time.sleep(0.015)
+        time.sleep(0.012)
 
 def start_dictation_hook():
     global _HOOK_THREAD, _RUNNING

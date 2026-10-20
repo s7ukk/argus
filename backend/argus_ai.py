@@ -77,6 +77,15 @@ def execute_single_action(act: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]
         else:
             return f"Не удалось открыть {app_disp}: {res.get('error', 'приложение не найдено')}", "launch_app", res
 
+    elif act_type == "close_active_window":
+        if sys.platform == "darwin":
+            subprocess.run(["osascript", "-e", 'tell application "System Events" to keystroke "w" using {command down}'], capture_output=True)
+        else:
+            if sc._HAS_PYAUTOGUI:
+                import pyautogui
+                pyautogui.hotkey('alt', 'f4')
+        return "Активное окно закрыто", "close_active_window", {}
+
     elif act_type == "close_app":
         app = act.get("app", "")
         res = sc.close_application(app)
@@ -539,11 +548,11 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
     ]):
         if any(k in c for k in ["ютуб", "youtube", "саундклауд", "soundcloud", "вкладку", "страницу", "сайт"]):
             return {"type": "close_browser_tab"}
+        if any(k in c for k in ["приложение", "программу", "окно", "текущее", "this window", "this app"]):
+            return {"type": "close_active_window"}
         for app_alias, app_canonical in APP_MAP.items():
             if app_alias in c:
                 return {"type": "close_app", "app": app_canonical}
-        if "вкладки" in c or "окно" in c:
-            return {"type": "close_app", "app": "chrome"}
 
     # 3. Recycle Bin
     if any(k in c for k in [

@@ -283,16 +283,16 @@ def execute_autonomous_messenger_task(messenger: str, contact: str, message: str
     if ss1: screenshots.append(ss1)
 
     if not is_tg_username:
-        # Step 2: Search for contact in search bar
-        search_shortcut = "Cmd+K" if IS_MAC else "Ctrl+K"
-        add_step(f"Визуальный поиск интерфейса: активация поисковой строки (`{search_shortcut}`).")
+        # Step 2: Search for contact in search bar (Ctrl+F / Cmd+F universal messenger search)
+        search_shortcut = "Cmd+F" if IS_MAC else "Ctrl+F"
+        add_step(f"Активация поисковой строки интерфейса (`{search_shortcut}`).")
         send_key_native("escape")
-        time.sleep(0.2)
+        time.sleep(0.25)
         if IS_MAC:
-            send_hotkey_native("cmd", "k")
+            send_hotkey_native("cmd", "f")
         else:
-            send_hotkey_native("ctrl", "k")
-        time.sleep(0.3)
+            send_hotkey_native("ctrl", "f")
+        time.sleep(0.35)
 
         ss2 = capture_step_screenshot("02_search_focused", run_dir)
         if ss2: screenshots.append(ss2)

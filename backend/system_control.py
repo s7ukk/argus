@@ -1,3 +1,4 @@
+import threading
 import os
 import sys
 import re
@@ -673,24 +674,26 @@ def activate_running_window(app_query: str) -> bool:
     browser_aliases = ["chrome", "edge", "yandex", "opera", "firefox", "brave", "vivaldi"]
     target_aliases = WINDOW_TITLE_ALIASES.get(query, [query])
 
-    # Connect thread to active user desktop
-    try:
-        hDesk = ctypes.windll.user32.OpenInputDesktop(0, False, 0x01FF)
-        if hDesk:
-            ctypes.windll.user32.SetThreadDesktop(hDesk)
-    except Exception:
-        pass
-
-    # Use pure ctypes EnumWindows to avoid pywin32 EnumWindows callback exceptions on Windows
     try:
         from ctypes import wintypes
         WNDENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
-        def enum_cb_ctypes(hwnd, _):
-            length = ctypes.windll.user32.GetWindowTextLengthW(hwnd)
-            if length > 0:
+
+        def worker_scan():
+            try:
+                hDesk = ctypes.windll.user32.OpenInputDesktop(0, False, 0x01FF)
+                if hDesk:
+                    ctypes.windll.user32.SetThreadDesktop(hDesk)
+            except Exception:
+                pass
+
+            def enum_cb_ctypes(hwnd, _):
+                length = ctypes.windll.user32.GetWindowTextLengthW(hwnd)
                 buff = ctypes.create_unicode_buffer(length + 1)
-                ctypes.windll.user32.GetWindowTextW(hwnd, buff, length + 1)
+                if length > 0:
+                    ctypes.windll.user32.GetWindowTextW(hwnd, buff, length + 1)
                 title = buff.value.lower()
+
+                # 1. Match by window title
                 if query in ["браузер", "browser", "интернет"]:
                     if any(b in title for b in browser_aliases):
                         found_hwnds.append(hwnd)
@@ -698,13 +701,36 @@ def activate_running_window(app_query: str) -> bool:
                 elif any(alias in title for alias in target_aliases):
                     found_hwnds.append(hwnd)
                     return False
-                elif query in title or title.startswith(query):
+                elif title and (query in title or title.startswith(query)):
                     found_hwnds.append(hwnd)
                     return False
-            return True
 
-        cb_proc = WNDENUMPROC(enum_cb_ctypes)
-        ctypes.windll.user32.EnumWindows(cb_proc, 0)
+                # 2. Match by process name for Telegram and other apps whose title changes dynamically
+                if ctypes.windll.user32.IsWindowVisible(hwnd):
+                    pid = wintypes.DWORD()
+                    ctypes.windll.user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+                    if pid.value > 0:
+                        try:
+                            pname = psutil.Process(pid.value).name().lower()
+                            if query in ["telegram", "телеграм", "телега", "тг"] and pname == "telegram.exe":
+                                cls_buff = ctypes.create_unicode_buffer(256)
+                                ctypes.windll.user32.GetClassNameW(hwnd, cls_buff, 256)
+                                if "Qt" in cls_buff.value and "Icon" in cls_buff.value:
+                                    found_hwnds.append(hwnd)
+                                    return False
+                            elif query in ["discord", "дискорд"] and "discord" in pname:
+                                found_hwnds.append(hwnd)
+                                return False
+                        except Exception:
+                            pass
+                return True
+
+            cb_proc = WNDENUMPROC(enum_cb_ctypes)
+            ctypes.windll.user32.EnumWindows(cb_proc, 0)
+
+        t_scan = threading.Thread(target=worker_scan)
+        t_scan.start()
+        t_scan.join(timeout=1.5)
     except Exception:
         pass
 
@@ -1250,6 +1276,18 @@ def close_application(app_name: str) -> Dict[str, Any]:
             pass
         return {"success": closed, "killed_count": 1 if closed else 0, "app": target_mac}
 
+    if not app_name or not app_lower or len(app_lower) < 2:
+        return {"success": False, "error": "Не указано приложение для закрытия"}
+
+    # If generic "приложение" or "окно", close the active foreground window only!
+    if app_lower in ["приложение", "программу", "софт", "окно", "active_window"]:
+        if sys.platform == "darwin":
+            subprocess.run(["osascript", "-e", 'tell application "System Events" to keystroke "w" using {command down}'], capture_output=True)
+        else:
+            if _HAS_PYAUTOGUI:
+                pyautogui.hotkey('alt', 'f4')
+        return {"success": True, "app": "active_window", "action": "close_active_window"}
+
     target_procs = {
         "telegram": ["telegram.exe"],
         "телеграм": ["telegram.exe"],
@@ -1277,19 +1315,27 @@ def close_application(app_name: str) -> Dict[str, Any]:
     
     targets = None
     for key, proc_list in target_procs.items():
-        if key in app_lower or app_lower in key:
+        if key == app_lower or f" {key} " in f" {app_lower} ":
             targets = proc_list
             break
             
     if not targets:
-        targets = [app_lower + ".exe", app_lower]
+        if len(app_lower) >= 3 and app_lower not in ["exe", "app", "com"]:
+            targets = [app_lower if app_lower.endswith(".exe") else f"{app_lower}.exe"]
+        else:
+            return {"success": False, "error": "Некорректное имя приложения"}
+
+    # Strict non-empty target check - never kill everything!
+    targets = [t.lower() for t in targets if t and len(t) >= 3 and t.lower() not in ["", ".exe", "exe"]]
+    if not targets:
+        return {"success": False, "error": "Не найдено приложение для закрытия"}
 
     killed = 0
-    # Method 1: psutil terminate
+    # Method 1: psutil terminate with exact name matching
     for p in psutil.process_iter(['name']):
         try:
             p_name = p.name().lower()
-            if any(t in p_name for t in targets):
+            if any(t == p_name for t in targets):
                 p.terminate()
                 killed += 1
         except Exception:
@@ -1297,9 +1343,8 @@ def close_application(app_name: str) -> Dict[str, Any]:
 
     # Method 2: Windows taskkill for stubborn or UWP apps
     for t in targets:
-        proc_im = t if t.endswith(".exe") else f"{t}.exe"
         try:
-            res = subprocess.run(f"taskkill /F /IM {proc_im} /T", shell=True, capture_output=True, timeout=2)
+            res = subprocess.run(f"taskkill /F /IM {t} /T", shell=True, capture_output=True, timeout=2)
             if res.returncode == 0:
                 killed += 1
         except Exception:

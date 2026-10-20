@@ -52,3 +52,7 @@ Thumbs.db
 *.njsproj
 *.sln
 *.sw?
+scratch/
+cloud_server_vps.py
+gh_run_logs.txt
+

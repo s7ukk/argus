@@ -352,8 +352,8 @@ export const App: React.FC = () => {
       setMessages((prev) => [...prev, asstMsg]);
       setStreamingMessageId(asstMsg.id);
 
-      // Client-Side Action Execution Guarantee
-      if (res.action_type) {
+      // Client-Side Action Execution Guarantee (Only for remote Cloud server responses)
+      if (res.action_type && (res as any).is_cloud) {
         try {
           if (res.action_type === 'open_url' && res.action_data?.url) {
             launchApp(res.action_data.url).catch(() => {});

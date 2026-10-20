@@ -230,6 +230,9 @@ export class VoiceAssistant {
         if (data.success && data.transcript && data.transcript.trim()) {
           const transcript = data.transcript.trim();
           if (this.isDictating) {
+            if ((window as any).electronAPI?.updateDictationHud) {
+              (window as any).electronAPI.updateDictationHud({ success: true, text: transcript });
+            }
             try {
               await fetch(`${LOCAL_SERVER_URL}/api/plugins/voice-sunder/dictate`, {
                 method: 'POST',
@@ -248,6 +251,9 @@ export class VoiceAssistant {
           }
         } else {
           if (this.isDictating) {
+            if ((window as any).electronAPI?.hideDictationHud) {
+              (window as any).electronAPI.hideDictationHud();
+            }
             window.dispatchEvent(new CustomEvent('argus_dictation_state', {
               detail: { active: false, success: false }
             }));
@@ -269,6 +275,9 @@ export class VoiceAssistant {
       await this.stopListening();
     }
     this.isDictating = true;
+    if ((window as any).electronAPI?.showDictationHud) {
+      (window as any).electronAPI.showDictationHud();
+    }
     this.playWakeChime();
     window.dispatchEvent(new CustomEvent('argus_dictation_state', {
       detail: { active: true, status: 'listening' }

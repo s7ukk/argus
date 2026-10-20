@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, session, desktopCapturer, globalShortcut } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, session, desktopCapturer, globalShortcut, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
@@ -384,6 +384,25 @@ async function loadApp(window) {
 let ipcHandlersRegistered = false;
 
 function registerIpcHandlers() {
+  ipcMain.on('show-dictation-hud', () => {
+    if (!dictationHudWindow) createDictationHudWindow();
+    dictationHudWindow?.showInactive();
+    dictationHudWindow?.webContents.send('hud-update', { active: true });
+  });
+
+  ipcMain.on('update-dictation-hud', (event, state) => {
+    dictationHudWindow?.webContents.send('hud-update', state);
+    if (state.success || state.error) {
+      setTimeout(() => {
+        try { dictationHudWindow?.hide(); } catch (e) {}
+      }, 1600);
+    }
+  });
+
+  ipcMain.on('hide-dictation-hud', () => {
+    try { dictationHudWindow?.hide(); } catch (e) {}
+  });
+
   if (ipcHandlersRegistered) return;
   ipcHandlersRegistered = true;
 
@@ -432,6 +451,112 @@ function registerIpcHandlers() {
     }
     return { success: false };
   });
+}
+
+let dictationHudWindow = null;
+
+function createDictationHudWindow() {
+  if (dictationHudWindow) return;
+  const isMac = process.platform === 'darwin';
+  
+  dictationHudWindow = new BrowserWindow({
+    width: 460,
+    height: 60,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    focusable: false,
+    resizable: false,
+    show: false,
+    hasShadow: false,
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false
+    }
+  });
+
+  dictationHudWindow.setAlwaysOnTop(true, 'screen-saver');
+  dictationHudWindow.setVisibleOnAllWorkspaces(true);
+
+  try {
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const { width } = primaryDisplay.workAreaSize;
+    dictationHudWindow.setPosition(Math.round((width - 460) / 2), 35);
+  } catch (e) {}
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: transparent;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      user-select: none;
+      overflow: hidden;
+    }
+    .hud-pill {
+      background: rgba(15, 23, 42, 0.96);
+      border: 1px solid rgba(168, 85, 247, 0.7);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7), 0 0 24px rgba(168, 85, 247, 0.35);
+      border-radius: 30px;
+      padding: 10px 22px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: #ffffff;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #ef4444;
+      box-shadow: 0 0 10px #ef4444;
+      animation: pulse 1.2s infinite ease-in-out;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.35; transform: scale(0.85); }
+    }
+  </style>
+</head>
+<body>
+  <div class="hud-pill" id="pill">
+    <div class="dot" id="dot"></div>
+    <span id="text">🎙️ Голосовой ввод Argus: говорите текст... (Double-Ctrl)</span>
+  </div>
+  <script>
+    const { ipcRenderer } = require('electron');
+    ipcRenderer.on('hud-update', (event, state) => {
+      const pill = document.getElementById('pill');
+      const dot = document.getElementById('dot');
+      const text = document.getElementById('text');
+      if (state.active) {
+        dot.style.background = '#ef4444';
+        dot.style.boxShadow = '0 0 10px #ef4444';
+        dot.style.display = 'block';
+        pill.style.border = '1px solid rgba(168, 85, 247, 0.7)';
+        text.innerText = '🎙️ Голосовой ввод Argus: говорите текст... (Double-Ctrl)';
+      } else if (state.success) {
+        dot.style.display = 'none';
+        pill.style.border = '1px solid rgba(34, 197, 94, 0.8)';
+        text.innerHTML = '<span style="color:#22c55e;font-size:15px;margin-right:4px;">✓</span> Вставлено: «' + (state.text || '') + '»';
+      }
+    });
+  </script>
+</body>
+</html>`;
+
+  dictationHudWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
 }
 
 function createWindow() {
@@ -519,6 +644,28 @@ app.whenReady().then(async () => {
   registerIpcHandlers();
   await startPythonBackend();
   createWindow();
+  createDictationHudWindow();
+
+  // Background Long-Poller for Native Global Double-Ctrl Dictation
+  let isDictationPollerActive = true;
+  async function pollNativeDictation() {
+    while (isDictationPollerActive) {
+      try {
+        const res = await fetch('http://127.0.0.1:18274/api/voice/dictation-poll');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.triggered && mainWindow) {
+            mainWindow.webContents.send('voice-sunder-trigger');
+          }
+        } else {
+          await new Promise((r) => setTimeout(r, 2000));
+        }
+      } catch {
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+    }
+  }
+  pollNativeDictation();
 
   // Register Voice Sunder Global Shortcut (Ctrl+Shift+V)
   try {

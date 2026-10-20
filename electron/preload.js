@@ -7,6 +7,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openExternal: (url) => ipcRenderer.send('open-external', url),
   takeScreenshot: () => ipcRenderer.invoke('take-desktop-screenshot'),
   onVoiceSunderTrigger: (cb) => ipcRenderer.on('voice-sunder-trigger', cb),
+  showDictationHud: () => ipcRenderer.send('show-dictation-hud'),
+  updateDictationHud: (state) => ipcRenderer.send('update-dictation-hud', state),
+  hideDictationHud: () => ipcRenderer.send('hide-dictation-hud'),
   isElectron: true,
   isMac: process.platform === 'darwin',
   platform: process.platform
