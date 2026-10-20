@@ -1,4 +1,7 @@
-import user_memory
+try:
+    import backend.user_memory as user_memory
+except ImportError:
+    import user_memory
 import sys
 import os
 import re

@@ -3,7 +3,11 @@ import json
 import re
 from typing import Dict, Any, Optional
 
-_MEMORY_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "user_memory.json")
+try:
+    import backend.app_paths as app_paths
+    _MEMORY_FILE = app_paths.get_data_file_path("user_memory.json")
+except Exception:
+    _MEMORY_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "user_memory.json")
 _MEMORY_CACHE: Optional[Dict[str, Any]] = None
 
 def load_memory() -> Dict[str, Any]:

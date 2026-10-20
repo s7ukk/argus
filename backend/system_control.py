@@ -1083,7 +1083,10 @@ def type_text(text: str, target_app: Optional[str] = None, field: Optional[str] 
     # Check if a dictation target window was captured when Double-Ctrl was pressed
     dictation_target = None
     try:
-        import voice_dictation_hook
+        try:
+            import backend.voice_dictation_hook as voice_dictation_hook
+        except ImportError:
+            import voice_dictation_hook
         dictation_target = voice_dictation_hook.get_last_dictation_target()
     except Exception:
         pass
