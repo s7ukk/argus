@@ -754,18 +754,19 @@ def launch_application(app_name: str) -> Dict[str, Any]:
     # Special handling for macOS
     if sys.platform == "darwin":
         mac_aliases = {
-            "chrome": "Google Chrome", "хром": "Google Chrome",
-            "telegram": "Telegram", "телеграм": "Telegram", "телега": "Telegram", "тг": "Telegram",
+            "chrome": "Google Chrome", "хром": "Google Chrome", "google chrome": "Google Chrome",
+            "telegram": "Telegram", "телеграм": "Telegram", "телега": "Telegram", "тг": "Telegram", "телеграмм": "Telegram",
             "discord": "Discord", "дискорд": "Discord",
             "spotify": "Spotify", "спотифай": "Spotify",
             "vscode": "Visual Studio Code", "код": "Visual Studio Code", "vs code": "Visual Studio Code",
-            "code": "Visual Studio Code",
-            "calculator": "Calculator", "калькулятор": "Calculator",
+            "code": "Visual Studio Code", "вскод": "Visual Studio Code",
+            "calculator": "Calculator", "калькулятор": "Calculator", "кальк": "Calculator",
             "notes": "Notes", "заметки": "Notes", "блокнот": "TextEdit", "textedit": "TextEdit",
             "terminal": "Terminal", "терминал": "Terminal",
-            "safari": "Safari", "сафари": "Safari",
-            "finder": "Finder", "файлы": "Finder",
+            "safari": "Safari", "сафари": "Safari", "браузер": "Safari", "browser": "Safari", "интернет": "Safari",
+            "finder": "Finder", "файлы": "Finder", "проводник": "Finder", "файндер": "Finder",
             "settings": "System Settings", "настройки": "System Settings", "параметры": "System Settings",
+            "music": "Music", "музыка": "Music",
             "яндекс": "Yandex", "яндекс браузер": "Yandex",
             "яндекс музыка": "Yandex Music", "саундклауд": "SoundCloud", "sound cloud": "SoundCloud", "soundcloud": "SoundCloud"
         }
@@ -773,6 +774,8 @@ def launch_application(app_name: str) -> Dict[str, Any]:
         try:
             res = subprocess.run(["open", "-a", target_mac], capture_output=True)
             if res.returncode == 0:
+                # Also bring window directly to foreground
+                subprocess.run(["osascript", "-e", f'tell application "{target_mac}" to activate'], capture_output=True)
                 return {"success": True, "launched": target_mac, "os": "mac"}
         except Exception:
             pass
@@ -946,48 +949,96 @@ def type_text(text: str, target_app: Optional[str] = None, field: Optional[str] 
     Types arbitrary Unicode text (Russian, English, symbols) into active window or specified target application
     using clipboard + paste to avoid layout desynchronization.
     If target_app is omitted and Argus is foreground, automatically switches to previous app first.
-    Supports Windows and macOS.
+    Supports Windows and macOS with native AppleScript fallbacks.
     """
     global _LAST_NON_ARGUS_HWND
-    if not _HAS_PYAUTOGUI:
-        return False
-    try:
-        is_mac = sys.platform == "darwin"
-        mod_key = 'command' if is_mac else 'ctrl'
+    is_mac = sys.platform == "darwin"
+    mod_key = 'command' if is_mac else 'ctrl'
 
-        if target_app:
-            if not activate_running_window(target_app):
-                launch_application(target_app)
-                time.sleep(1.3)
-            else:
-                time.sleep(0.35)
+    if target_app:
+        if not activate_running_window(target_app):
+            launch_application(target_app)
+            time.sleep(1.3)
         else:
-            # If Argus is currently the foreground window, don't type into Argus!
-            # Switch back to the previous external window via _LAST_NON_ARGUS_HWND or Alt+Tab / Cmd+Tab
-            curr_title = get_foreground_window_title().lower()
-            if any(k in curr_title for k in ["argus", "vite", "electron"]):
-                if not is_mac and _LAST_NON_ARGUS_HWND and _HAS_WIN32GUI and win32gui.IsWindow(_LAST_NON_ARGUS_HWND):
-                    force_foreground_window(_LAST_NON_ARGUS_HWND)
-                    time.sleep(0.3)
-                else:
-                    switch_key = 'command' if is_mac else 'alt'
-                    pyautogui.hotkey(switch_key, 'tab')
-                    time.sleep(0.25)
+            time.sleep(0.35)
+    else:
+        # If Argus is currently the foreground window, don't type into Argus!
+        curr_title = get_foreground_window_title().lower()
+        if any(k in curr_title for k in ["argus", "vite", "electron"]):
+            if not is_mac and _LAST_NON_ARGUS_HWND and _HAS_WIN32GUI and win32gui.IsWindow(_LAST_NON_ARGUS_HWND):
+                force_foreground_window(_LAST_NON_ARGUS_HWND)
+                time.sleep(0.3)
+            elif _HAS_PYAUTOGUI:
+                switch_key = 'command' if is_mac else 'alt'
+                pyautogui.hotkey(switch_key, 'tab')
+                time.sleep(0.25)
 
-        if field:
-            focus_input_in_active_window(field)
-            time.sleep(0.12)
+    if field:
+        focus_input_in_active_window(field)
+        time.sleep(0.12)
 
-        pyperclip.copy(text)
-        time.sleep(0.06)
-        pyautogui.hotkey(mod_key, 'v')
-        return True
-    except Exception as e:
-        print("type_text error:", e)
+    # 1. Copy text to clipboard (native macOS pbcopy or pyperclip)
+    if is_mac:
+        try:
+            p = subprocess.Popen(["pbcopy"], stdin=subprocess.PIPE)
+            p.communicate(input=text.encode("utf-8"), timeout=2)
+        except Exception:
+            if _HAS_PYPERCLIP:
+                pyperclip.copy(text)
+    else:
+        if _HAS_PYPERCLIP:
+            pyperclip.copy(text)
+
+    time.sleep(0.06)
+
+    # 2. Paste text into focused input
+    if is_mac:
+        try:
+            script = 'tell application "System Events" to keystroke "v" using {command down}'
+            res = subprocess.run(["osascript", "-e", script], capture_output=True, timeout=2)
+            if res.returncode == 0:
+                return True
+        except Exception:
+            pass
+        if _HAS_PYAUTOGUI:
+            pyautogui.hotkey('command', 'v')
+            return True
         return False
+
+    if _HAS_PYAUTOGUI:
+        pyautogui.hotkey('ctrl', 'v')
+        return True
+    return False
 
 def press_key(key_name: str) -> bool:
     """Presses a single keyboard key (Enter, Esc, Tab, Space, Backspace, etc.)."""
+    key_lower = key_name.lower().strip()
+    if sys.platform == "darwin":
+        mac_keycodes = {
+            "enter": 36, "return": 36, "ввод": 36, "ентр": 36,
+            "escape": 53, "esc": 53, "эскейп": 53,
+            "tab": 48, "таб": 48,
+            "space": 49, "пробел": 49,
+            "down": 125, "вниз": 125,
+            "up": 126, "вверх": 126,
+            "left": 123, "влево": 123,
+            "right": 124, "вправо": 124,
+            "delete": 51, "backspace": 51, "стереть": 51
+        }
+        if key_lower in mac_keycodes:
+            code = mac_keycodes[key_lower]
+            try:
+                subprocess.run(["osascript", "-e", f'tell application "System Events" to key code {code}'], capture_output=True, timeout=2)
+                return True
+            except Exception:
+                pass
+        else:
+            try:
+                subprocess.run(["osascript", "-e", f'tell application "System Events" to keystroke "{key_name}"'], capture_output=True, timeout=2)
+                return True
+            except Exception:
+                pass
+
     if not _HAS_PYAUTOGUI:
         return False
     key_map = {
@@ -1002,7 +1053,7 @@ def press_key(key_name: str) -> bool:
         "left": "left", "влево": "left",
         "right": "right", "вправо": "right"
     }
-    k = key_map.get(key_name.lower().strip(), key_name.lower().strip())
+    k = key_map.get(key_lower, key_lower)
     try:
         pyautogui.press(k)
         return True
@@ -1015,6 +1066,29 @@ def send_hotkey(*keys: str) -> bool:
     Sends keyboard shortcut with automatic cross-platform adaptation
     (e.g. maps 'ctrl' -> 'command' on macOS, and 'cmd' -> 'ctrl' on Windows).
     """
+    if sys.platform == "darwin":
+        try:
+            modifiers = []
+            regular_key = ""
+            for k in keys:
+                kl = k.lower().strip()
+                if kl in ["cmd", "command", "ctrl", "control"]:
+                    modifiers.append("command down")
+                elif kl in ["shift"]:
+                    modifiers.append("shift down")
+                elif kl in ["alt", "option"]:
+                    modifiers.append("option down")
+                else:
+                    regular_key = kl
+            mod_str = "{" + ", ".join(modifiers) + "}" if modifiers else "{}"
+            if regular_key:
+                script = f'tell application "System Events" to keystroke "{regular_key}" using {mod_str}'
+                res = subprocess.run(["osascript", "-e", script], capture_output=True, timeout=2)
+                if res.returncode == 0:
+                    return True
+        except Exception:
+            pass
+
     if not _HAS_PYAUTOGUI:
         return False
     try:
@@ -1056,9 +1130,39 @@ def click_mouse(x: Optional[int] = None, y: Optional[int] = None) -> bool:
 
 # ─── CLOSE APPLICATION / KILL PROCESS ───────────────────────────
 def close_application(app_name: str) -> Dict[str, Any]:
-    """Close running Windows applications by process name."""
+    """Close running Windows or macOS applications by process name."""
     app_lower = app_name.lower().strip()
     
+    if sys.platform == "darwin":
+        mac_close_map = {
+            "telegram": "Telegram", "телеграм": "Telegram", "телега": "Telegram", "тг": "Telegram", "телеграмм": "Telegram",
+            "chrome": "Google Chrome", "хром": "Google Chrome", "google chrome": "Google Chrome",
+            "safari": "Safari", "сафари": "Safari", "браузер": "Safari",
+            "discord": "Discord", "дискорд": "Discord",
+            "spotify": "Spotify", "спотифай": "Spotify",
+            "vscode": "Visual Studio Code", "код": "Visual Studio Code",
+            "calculator": "Calculator", "калькулятор": "Calculator",
+            "notes": "Notes", "заметки": "Notes", "блокнот": "TextEdit",
+            "terminal": "Terminal", "терминал": "Terminal",
+            "music": "Music", "музыка": "Music",
+            "finder": "Finder"
+        }
+        target_mac = mac_close_map.get(app_lower, app_name)
+        closed = False
+        try:
+            res = subprocess.run(["osascript", "-e", f'tell application "{target_mac}" to quit'], capture_output=True, timeout=3)
+            if res.returncode == 0:
+                closed = True
+        except Exception:
+            pass
+        try:
+            res_pk = subprocess.run(["pkill", "-f", target_mac], capture_output=True, timeout=2)
+            if res_pk.returncode == 0:
+                closed = True
+        except Exception:
+            pass
+        return {"success": closed, "killed_count": 1 if closed else 0, "app": target_mac}
+
     target_procs = {
         "telegram": ["telegram.exe"],
         "телеграм": ["telegram.exe"],

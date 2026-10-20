@@ -22,7 +22,8 @@ import {
   renameChatSession,
   fetchMessages,
   sendChatMessage,
-  API_BASE
+  API_BASE,
+  smartFetch
 } from './api';
 import { VoiceAssistant } from './utils/voice';
 import './styles/globals.css';
@@ -299,7 +300,7 @@ export const App: React.FC = () => {
         if (res.audio_base64) {
           voiceAssistantRef.current.playBase64Audio(res.audio_base64, res.reply);
         } else {
-          fetch(`${API_BASE}/voice/tts`, {
+          smartFetch('/api/voice/tts', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

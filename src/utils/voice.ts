@@ -1,4 +1,4 @@
-import { API_BASE } from '../api';
+import { API_BASE, LOCAL_SERVER_URL } from '../api';
 
 export class VoiceAssistant {
   private isListening = false;
@@ -207,12 +207,22 @@ export class VoiceAssistant {
       const downsampled = this.downsampleBuffer(merged, inputSampleRate, 16000);
       const wavBase64 = this.encodeWAV(downsampled, 16000);
 
-      // Send to FastAPI STT endpoint
-      const res = await fetch(`${API_BASE}/voice/stt`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ audio_base64: wavBase64 })
-      });
+      // Send to FastAPI STT endpoint (try local first, fallback to cloud)
+      let res: Response;
+      try {
+        res = await fetch(`${LOCAL_SERVER_URL}/api/voice/stt`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ audio_base64: wavBase64 }),
+          signal: AbortSignal.timeout(4000)
+        });
+      } catch {
+        res = await fetch(`${API_BASE}/voice/stt`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ audio_base64: wavBase64 })
+        });
+      }
 
       if (res.ok) {
         const data = await res.json();
@@ -344,7 +354,9 @@ export class VoiceAssistant {
     this.isSpeaking = false;
     this.onSpeakingChange(false);
     try {
-      fetch(`${API_BASE}/voice/stop`, { method: 'POST' }).catch(() => {});
+      fetch(`${LOCAL_SERVER_URL}/api/voice/stop`, { method: 'POST' }).catch(() => {
+        fetch(`${API_BASE}/voice/stop`, { method: 'POST' }).catch(() => {});
+      });
     } catch (e) {}
   }
 
@@ -528,14 +540,27 @@ export class VoiceAssistant {
       const downsampled = this.downsampleBuffer(merged, inputRate, 16000);
       const wavB64 = this.encodeWAV(downsampled, 16000);
 
-      const res = await fetch(`${API_BASE}/voice/wake-check`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          audio_base64: wavB64,
-          wake_words: this.wakeWords.join(',')
-        })
+      const reqBody = JSON.stringify({
+        audio_base64: wavB64,
+        wake_words: this.wakeWords.join(',')
       });
+      const headers = { 'Content-Type': 'application/json' };
+
+      let res: Response;
+      try {
+        res = await fetch(`${LOCAL_SERVER_URL}/api/voice/wake-check`, {
+          method: 'POST',
+          headers,
+          body: reqBody,
+          signal: AbortSignal.timeout(1800)
+        });
+      } catch {
+        res = await fetch(`${API_BASE}/voice/wake-check`, {
+          method: 'POST',
+          headers,
+          body: reqBody
+        });
+      }
 
       if (res.ok) {
         const data = await res.json();

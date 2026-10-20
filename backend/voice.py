@@ -16,7 +16,21 @@ import time
 import subprocess
 
 def play_audio_file_system(file_path: str):
-    """Directly plays an MP3 audio file through Windows native audio subsystem in background thread."""
+    """Directly plays an MP3 audio file through system native audio subsystem in background thread."""
+    if sys.platform == "darwin":
+        def _mac_worker():
+            try:
+                subprocess.run(["afplay", file_path], check=False)
+                try:
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                except Exception:
+                    pass
+            except Exception as e:
+                print(f"[Argus Mac Direct Audio]: {e}")
+        threading.Thread(target=_mac_worker, daemon=True).start()
+        return
+
     if os.name != "nt":
         return
     def _worker():
@@ -37,7 +51,16 @@ def play_audio_file_system(file_path: str):
     threading.Thread(target=_worker, daemon=True).start()
 
 def speak_windows_sapi(text: str):
-    """Speaks text using built-in Windows native SAPI speech synthesis (100% offline guarantee)."""
+    """Speaks text using built-in native speech synthesis (100% offline guarantee)."""
+    if sys.platform == "darwin":
+        def _mac_worker():
+            try:
+                subprocess.run(["say", text], timeout=15)
+            except Exception as e:
+                print(f"[Argus Mac Say]: {e}")
+        threading.Thread(target=_mac_worker, daemon=True).start()
+        return
+
     if os.name != "nt" or not text.strip():
         return
     def _worker():
@@ -85,8 +108,13 @@ async def generate_speech_fish_audio(text: str, api_key: str, model_id: Optional
     return None
 
 def stop_all_audio():
-    """Immediately stops all Windows native audio devices and MCI tracks."""
-    if os.name == "nt":
+    """Immediately stops all system native audio devices and player tracks."""
+    if sys.platform == "darwin":
+        try:
+            subprocess.run(["killall", "afplay"], capture_output=True)
+        except Exception:
+            pass
+    elif os.name == "nt":
         try:
             ctypes.windll.winmm.mciSendStringW('close all', None, 0, None)
         except Exception:

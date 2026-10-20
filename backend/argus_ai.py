@@ -11,6 +11,7 @@ from typing import Optional, List, Dict, Any, Tuple
 import backend.system_control as sc
 import backend.plugins_manager as pm
 import backend.scenarios_manager as sc_mgr
+import backend.gui_agent as gui_agent
 
 _AI_QUERY_CACHE: Dict[str, str] = {}
 _AI_PLAN_CACHE: Dict[str, Any] = {}
@@ -232,33 +233,21 @@ def execute_single_action(act: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]
             else:
                 messenger = "telegram"
 
-        # 2. Activate or launch target messenger and ensure it has full foreground focus
-        if not sc.activate_running_window(messenger):
-            sc.launch_application(messenger)
-            time.sleep(1.4)
-        else:
-            time.sleep(0.35)
-        
-        # 3. If contact/chat/group is specified, use search shortcut (Ctrl+K or Ctrl+F)
-        if contact:
-            sc.press_key("esc")
-            time.sleep(0.12)
-            sc.send_hotkey("ctrl", "k")
-            time.sleep(0.25)
-            sc.type_text(contact)
-            time.sleep(0.7)
-            sc.press_key("enter")
-            time.sleep(0.4)
-            
-        # 4. Type and send message via safe clipboard paste
-        if msg_text:
-            sc.type_text(msg_text)
-            time.sleep(0.18)
-            sc.press_key("enter")
-            target_name = f" для контакта «{contact}»" if contact else ""
-            return f"Отправлено сообщение в {messenger.capitalize()}{target_name}: «{msg_text}»", "messenger_send", {"messenger": messenger, "contact": contact, "message": msg_text}
-        else:
-            return f"Открыт чат с «{contact}» в {messenger.capitalize()}", "messenger_send", {"messenger": messenger, "contact": contact}
+        # 2. Execute via Autonomous Visual GUI Computer-Use Agent
+        res = gui_agent.execute_autonomous_messenger_task(messenger, contact, msg_text)
+        return res["summary"], "messenger_send", res
+
+    elif act_type == "autonomous_browser_task":
+        browser = act.get("browser", "safari")
+        query = act.get("query", "")
+        res = gui_agent.execute_autonomous_browser_task(browser, query)
+        return res["summary"], "autonomous_browser_task", res
+
+    elif act_type == "autonomous_notes_task":
+        text = act.get("text", "")
+        title = act.get("title")
+        res = gui_agent.execute_autonomous_notes_task(text, title)
+        return res["summary"], "autonomous_notes_task", res
 
     elif act_type == "open_folder":
         folder = act.get("folder", "desktop")
@@ -872,6 +861,19 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
             return {"type": "search_web", "query": q, "engine": "avito"}
         return {"type": "open_url", "url": "https://avito.ru"}
 
+    if any(k in c for k in ["сафари", "safari"]):
+        q = re.sub(r'\b(сафари|safari)\b', '', c, flags=re.IGNORECASE)
+        q = re.sub(r'^(?:открой|открыть|найди|найти|поищи|поискать|загугли|напиши|напечатай|введи|вбей|поиск|в\s+поиске|и\s+найди|и|в|на|\s+)+', '', q, flags=re.IGNORECASE).strip()
+        if q and len(q) > 1:
+            return {"type": "autonomous_browser_task", "browser": "safari", "query": q}
+        return {"type": "launch_app", "app": "safari"}
+
+    if any(k in c for k in ["в заметках", "в заметки"]):
+        t = re.sub(r'^(?:в\s+заметках|в\s+заметки)\s+(?:напиши|создай|запиши|добавь|сохрани)\s+(?:заметку\s+)?(?:с\s+текстом\s+|текст\s+)?', '', raw_c, flags=re.IGNORECASE).strip()
+        if t:
+            return {"type": "autonomous_notes_task", "text": t}
+        return {"type": "launch_app", "app": "notes"}
+
     # 13. Google / Web Searches
     if any(k in c for k in ["гугл", "google", "загугли", "загуглить", "погугли", "поищи в интернете", "найди в интернете"]):
         q = re.sub(r'\b(гугле|гугл|google|интернете|сети)\b', '', c, flags=re.IGNORECASE)
@@ -888,7 +890,7 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
             return {"type": "search_web", "query": q, "engine": "google"}
 
     # 13.1 Universal Messenger & Chat Automation (Telegram, Discord, WhatsApp, VK, Skype, Slack)
-    MESSENGER_KEYWORDS = ['телеграм', 'телеграме', 'телеге', 'тг', 'telegram', 'дискорд', 'дискорде', 'discord', 'ватсап', 'ватсапе', 'whatsapp', 'вк', 'vk', 'скайп', 'skype', 'слак', 'slack']
+    MESSENGER_KEYWORDS = ['телеграмме', 'телеграме', 'телеграм', 'телеграмчик', 'телеге', 'тг', 'telegram', 'дискорде', 'дискорд', 'discord', 'ватсапе', 'ватсап', 'whatsapp', 'вк', 'vk', 'скайпе', 'скайп', 'skype', 'слаке', 'слак', 'slack']
     M_KW_PATTERN = r'(?:в\s+|на\s+)?(' + '|'.join(MESSENGER_KEYWORDS) + r')'
 
     COMMON_NAME_DATIVE_MAP = {
@@ -996,6 +998,32 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         raw_contact = extract_case_match(orig_c, m1_after.group(2).strip())
         m_target = normalize_contact_name(raw_contact)
         m_msg = re.sub(r'^["«\']|["»\']$', '', m1_after.group(3).strip()).strip()
+        m_msg = extract_case_match(orig_c, m_msg)
+        return {"type": "messenger_send", "messenger": m_app, "contact": m_target, "message": m_msg}
+
+    # Pattern 1C: 'в/на <messenger> [и] напиши/отправь [в/пользователю/контакту <contact>] [слово/текст] <message>'
+    m1_c = re.match(
+        rf'^(?:в\s+|на\s+){M_KW_PATTERN}\s+(?:и\s+)?(?:напиши|напечатай|отправь|скинь|черкани)\s+(?:в\s+чат\s+|в\s+диалог\s+|пользователю\s+|контакту\s+|для\s+|в\s+)?([a-zA-Zа-яА-ЯёЁ0-9_\-\.]+)\s+(?:слово\s+|текст\s+|сообщение\s+)?(.*)',
+        c, re.IGNORECASE
+    )
+    if m1_c:
+        m_app = normalize_messenger(m1_c.group(1))
+        raw_contact = extract_case_match(orig_c, m1_c.group(2).strip())
+        m_target = normalize_contact_name(raw_contact)
+        m_msg = re.sub(r'^["«\']|["»\']$', '', m1_c.group(3).strip()).strip()
+        m_msg = extract_case_match(orig_c, m_msg)
+        return {"type": "messenger_send", "messenger": m_app, "contact": m_target, "message": m_msg}
+
+    # Pattern 1D: 'в/на <messenger> [пользователю/контакту <contact>] напиши/отправь [слово/текст] <message>'
+    m1_d = re.match(
+        rf'^(?:в\s+|на\s+){M_KW_PATTERN}\s+(?:в\s+чат\s+|в\s+диалог\s+|пользователю\s+|контакту\s+|для\s+|в\s+)?([a-zA-Zа-яА-ЯёЁ0-9_\-\.]+)\s+(?:напиши|напечатай|отправь|скинь|черкани)\s+(?:слово\s+|текст\s+|сообщение\s+)?(.*)',
+        c, re.IGNORECASE
+    )
+    if m1_d:
+        m_app = normalize_messenger(m1_d.group(1))
+        raw_contact = extract_case_match(orig_c, m1_d.group(2).strip())
+        m_target = normalize_contact_name(raw_contact)
+        m_msg = re.sub(r'^["«\']|["»\']$', '', m1_d.group(3).strip()).strip()
         m_msg = extract_case_match(orig_c, m_msg)
         return {"type": "messenger_send", "messenger": m_app, "contact": m_target, "message": m_msg}
 

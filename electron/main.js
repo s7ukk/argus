@@ -121,7 +121,17 @@ function sanitizeLog(data) {
   return str;
 }
 
+const LOCAL_HEALTH_URL = 'http://127.0.0.1:18274/api/health';
 const CLOUD_HEALTH_URL = 'http://153.52.69.55:18274/api/health';
+
+async function checkLocalBackendRunning() {
+  try {
+    const res = await fetch(LOCAL_HEALTH_URL, { signal: AbortSignal.timeout(500) });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
 
 async function checkCloudServerRunning() {
   try {
@@ -133,27 +143,39 @@ async function checkCloudServerRunning() {
 }
 
 async function checkBackendRunning() {
-  return await checkCloudServerRunning();
+  return await checkLocalBackendRunning();
 }
 
 async function startPythonBackend() {
+  const isLocalOk = await checkLocalBackendRunning();
+  if (isLocalOk) {
+    logApp('[Argus]: Python backend already running and healthy on port 18274.');
+    return;
+  }
+
   const isCloudOk = await checkCloudServerRunning();
   if (isCloudOk) {
     logApp('[Argus]: Central Cloud API verified online at http://153.52.69.55:18274.');
-  }
-
-  // On macOS, run purely in cloud client mode directly to central server
-  if (process.platform === 'darwin') {
-    logApp('[Argus]: macOS client mode active — connecting directly to central cloud server.');
-    return;
   }
 
   try {
     const cfg = getBackendConfig();
     logApp(`[Argus]: Spawning local backend: ${cfg.command} (args: ${JSON.stringify(cfg.args)})`);
 
-    if (process.platform !== 'win32' && cfg.isBinary) {
-      try { fs.chmodSync(cfg.command, 0o755); } catch {}
+    if (process.platform !== 'win32') {
+      try {
+        const bDir = process.resourcesPath
+          ? path.join(process.resourcesPath, 'backend-dist')
+          : path.join(__dirname, '..', 'backend-dist');
+        if (fs.existsSync(bDir)) {
+          require('child_process').execSync(`chmod -R 755 "${bDir}"`, { stdio: 'ignore' });
+        }
+        if (cfg.isBinary && fs.existsSync(cfg.command)) {
+          fs.chmodSync(cfg.command, 0o755);
+        }
+      } catch (e) {
+        logApp(`[Argus chmod notice]: ${e.message}`);
+      }
     }
 
     pythonProcess = spawn(cfg.command, cfg.args, {
@@ -183,9 +205,9 @@ async function startPythonBackend() {
     });
 
     // Wait for backend to be fully active and healthy
-    for (let i = 0; i < 30; i++) {
-      await new Promise(r => setTimeout(r, 300));
-      if (await checkBackendRunning()) {
+    for (let i = 0; i < 35; i++) {
+      await new Promise(r => setTimeout(r, 250));
+      if (await checkLocalBackendRunning()) {
         logApp('[Argus]: Python backend verified healthy on port 18274.');
         break;
       }
@@ -418,6 +440,23 @@ app.whenReady().then(async () => {
   session.defaultSession.setPermissionCheckHandler((webContents, permission) => {
     return true;
   });
+
+  if (process.platform === 'darwin') {
+    const { systemPreferences } = require('electron');
+    try {
+      const micStatus = systemPreferences.getMediaAccessStatus('microphone');
+      logApp(`[Argus]: macOS microphone status: ${micStatus}`);
+      if (micStatus !== 'granted') {
+        systemPreferences.askForMediaAccess('microphone').then((granted) => {
+          logApp(`[Argus]: macOS microphone permission granted: ${granted}`);
+        }).catch((err) => {
+          logApp(`[Argus]: macOS microphone request error: ${err}`);
+        });
+      }
+    } catch (e) {
+      logApp(`[Argus mic permission exception]: ${e.message}`);
+    }
+  }
 
   await startPythonBackend();
   createWindow();

@@ -38,7 +38,9 @@ jobs:
         run: npm run build:frontend
 
       - name: Build Python Backend
-        run: npm run build:backend
+        run: |
+          npm run build:backend
+          chmod -R 755 backend-dist
 
       - name: Prepare environment file
         run: |
