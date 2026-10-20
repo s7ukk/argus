@@ -109,7 +109,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             </div>
             <div>
               <h3 style={{ fontSize: 15, fontWeight: 700, color: '#ffffff' }}>
-                Профиль Starburn
+                Профиль Argus
               </h3>
               <p style={{ fontSize: 11, color: '#94a3b8' }}>
                 Управление учетной записью и параметрами подписки
@@ -207,7 +207,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           {/* User Name Input */}
           <div>
             <label style={{ fontSize: 10.5, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 5 }}>
-              Ваше имя (обращение Starburn)
+              Ваше имя (обращение Argus)
             </label>
             <div style={{ display: 'flex', gap: 8 }}>
               <input

@@ -98,7 +98,7 @@ export const ControlsDock: React.FC<ControlsDockProps> = ({ onTriggerVoice, isLi
               </span>
             </div>
             <span style={{ fontSize: 10, color: '#a855f7', fontWeight: 700, letterSpacing: '0.06em' }}>
-              STARBURN
+              ARGUS
             </span>
           </div>
 
@@ -321,7 +321,7 @@ export const ControlsDock: React.FC<ControlsDockProps> = ({ onTriggerVoice, isLi
                 }
               : {}),
           }}
-          title="Запуск голосового управления Starburn"
+          title="Запуск голосового управления Argus"
         >
           <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Mic size={16} />

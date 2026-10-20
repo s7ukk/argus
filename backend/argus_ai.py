@@ -492,7 +492,7 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         return {"type": "save_destination", "folder": folder}
 
     # 1.2 Browser Tabs & Page Navigation
-    if any(k in c for k in ["закрой вкладку", "закрыть вкладку", "закрой эту вкладку", "закрыть эту вкладку", "закрой страницу", "закрыть страницу", "close tab"]):
+    if any(k in c for k in ["закрой вкладку", "закрыть вкладку", "закрой эту вкладку", "закрыть эту вкладку", "закрой страницу", "закрыть страницу", "close tab", "закрой ютуб", "закрыть ютуб", "закрой youtube", "закрыть youtube", "закрой саундклауд", "закрыть саундклауд", "закрой soundcloud", "закрой вк", "закрыть вк"]):
         return {"type": "close_browser_tab"}
     if any(k in c for k in ["новая вкладка", "новую вкладку", "открой вкладку", "открыть новую вкладку", "new tab"]):
         return {"type": "new_browser_tab"}
@@ -537,6 +537,8 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         "закрой", "закрыть", "выключи", "выключить", "убей", "прибей",
         "заверши", "завершить", "close", "kill", "exit", "quit"
     ]):
+        if any(k in c for k in ["ютуб", "youtube", "саундклауд", "soundcloud", "вкладку", "страницу", "сайт"]):
+            return {"type": "close_browser_tab"}
         for app_alias, app_canonical in APP_MAP.items():
             if app_alias in c:
                 return {"type": "close_app", "app": app_canonical}
@@ -827,7 +829,7 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         return {"type": "open_url", "url": "https://reddit.com"}
 
     # 12. Web Searches across Popular Platforms (YouTube, Google, Yandex, Wildberries, Ozon, Avito, GitHub)
-    if any(k in c for k in ["ютуб", "youtube"]) and not any(k in c for k in ["адресн", "строк", "ссылк", "вставить", "напечатай в"]):
+    if any(k in c for k in ["ютуб", "youtube"]) and not any(k in c for k in ["закрой", "закрыть", "close", "выключи", "заверши", "адресн", "строк", "ссылк", "вставить", "напечатай в"]):
         q = re.sub(r'\b(ютубе|ютуб|youtube)\b', '', c, flags=re.IGNORECASE)
         q = re.sub(r'^(?:открой|открыть|перейди|зайди|включи|включить|найди|найти|поищи|поискать|покажи|показать|напиши|напечатай|введи|вбей|продиктуй|поиск|в\s+поиске|и\s+найди|и\s+поищи|и|в|на|\s+)+', '', q, flags=re.IGNORECASE).strip()
         if q and len(q) > 1:
@@ -1092,6 +1094,14 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
             clean_msg = extract_case_match(orig_c, clean_msg)
             return {"type": "messenger_send", "messenger": "auto", "contact": norm_contact, "message": clean_msg}
 
+    # Clarify incomplete messenger write commands (e.g. "Зайди в Telegram и напиши")
+    if any(app in c for app in ["телеграм", "telegram", "тг", "телеге", "дискорд", "discord", "ватсап", "whatsapp"]) and any(v in c for v in ["напиши", "напечатай", "отправь", "скинь", "черкани", "сообщение"]):
+        target_app = "Telegram" if any(k in c for k in ["телеграм", "telegram", "тг", "телеге"]) else "Discord" if any(k in c for k in ["дискорд", "discord"]) else "WhatsApp"
+        return {
+            "type": "clarify",
+            "message": f"Кому и какое сообщение вы хотите отправить в {target_app}?\nНапример: «В {target_app} напиши Siax текст Привет» или «{target_app} напиши Кириллу Привет»."
+        }
+
     # 14. In-App Automation: Typing Text & Messages (Voice Sunder dictation)
     if any(c.startswith(verb) for verb in ["напиши ", "напечатай ", "введи ", "вбей ", "продиктуй ", "вставь ", "type ", "write "]):
         raw_text = re.sub(r'^(?:напиши|напечатай|введи|вбей|продиктуй|вставь|type|write)\s+(?:текст[:\s]+)?', '', orig_c, flags=re.IGNORECASE).strip()
@@ -1220,7 +1230,7 @@ def local_multi_action_planner(user_text: str) -> List[Dict[str, Any]]:
     """
     # 0. If user_text directly maps to a unified action (e.g. messenger_send), execute directly without splitting
     single_act = parse_single_clause(user_text)
-    if single_act and single_act.get("type") in ["messenger_send", "search_web"]:
+    if single_act and single_act.get("type") in ["messenger_send", "search_web", "clarify", "browser_choice", "terminal_command", "play_music"]:
         return [single_act]
 
     # 1. Normalize verb boundaries to avoid missing clauses without punctuation
@@ -1564,7 +1574,9 @@ def process_command(user_text: str, user_name: str = "Пользователь",
 
     # 6. Formulate clear Russian/English confirmation
     if executed_results:
-        final_reply = ". ".join(executed_results) + "."
+        final_reply = ". ".join(executed_results)
+        if not final_reply.endswith(('.', '!', '?', '»')):
+            final_reply += "."
     else:
         final_reply = "Все задачи успешно выполнены." if not en else "All tasks completed successfully."
 

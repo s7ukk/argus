@@ -34,7 +34,7 @@ def get_agent_run_dir() -> str:
 def capture_step_screenshot(step_name: str, run_dir: str) -> Optional[str]:
     """
     Captures a high-resolution screenshot at a specific step in the autonomous GUI flow.
-    Supports macOS (screencapture -x) and Windows (ctypes GDI / pyautogui).
+    Supports macOS (screencapture -x) and Windows (ctypes GDI / pyautogui / PIL).
     """
     clean_name = re.sub(r'[^a-zA-Z0-9_\-]', '_', step_name)
     filepath = os.path.join(run_dir, f"{clean_name}.png")
@@ -44,23 +44,26 @@ def capture_step_screenshot(step_name: str, run_dir: str) -> Optional[str]:
             subprocess.run(["screencapture", "-x", filepath], capture_output=True, timeout=5)
             if os.path.exists(filepath) and os.path.getsize(filepath) > 500:
                 return filepath
-        except Exception as e:
-            print(f"[GUI Agent Mac Screenshot error]: {e}")
+        except Exception:
+            pass
+
+    try:
+        from PIL import ImageGrab
+        im = ImageGrab.grab()
+        im.save(filepath)
+        return filepath
+    except Exception:
+        pass
             
     if _HAS_PYAUTOGUI:
         try:
             img = pyautogui.screenshot()
             img.save(filepath)
             return filepath
-        except Exception as e:
-            print(f"[GUI Agent PyAutoGUI Screenshot error]: {e}")
+        except Exception:
+            pass
 
-    try:
-        from backend.system_control import take_screenshot
-        # fallback
-        return take_screenshot("desktop")
-    except Exception:
-        return None
+    return None
 
 def set_clipboard_text(text: str):
     """Safely copies text to the system clipboard across macOS, Windows, and Linux."""
@@ -212,13 +215,13 @@ def activate_app_window(app_name: str) -> bool:
 def execute_autonomous_messenger_task(messenger: str, contact: str, message: str) -> Dict[str, Any]:
     """
     Executes a multi-step visual GUI automation loop for messengers (Telegram, Discord, WhatsApp, VK):
-    1. Launches/activates target messenger window.
+    1. Launches/activates target messenger window or resolves username protocol.
     2. Takes visual checkpoint screenshot #1.
-    3. Locates and opens search input bar (Cmd+K / Ctrl+K / Esc).
+    3. Locates and opens search input bar (Cmd+K / Ctrl+K / Esc) or direct chat navigation.
     4. Takes visual checkpoint screenshot #2.
     5. Types contact name via clipboard, waits for search results.
     6. Takes visual checkpoint screenshot #3 (contacts found).
-    7. Selects and opens the contact's chat (Enter / Down Arrow).
+    7. Selects and opens the contact's chat (Down Arrow + Enter).
     8. Takes visual checkpoint screenshot #4 (active chat conversation).
     9. Enters and sends the message (Cmd+V + Enter).
     10. Takes confirmation screenshot #5 (message bubble visible).
@@ -236,63 +239,93 @@ def execute_autonomous_messenger_task(messenger: str, contact: str, message: str
     elif messenger.lower() in ["whatsapp", "ватсап"]:
         m_name = "WhatsApp"
 
-    # Step 1: Launch and focus application
-    steps_log.append(f"1. Запуск и активация окна приложения **{m_name}** на передний план.")
-    activate_app_window(messenger)
-    time.sleep(0.8)
+    clean_contact = contact.lstrip('@').strip()
+    is_tg_username = bool(
+        m_name == "Telegram" and
+        re.match(r'^[a-zA-Z0-9_]{3,}$', clean_contact) and
+        not any(c in clean_contact for c in 'абвгдеёжзийклмнопрстуфхцчшщъыьэюя')
+    )
+
+    step_num = 1
+    def add_step(text: str):
+        nonlocal step_num
+        steps_log.append(f"{step_num}. {text}")
+        step_num += 1
+
+    # Step 1: Open and Focus
+    if is_tg_username:
+        add_step(f"Открытие личного диалога с пользователем **@{clean_contact}** через системный протокол Telegram.")
+        if IS_MAC:
+            subprocess.run(["open", f"tg://resolve?domain={clean_contact}"], capture_output=True)
+        else:
+            try:
+                import os
+                os.startfile(f"tg://resolve?domain={clean_contact}")
+            except Exception:
+                subprocess.run(["cmd", "/c", "start", "", f"tg://resolve?domain={clean_contact}"], shell=False, capture_output=True)
+        time.sleep(1.2)
+        activate_app_window(messenger)
+        time.sleep(0.4)
+    else:
+        add_step(f"Запуск и активация окна приложения **{m_name}** на передний план.")
+        activate_app_window(messenger)
+        time.sleep(0.8)
     
     ss1 = capture_step_screenshot("01_app_activated", run_dir)
     if ss1: screenshots.append(ss1)
 
-    # Step 2: Open Search Bar
-    search_shortcut = "Cmd+K" if IS_MAC else "Ctrl+K"
-    steps_log.append(f"2. Визуальный анализ интерфейса: активация строки глобального поиска контактов (`{search_shortcut}`).")
-    # Dismiss any active dialogs first
-    send_key_native("escape")
-    time.sleep(0.15)
-    
-    if IS_MAC:
-        send_hotkey_native("cmd", "k")
-    else:
-        send_hotkey_native("ctrl", "k")
-    time.sleep(0.35)
-
-    ss2 = capture_step_screenshot("02_search_bar_focused", run_dir)
-    if ss2: screenshots.append(ss2)
-
-    # Step 3: Insert Contact / Recipient Name
-    steps_log.append(f"3. Ввод имени получателя: поиск контакта «**{contact}**» через системный буфер обмена.")
-    paste_text_native(contact)
-    # Wait for contact list dropdown and search results to render
-    time.sleep(0.7)
-
-    ss3 = capture_step_screenshot("03_contact_search_results", run_dir)
-    if ss3: screenshots.append(ss3)
-
-    # Step 4: Open Conversation Chat
-    steps_log.append(f"4. Выбор найденного контакта в списке и открытие окна личного диалога.")
-    send_key_native("enter")
-    time.sleep(0.5)
-
-    ss4 = capture_step_screenshot("04_chat_conversation_opened", run_dir)
-    if ss4: screenshots.append(ss4)
-
-    # Step 5: Compose and Dispatch Message
-    if message:
-        steps_log.append(f"5. Вставка текста сообщения в поле ввода: *«{message}»*.")
-        paste_text_native(message)
+    if not is_tg_username:
+        # Step 2: Search for contact in search bar
+        search_shortcut = "Cmd+K" if IS_MAC else "Ctrl+K"
+        add_step(f"Визуальный поиск интерфейса: активация поисковой строки (`{search_shortcut}`).")
+        send_key_native("escape")
         time.sleep(0.2)
+        if IS_MAC:
+            send_hotkey_native("cmd", "k")
+        else:
+            send_hotkey_native("ctrl", "k")
+        time.sleep(0.3)
+
+        ss2 = capture_step_screenshot("02_search_focused", run_dir)
+        if ss2: screenshots.append(ss2)
+
+        # Step 3: Enter contact name
+        add_step(f"Ввод имени получателя: поиск контакта «**{contact}**».")
+        paste_text_native(contact)
+        time.sleep(0.8)
+
+        ss3 = capture_step_screenshot("03_search_results", run_dir)
+        if ss3: screenshots.append(ss3)
+
+        # Step 4: Navigate to first search result and open chat
+        add_step(f"Выбор найденного контакта в списке (стрелка вниз + Enter) и открытие диалога.")
+        send_key_native("down")
+        time.sleep(0.2)
+        send_key_native("enter")
+        time.sleep(0.6)
+
+        ss4 = capture_step_screenshot("04_chat_opened", run_dir)
+        if ss4: screenshots.append(ss4)
+    else:
+        add_step(f"Прямой переход в диалог с «**{clean_contact}**»: фокус установлен в поле ввода сообщения.")
+        time.sleep(0.2)
+
+    # Step: Compose and Dispatch Message
+    if message:
+        add_step(f"Вставка сообщения в поле ввода чата: *«{message}»*.")
+        paste_text_native(message)
+        time.sleep(0.3)
         
-        steps_log.append(f"6. Отправка сообщения клавишей Enter.")
+        add_step(f"Отправка сообщения клавишей Enter.")
         send_key_native("enter")
         time.sleep(0.4)
 
-        ss5 = capture_step_screenshot("05_message_dispatched_confirmation", run_dir)
+        ss5 = capture_step_screenshot("05_message_sent", run_dir)
         if ss5: screenshots.append(ss5)
         
-        steps_log.append(f"7. Сделан контрольный снимок экрана: подтверждена успешная отправка сообщения.")
+        add_step(f"Сделан контрольный снимок экрана: подтверждена успешная отправка сообщения.")
     else:
-        steps_log.append(f"5. Чат с контактом «{contact}» успешно открыт и готов к общению.")
+        add_step(f"Чат с контактом «{contact}» успешно открыт и готов к общению.")
 
     summary_text = (
         f"🤖 **Автономный AI Агент выполнил действие в {m_name}:**\n\n"

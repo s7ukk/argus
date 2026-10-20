@@ -364,12 +364,12 @@ def local_multi_action_planner(user_text: str) -> List[Dict[str, Any]]:
 
 # ─── FAST CONVERSATIONAL CHAT (WHEN NOT SYSTEM ACTION) ──────────
 CONVERSATIONAL_KNOWLEDGE = {
-    "привет": "Приветствую. Все системы Starburn активны. Чем могу помочь?",
-    "hello": "Hello. All Starburn systems are operational. How can I assist you?",
+    "привет": "Приветствую. Все системы Argus активны. Чем могу помочь?",
+    "hello": "Hello. All Argus systems are operational. How can I assist you?",
     "как дела": "Все модули работают штатно на максимальной производительности. Готов выполнять любые ваши команды.",
     "how are you": "All systems operating at peak performance. Ready for your instructions.",
-    "кто ты": "Я Starburn — ваш персональный автономный ИИ-ассистент для управления Windows, автоматизации задач и работы за компьютером.",
-    "who are you": "I am Starburn — your personal autonomous AI assistant for Windows control, workflow automation, and productivity.",
+    "кто ты": "Я Argus — ваш персональный автономный ИИ-ассистент для управления системой, автоматизации задач и работы за компьютером.",
+    "who are you": "I am Argus — your personal autonomous AI assistant for system control, workflow automation, and productivity.",
     "что ты умеешь": "Я умею управлять компьютером: делать скриншоты экрана на Рабочий стол, открывать и закрывать любые программы (Chrome, Telegram, Discord, VS Code и др.), регулировать громкость и яркость, очищать корзину, блокировать ПК, искать в Google и YouTube, а также предоставлять телеметрию нагрузки процессора и памяти."
 }
 
@@ -384,7 +384,7 @@ def get_conversational_reply(raw_text: str, en: bool) -> str:
     try:
         payload = {
             "messages": [
-                {"role": "system", "content": "Ты — Starburn, высокотехнологичный персональный ИИ-ассистент Windows. Отвечай точно, умно, вежливо и строго БЕЗ ЭМОДЗИ на языке пользователя."},
+                {"role": "system", "content": "Ты — Argus, высокотехнологичный персональный ИИ-ассистент. Отвечай точно, умно, вежливо и строго БЕЗ ЭМОДЗИ на языке пользователя."},
                 {"role": "user", "content": raw_text}
             ],
             "model": "openai"
@@ -392,7 +392,7 @@ def get_conversational_reply(raw_text: str, en: bool) -> str:
         req = urllib.request.Request(
             "https://text.pollinations.ai/",
             data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json", "User-Agent": "Starburn/2.0"}
+            headers={"Content-Type": "application/json", "User-Agent": "Argus/2.0"}
         )
         with urllib.request.urlopen(req, timeout=3.5) as resp:
             text = resp.read().decode("utf-8").strip()
