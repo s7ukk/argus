@@ -204,6 +204,13 @@ def activate_app_window(app_name: str) -> bool:
             print(f"[GUI Agent Mac Activate error]: {e}")
 
     # Windows & fallback
+    if not IS_MAC and app_lower in ["telegram", "телеграм", "телега", "тг"]:
+        try:
+            import os
+            os.startfile("tg:")
+            time.sleep(0.5)
+        except Exception:
+            pass
     if not activate_running_window(app_lower):
         res = launch_application(app_lower)
         time.sleep(1.2)
@@ -240,10 +247,11 @@ def execute_autonomous_messenger_task(messenger: str, contact: str, message: str
         m_name = "WhatsApp"
 
     clean_contact = contact.lstrip('@').strip()
+    # A contact is only treated as an explicit handle if user explicitly typed '@' in the prompt
     is_tg_username = bool(
         m_name == "Telegram" and
-        re.match(r'^[a-zA-Z0-9_]{3,}$', clean_contact) and
-        not any(c in clean_contact for c in 'абвгдеёжзийклмнопрстуфхцчшщъыьэюя')
+        contact.strip().startswith('@') and
+        re.match(r'^[a-zA-Z0-9_]{3,}$', clean_contact)
     )
 
     step_num = 1

@@ -1,3 +1,4 @@
+import backend.voice_dictation_hook as dictation_hook
 import asyncio
 import os
 import sys
@@ -116,6 +117,10 @@ async def startup_event():
         loop.set_exception_handler(custom_exception_handler)
     except Exception:
         pass
+    try:
+        dictation_hook.start_dictation_hook()
+    except Exception as e:
+        print("[Argus]: Failed to start dictation hook:", e)
 
 # Pydantic Request Models
 class KeyVerifyRequest(BaseModel):
@@ -762,6 +767,25 @@ class ScenarioModel(BaseModel):
     description: Optional[str] = ""
     is_builtin: Optional[bool] = False
     steps: List[Dict[str, Any]] = []
+
+
+# ─── GLOBAL VOICE DICTATION ENDPOINTS (DOUBLE-CTRL) ─────────────
+@app.get("/api/voice/dictation-poll")
+async def dictation_poll():
+    """Long-polls for system-wide Double-Ctrl voice dictation trigger."""
+    ev = dictation_hook.get_dictation_event()
+    triggered = await asyncio.to_thread(ev.wait, 20.0)
+    if triggered:
+        ev.clear()
+        return {"triggered": True}
+    return {"triggered": False}
+
+@app.post("/api/voice/dictation-trigger")
+async def dictation_trigger_post():
+    """Manual trigger for dictation mode (from hotkey or UI)."""
+    dictation_hook.trigger_dictation()
+    return {"triggered": True}
+
 
 @app.get("/api/scenarios")
 async def get_all_scenarios():

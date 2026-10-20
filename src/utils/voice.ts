@@ -3,6 +3,7 @@ import { API_BASE, LOCAL_SERVER_URL } from '../api';
 export class VoiceAssistant {
   private isListening = false;
   private isSpeaking = false;
+  private isDictating = false;
   private currentAudio: HTMLAudioElement | null = null;
   private mediaStream: MediaStream | null = null;
   private audioContext: AudioContext | null = null;
@@ -118,7 +119,7 @@ export class VoiceAssistant {
           }
           const rms = Math.sqrt(sum / inputData.length);
 
-          if (rms > 0.008) {
+          if (rms > 0.005) {
             this.commandSpeakingDetected = true;
             if (this.commandSilenceTimer) {
               clearTimeout(this.commandSilenceTimer);
@@ -128,7 +129,7 @@ export class VoiceAssistant {
             if (!this.commandSilenceTimer) {
               this.commandSilenceTimer = setTimeout(() => {
                 this.stopListening();
-              }, 850);
+              }, 2000);
             }
           }
         }
@@ -148,7 +149,7 @@ export class VoiceAssistant {
           if (this.isListening && !this.commandSpeakingDetected) {
             this.stopListening();
           }
-        }, 5000);
+        }, 12000);
       }
     } catch (err) {
       console.error('[Argus Voice]: Microphone access error:', err);
@@ -227,12 +228,52 @@ export class VoiceAssistant {
       if (res.ok) {
         const data = await res.json();
         if (data.success && data.transcript && data.transcript.trim()) {
-          this.onResult(data.transcript.trim());
+          const transcript = data.transcript.trim();
+          if (this.isDictating) {
+            try {
+              await fetch(`${LOCAL_SERVER_URL}/api/plugins/voice-sunder/dictate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: transcript, press_enter: false })
+              });
+            } catch (e) {
+              console.error('[Argus Dictation]: Active window inject error:', e);
+            }
+            this.playWakeChime();
+            window.dispatchEvent(new CustomEvent('argus_dictation_state', {
+              detail: { active: false, success: true, text: transcript }
+            }));
+          } else {
+            this.onResult(transcript);
+          }
+        } else {
+          if (this.isDictating) {
+            window.dispatchEvent(new CustomEvent('argus_dictation_state', {
+              detail: { active: false, success: false }
+            }));
+          }
         }
       }
+      this.isDictating = false;
     } catch (err) {
       console.error('[Argus Voice]: STT request error:', err);
     }
+  }
+
+  public async startDictationMode() {
+    if (this.isListening) {
+      if (this.isDictating) {
+        await this.stopListening();
+        return;
+      }
+      await this.stopListening();
+    }
+    this.isDictating = true;
+    this.playWakeChime();
+    window.dispatchEvent(new CustomEvent('argus_dictation_state', {
+      detail: { active: true, status: 'listening' }
+    }));
+    await this.startListening(true);
   }
 
   public toggleListening() {

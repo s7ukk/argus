@@ -607,10 +607,10 @@ def force_foreground_window(hwnd: int) -> bool:
             return False
 
 WINDOW_TITLE_ALIASES: Dict[str, List[str]] = {
-    "telegram": ["telegram", "телеграм", "телега"],
-    "телеграм": ["telegram", "телеграм", "телега"],
-    "телега": ["telegram", "телеграм", "телега"],
-    "тг": ["telegram", "телеграм", "телега"],
+    "telegram": ["telegram", "telegramdesktop", "телеграм", "телега"],
+    "телеграм": ["telegram", "telegramdesktop", "телеграм", "телега"],
+    "телега": ["telegram", "telegramdesktop", "телеграм", "телега"],
+    "тг": ["telegram", "telegramdesktop", "телеграм", "телега"],
     "discord": ["discord", "дискорд"],
     "дискорд": ["discord", "дискорд"],
     "whatsapp": ["whatsapp", "ватсап"],
@@ -673,28 +673,40 @@ def activate_running_window(app_query: str) -> bool:
     browser_aliases = ["chrome", "edge", "yandex", "opera", "firefox", "brave", "vivaldi"]
     target_aliases = WINDOW_TITLE_ALIASES.get(query, [query])
 
-    def enum_cb(hwnd, _):
-        try:
-            if win32gui.IsWindow(hwnd) and win32gui.IsWindowVisible(hwnd):
-                title = win32gui.GetWindowText(hwnd).lower()
-                if not title:
-                    return True
+    # Connect thread to active user desktop
+    try:
+        hDesk = ctypes.windll.user32.OpenInputDesktop(0, False, 0x01FF)
+        if hDesk:
+            ctypes.windll.user32.SetThreadDesktop(hDesk)
+    except Exception:
+        pass
+
+    # Use pure ctypes EnumWindows to avoid pywin32 EnumWindows callback exceptions on Windows
+    try:
+        from ctypes import wintypes
+        WNDENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+        def enum_cb_ctypes(hwnd, _):
+            length = ctypes.windll.user32.GetWindowTextLengthW(hwnd)
+            if length > 0:
+                buff = ctypes.create_unicode_buffer(length + 1)
+                ctypes.windll.user32.GetWindowTextW(hwnd, buff, length + 1)
+                title = buff.value.lower()
                 if query in ["браузер", "browser", "интернет"]:
                     if any(b in title for b in browser_aliases):
                         found_hwnds.append(hwnd)
+                        return False
                 elif any(alias in title for alias in target_aliases):
                     found_hwnds.append(hwnd)
+                    return False
                 elif query in title or title.startswith(query):
                     found_hwnds.append(hwnd)
-        except Exception:
-            pass
-        return True
+                    return False
+            return True
 
-    try:
-        win32gui.EnumWindows(enum_cb, None)
-    except Exception as e:
-        if not (hasattr(e, 'args') and len(e.args) > 0 and e.args[0] == 1400):
-            print("activate_running_window error:", e)
+        cb_proc = WNDENUMPROC(enum_cb_ctypes)
+        ctypes.windll.user32.EnumWindows(cb_proc, 0)
+    except Exception:
+        pass
 
     if found_hwnds:
         target = found_hwnds[0]

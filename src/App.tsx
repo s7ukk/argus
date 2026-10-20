@@ -47,6 +47,7 @@ export const App: React.FC = () => {
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
+  const [dictationState, setDictationState] = useState<{ active: boolean; text?: string; success?: boolean } | null>(null);
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const voiceAssistantRef = useRef<VoiceAssistant | null>(null);
@@ -76,12 +77,47 @@ export const App: React.FC = () => {
       voiceAssistantRef.current.startWakeWordMonitoring(triggers);
     } catch (e) {}
 
-    // Hook Voice Sunder Global Shortcut (Ctrl+Shift+V)
+    // Hook Voice Sunder Global Shortcut (Ctrl+Shift+V) -> Dictation Mode
     if ((window as any).electronAPI?.onVoiceSunderTrigger) {
       (window as any).electronAPI.onVoiceSunderTrigger(() => {
-        voiceAssistantRef.current?.toggleListening();
+        voiceAssistantRef.current?.startDictationMode();
       });
     }
+
+    // Hook Dictation State Updates (Floating HUD)
+    const handleDictationState = (e: any) => {
+      const detail = e.detail;
+      if (detail?.active) {
+        setDictationState({ active: true });
+      } else if (detail?.success) {
+        setDictationState({ active: false, success: true, text: detail.text });
+        setTimeout(() => setDictationState(null), 2500);
+      } else {
+        setDictationState(null);
+      }
+    };
+    window.addEventListener('argus_dictation_state', handleDictationState);
+
+    // Continuous Double-Ctrl Global Background Poller
+    let isDictationSubscribed = true;
+    const pollDoubleCtrl = async () => {
+      while (isDictationSubscribed) {
+        try {
+          const res = await fetch(`${LOCAL_SERVER_URL}/api/voice/dictation-poll`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.triggered && isDictationSubscribed) {
+              voiceAssistantRef.current?.startDictationMode();
+            }
+          } else {
+            await new Promise((r) => setTimeout(r, 2000));
+          }
+        } catch {
+          await new Promise((r) => setTimeout(r, 2000));
+        }
+      }
+    };
+    pollDoubleCtrl();
 
     const handleSettingsUpdated = (e: any) => {
       const updated = e.detail;
@@ -96,6 +132,8 @@ export const App: React.FC = () => {
     window.addEventListener('argus_settings_updated', handleSettingsUpdated);
 
     return () => {
+      isDictationSubscribed = false;
+      window.removeEventListener('argus_dictation_state', handleDictationState);
       window.removeEventListener('argus_settings_updated', handleSettingsUpdated);
       voiceAssistantRef.current?.stopWakeWordMonitoring();
       voiceAssistantRef.current?.stopListening();
@@ -511,6 +549,59 @@ export const App: React.FC = () => {
             onProfileUpdated={setProfile}
             onLogout={handleLogout}
           />
+
+          {/* System-Wide Double-Ctrl Dictation Floating HUD */}
+          {dictationState && (
+            <div
+              style={{
+                position: 'fixed',
+                top: 28,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                zIndex: 99999,
+                background: 'rgba(15, 23, 42, 0.94)',
+                backdropFilter: 'blur(20px)',
+                border: dictationState.active
+                  ? '1px solid rgba(168, 85, 247, 0.7)'
+                  : dictationState.success
+                  ? '1px solid rgba(34, 197, 94, 0.7)'
+                  : '1px solid rgba(239, 68, 68, 0.7)',
+                boxShadow: '0 12px 36px rgba(0, 0, 0, 0.5), 0 0 24px rgba(168, 85, 247, 0.3)',
+                borderRadius: 30,
+                padding: '10px 24px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                color: '#ffffff',
+                fontSize: 13,
+                fontWeight: 600,
+                letterSpacing: '0.02em',
+                pointerEvents: 'none',
+                transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
+              }}
+            >
+              {dictationState.active ? (
+                <>
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      width: 10,
+                      height: 10,
+                      borderRadius: '50%',
+                      background: '#ef4444',
+                      boxShadow: '0 0 12px #ef4444'
+                    }}
+                  />
+                  <span>🎙️ Голосовой ввод Argus: говорите текст в активное окно... (Double-Ctrl)</span>
+                </>
+              ) : dictationState.success ? (
+                <>
+                  <span style={{ color: '#22c55e', fontSize: 16, fontWeight: 700 }}>✓</span>
+                  <span>Вставлено в активное поле: «{dictationState.text}»</span>
+                </>
+              ) : null}
+            </div>
+          )}
         </div>
       )}
     </div>
