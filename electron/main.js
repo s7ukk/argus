@@ -60,32 +60,15 @@ function getFallbackScriptConfig() {
       if (fs.existsSync(p)) { pyCmd = p; break; }
     }
   } else {
-    const bundledPythonCandidates = [
-      process.resourcesPath ? path.join(process.resourcesPath, 'backend-dist', 'argus-backend', '_internal', 'Python.framework', 'Versions', '3.12', 'Python') : null,
-      process.resourcesPath ? path.join(process.resourcesPath, 'backend-dist', 'argus-backend', '_internal', 'Python') : null,
-      path.join(__dirname, '..', 'backend-dist', 'argus-backend', '_internal', 'Python.framework', 'Versions', '3.12', 'Python'),
-      path.join(__dirname, '..', 'backend-dist', 'argus-backend', '_internal', 'Python'),
-    ].filter(Boolean);
-
-    for (const b of bundledPythonCandidates) {
-      if (fs.existsSync(b)) {
-        pyCmd = b;
-        try { fs.chmodSync(b, 0o755); } catch {}
-        break;
-      }
-    }
-
-    if (pyCmd === 'python3') {
-      const macCandidates = [
-        '/opt/homebrew/bin/python3',
-        '/usr/local/bin/python3',
-        '/Library/Frameworks/Python.framework/Versions/3.12/bin/python3',
-        '/Library/Frameworks/Python.framework/Versions/3.11/bin/python3',
-        '/usr/bin/python3'
-      ];
-      for (const p of macCandidates) {
-        if (fs.existsSync(p)) { pyCmd = p; break; }
-      }
+    const macCandidates = [
+      '/opt/homebrew/bin/python3',
+      '/usr/local/bin/python3',
+      '/Library/Frameworks/Python.framework/Versions/3.12/bin/python3',
+      '/Library/Frameworks/Python.framework/Versions/3.11/bin/python3',
+      '/usr/bin/python3'
+    ];
+    for (const p of macCandidates) {
+      if (fs.existsSync(p)) { pyCmd = p; break; }
     }
   }
 
@@ -199,9 +182,13 @@ async function startPythonBackend() {
       path.join(__dirname, '..')
     ].filter(p => p && fs.existsSync(p)).join(isWin ? ';' : ':');
 
+    const macPaths = '/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin';
+    const envPath = isWin ? (process.env.PATH || '') : `${macPaths}:${process.env.PATH || ''}`;
+
     const spawnEnv = Object.assign({}, process.env, {
       PYTHONUNBUFFERED: '1',
-      PYTHONPATH: pyPath
+      PYTHONPATH: pyPath,
+      PATH: envPath
     });
 
     if (process.platform === 'darwin') {
@@ -211,14 +198,20 @@ async function startPythonBackend() {
           ? path.join(process.resourcesPath, 'backend-dist')
           : path.join(__dirname, '..', 'backend-dist');
         if (fs.existsSync(bDir)) {
-          execSync(`chmod -R 755 "${bDir}"`, { stdio: 'ignore' });
-          execSync(`xattr -cr "${bDir}"`, { stdio: 'ignore' });
+          try { execSync(`chmod -R 755 "${bDir}"`, { stdio: 'ignore' }); } catch {}
+          try { execSync(`xattr -cr "${bDir}"`, { stdio: 'ignore' }); } catch {}
         }
         if (cfg.isBinary && fs.existsSync(cfg.command)) {
-          fs.chmodSync(cfg.command, 0o755);
-          execSync(`xattr -cr "${cfg.command}"`, { stdio: 'ignore' });
+          try { fs.chmodSync(cfg.command, 0o755); } catch {}
+          try { execSync(`xattr -cr "${cfg.command}"`, { stdio: 'ignore' }); } catch {}
+        }
+        // Also clear quarantine on app bundle if packaged
+        if (process.resourcesPath) {
           try {
-            execSync(`codesign --force --deep --sign - "${cfg.command}"`, { stdio: 'ignore' });
+            const bundlePath = path.resolve(process.resourcesPath, '..', '..');
+            if (bundlePath.endsWith('.app')) {
+              execSync(`xattr -cr "${bundlePath}" 2>/dev/null || true`, { stdio: 'ignore' });
+            }
           } catch {}
         }
       } catch (e) {
@@ -260,6 +253,11 @@ async function startPythonBackend() {
       if (await checkLocalBackendRunning()) {
         logApp('[Argus]: Python backend verified healthy on port 18274.');
         isHealthy = true;
+        break;
+      }
+      // If process exited early with an error, don't keep waiting fruitlessly
+      if (!pythonProcess && i >= 4) {
+        logApp('[Argus]: Backend process exited prematurely.');
         break;
       }
     }
