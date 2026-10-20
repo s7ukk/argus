@@ -1,17 +1,51 @@
 import sys
 import time
 import threading
-from typing import Optional
+import subprocess
+from typing import Optional, Dict, Any
 
 _DICTATION_EVENT = threading.Event()
 _HOOK_THREAD: Optional[threading.Thread] = None
 _RUNNING = False
+_LAST_TARGET_HWND: Optional[int] = None
+_LAST_TARGET_APP: Optional[str] = None
 
 def get_dictation_event() -> threading.Event:
     return _DICTATION_EVENT
 
+def get_last_dictation_target() -> Dict[str, Any]:
+    return {"hwnd": _LAST_TARGET_HWND, "app": _LAST_TARGET_APP}
+
+def _capture_active_target():
+    global _LAST_TARGET_HWND, _LAST_TARGET_APP
+    if sys.platform == "darwin":
+        try:
+            res = subprocess.run(
+                ["osascript", "-e", 'tell application "System Events" to get name of first process whose frontmost is true'],
+                capture_output=True, text=True, timeout=1
+            )
+            app = res.stdout.strip()
+            if app and not any(k in app.lower() for k in ["argus", "electron"]):
+                _LAST_TARGET_APP = app
+        except Exception:
+            pass
+    else:
+        try:
+            import ctypes
+            hwnd = ctypes.windll.user32.GetForegroundWindow()
+            if hwnd:
+                length = ctypes.windll.user32.GetWindowTextLengthW(hwnd)
+                buff = ctypes.create_unicode_buffer(length + 1)
+                ctypes.windll.user32.GetWindowTextW(hwnd, buff, length + 1)
+                title = buff.value.lower()
+                if not any(k in title for k in ["argus dictation", "argus ai"]):
+                    _LAST_TARGET_HWND = hwnd
+        except Exception:
+            pass
+
 def trigger_dictation():
     """Manually or externally trigger dictation mode."""
+    _capture_active_target()
     _DICTATION_EVENT.set()
 
 def _run_listener():
@@ -72,6 +106,7 @@ def _run_listener():
             # Forgiving human double tap interval between 50ms and 650ms
             if 0.05 <= diff <= 0.65:
                 print(f"[Argus Dictation Hook]: Double-Ctrl/Cmd detected (interval: {diff*1000:.1f}ms)! Triggering voice dictation...")
+                _capture_active_target()
                 _DICTATION_EVENT.set()
                 last_ctrl_down_time = 0.0
             else:

@@ -11,6 +11,7 @@ init_db.py
 # ─── LOCAL STORAGE & PRIVATE DATA ─────────────────────────────────
 backend/local_chats.json
 backend/user_settings.json
+backend/user_memory.json
 plugins_storage/
 *.log
 npm-debug.log*

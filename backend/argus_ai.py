@@ -1,3 +1,4 @@
+import user_memory
 import sys
 import os
 import re
@@ -987,6 +988,28 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         m = re.search(re.escape(lower_match), original_str, re.IGNORECASE)
         return m.group(0) if m else lower_match
 
+    # 12.5. In-Page / In-Browser / Active Window Typing Check
+    # e.g. "в активной странице браузера напиши контакту Кирилл Привет", "в браузере напиши Привет"
+    m_in_page = re.match(
+        r'^(?:в\s+активн\w*\s+страниц\w*(?:\s+браузер\w*)?|на\s+активн\w*\s+страниц\w*(?:\s+браузер\w*)?|в\s+браузер\w*|на\s+страниц\w*|в\s+текущ\w*\s+вкладк\w*|в\s+активн\w*\s+окн\w*|в\s+текущ\w*\s+окн\w*)\s+(?:и\s+)?(?:напиши|напечатай|введи|вбей|вставь|отправь)\s+(?:сообщение\s+|текст\s+|слово\s+)?(?:контакту\s+|пользователю\s+|для\s+|в\s+чат\s+)?(?:([a-zA-Zа-яА-ЯёЁ0-9_\-\.]+)\s+)?(.*)$',
+        c, re.IGNORECASE
+    )
+    if m_in_page:
+        contact_name = m_in_page.group(1) or ""
+        msg_body = m_in_page.group(2).strip()
+        clean_body = re.sub(r'^["\'\u00ab\u00bb]|["\'\u00ab\u00bb]$', '', msg_body).strip()
+        clean_body = extract_case_match(orig_c, clean_body)
+        if contact_name:
+            norm_contact = normalize_contact_name(contact_name)
+            final_text = f"{norm_contact}, {clean_body}" if clean_body else norm_contact
+        else:
+            final_text = clean_body
+        return {
+            "type": "type_text",
+            "text": final_text,
+            "press_enter": True
+        }
+
     # Pattern 1A (contact with prefix before verb): 'открой <messenger> и контакту/пользователю/в чат <contact> напиши/отправь <message>'
     m1_before = re.match(
         rf'^(?:зайди|открой|перейди)\s+{M_KW_PATTERN}\s+(?:и\s+)?(?:в\s+чат\s+|в\s+диалог\s+|пользователю\s+|контакту\s+|для\s+|в\s+)([a-zA-Zа-яА-ЯёЁ0-9_\-\.]+)\s+(?:и\s+)?(?:напиши|напечатай|отправь|скинь)\s+(?:слово\s+|текст\s+|сообщение\s+)?(.*)',
@@ -1239,7 +1262,7 @@ def local_multi_action_planner(user_text: str) -> List[Dict[str, Any]]:
     """
     # 0. If user_text directly maps to a unified action (e.g. messenger_send), execute directly without splitting
     single_act = parse_single_clause(user_text)
-    if single_act and single_act.get("type") in ["messenger_send", "search_web", "clarify", "browser_choice", "terminal_command", "play_music"]:
+    if single_act and single_act.get("type") in ["messenger_send", "type_text", "search_web", "clarify", "browser_choice", "terminal_command", "play_music"]:
         return [single_act]
 
     # 1. Normalize verb boundaries to avoid missing clauses without punctuation
@@ -1343,7 +1366,7 @@ def neural_action_planner(user_text: str) -> Optional[List[Dict[str, Any]]]:
             data=json.dumps(payload).encode("utf-8"),
             headers={"Content-Type": "application/json", "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
         )
-        with urllib.request.urlopen(req, timeout=3.5) as resp:
+        with urllib.request.urlopen(req, timeout=6.5) as resp:
             raw = resp.read().decode("utf-8").strip()
             clean_json = re.sub(r'^```(?:json)?\s*', '', raw)
             clean_json = re.sub(r'\s*```$', '', clean_json).strip()
@@ -1375,9 +1398,11 @@ def query_free_ai(prompt: str, user_name: str = "Пользователь", hist
     if not history and cache_key in _AI_QUERY_CACHE:
         return _AI_QUERY_CACHE[cache_key]
 
+    mem_summary = user_memory.get_memory_summary()
     instruction = (
-        f"Ты — Argus AI, персональный автономный ИИ-ассистент Windows для пользователя {user_name}. "
-        "Отвечай интеллектуально, точно, полезно, грамотно и строго БЕЗ ЭМОДЗИ на языке пользователя."
+        f"Ты — Argus AI, персональный автономный высокоинтеллектуальный ИИ-ассистент для пользователя {user_name}.\n"
+        f"{mem_summary}\n"
+        "Отвечай интеллектуально, точно, полезно, грамотно, вежливо и строго БЕЗ ЭМОДЗИ на языке пользователя."
     )
     messages = [{"role": "user", "content": f"[{instruction}]"}]
     if history:
@@ -1486,11 +1511,20 @@ def get_conversational_reply(raw_text: str, en: bool, user_name: str = "Поль
     if ai_resp:
         return ai_resp
 
-    # 3. Local fallback
+    # 3. Smart local conversational fallback
+    mem = user_memory.load_memory()
+    u_name = mem.get("name") or user_name
     if en:
-        return f"Argus AI is ready. I can launch any software, interact with websites, capture screenshots to Downloads or Desktop, manage audio, or execute automation. Regarding: '{raw_text}', I am ready to proceed."
+        return f"Understood, {u_name}. I am on standby and ready to assist you with system tasks, apps, or answer any questions."
     else:
-        return f"Argus AI готов к работе. Я могу запустить любую программу, открыть сайт, нажать нужную кнопку, сделать снимок экрана в папку Загрузки или настроить звук. По вашему запросу «{raw_text}» готов приступить к выполнению."
+        low_t = raw_text.lower().strip()
+        if any(g in low_t for g in ["спасибо", "благодарю"]):
+            return "Пожалуйста. Всегда к вашим услугам. Чем еще могу помочь?"
+        if any(g in low_t for g in ["отлично", "хорошо", "супер", "класс", "молодец"]):
+            return "Рад помочь. Готов к выполнению следующих задач."
+        if any(g in low_t for g in ["пока", "до свидания", "до встречи"]):
+            return "До связи. Все системы Argus остаются активными и ждут ваших указаний."
+        return f"Принято, {u_name}. Я внимательно слушаю и готов выполнить команду или продолжить диалог."
 
 # ─── MAIN MASTER ENTRY POINT ────────────────────────────────────
 def process_command(user_text: str, user_name: str = "Пользователь", history: Optional[List[Dict[str, Any]]] = None) -> Tuple[str, Optional[str], Optional[Dict[str, Any]]]:
@@ -1501,6 +1535,15 @@ def process_command(user_text: str, user_name: str = "Пользователь",
     """
     raw = user_text.strip()
     en = is_english(raw)
+
+    # 0. User Memory & Learning (0ms response time)
+    learned_reply = user_memory.extract_and_learn(raw)
+    if learned_reply:
+        return learned_reply, "general", {}
+
+    memory_reply = user_memory.query_memory_question(raw)
+    if memory_reply:
+        return memory_reply, "general", {}
 
     # 0. Contextual Pronoun Resolution (using dialogue history)
     # e.g. "закрой его", "закрой её", "удали его", "проверь его"

@@ -283,16 +283,34 @@ def execute_autonomous_messenger_task(messenger: str, contact: str, message: str
     if ss1: screenshots.append(ss1)
 
     if not is_tg_username:
-        # Step 2: Search for contact in search bar (Ctrl+F / Cmd+F universal messenger search)
-        search_shortcut = "Cmd+F" if IS_MAC else "Ctrl+F"
-        add_step(f"Активация поисковой строки интерфейса (`{search_shortcut}`).")
+        # Step 2: Search for contact in search bar
+        add_step(f"Активация поисковой строки интерфейса **{m_name}**.")
         send_key_native("escape")
-        time.sleep(0.25)
+        time.sleep(0.2)
+        
+        # In Telegram Desktop, focus global search bar via coordinates / shortcut
+        if m_name == "Telegram" and not IS_MAC and _HAS_WIN32GUI:
+            try:
+                import ctypes, win32gui
+                hwnd = ctypes.windll.user32.GetForegroundWindow()
+                if hwnd:
+                    rect = win32gui.GetWindowRect(hwnd)
+                    click_mouse_native(rect[0] + 160, rect[1] + 45)
+                    time.sleep(0.2)
+            except Exception:
+                pass
+
         if IS_MAC:
-            send_hotkey_native("cmd", "f")
+            send_hotkey_native("cmd", "k")
         else:
-            send_hotkey_native("ctrl", "f")
-        time.sleep(0.35)
+            send_hotkey_native("ctrl", "k")
+        time.sleep(0.25)
+
+        # Clear any preexisting search query
+        send_hotkey_native("cmd" if IS_MAC else "ctrl", "a")
+        time.sleep(0.08)
+        send_key_native("backspace")
+        time.sleep(0.08)
 
         ss2 = capture_step_screenshot("02_search_focused", run_dir)
         if ss2: screenshots.append(ss2)
@@ -300,7 +318,7 @@ def execute_autonomous_messenger_task(messenger: str, contact: str, message: str
         # Step 3: Enter contact name
         add_step(f"Ввод имени получателя: поиск контакта «**{contact}**».")
         paste_text_native(contact)
-        time.sleep(0.8)
+        time.sleep(0.85)
 
         ss3 = capture_step_screenshot("03_search_results", run_dir)
         if ss3: screenshots.append(ss3)
@@ -308,9 +326,9 @@ def execute_autonomous_messenger_task(messenger: str, contact: str, message: str
         # Step 4: Navigate to first search result and open chat
         add_step(f"Выбор найденного контакта в списке (стрелка вниз + Enter) и открытие диалога.")
         send_key_native("down")
-        time.sleep(0.2)
+        time.sleep(0.25)
         send_key_native("enter")
-        time.sleep(0.6)
+        time.sleep(0.65)
 
         ss4 = capture_step_screenshot("04_chat_opened", run_dir)
         if ss4: screenshots.append(ss4)

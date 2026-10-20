@@ -230,23 +230,36 @@ export class VoiceAssistant {
         if (data.success && data.transcript && data.transcript.trim()) {
           const transcript = data.transcript.trim();
           if (this.isDictating) {
-            if ((window as any).electronAPI?.updateDictationHud) {
-              (window as any).electronAPI.updateDictationHud({ success: true, text: transcript });
-            }
+            let injectSuccess = false;
             try {
-              await fetch(`${LOCAL_SERVER_URL}/api/plugins/voice-sunder/dictate`, {
+              const dictRes = await fetch(`${LOCAL_SERVER_URL}/api/plugins/voice-sunder/dictate`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ text: transcript, press_enter: false })
               });
+              if (dictRes.ok) {
+                const dictData = await dictRes.json();
+                injectSuccess = !!dictData.success;
+              }
             } catch (e) {
               console.error('[Argus Dictation]: Active window inject error:', e);
             }
-            this.playWakeChime();
-            window.dispatchEvent(new CustomEvent('argus_dictation_state', {
-              detail: { active: false, success: true, text: transcript }
-            }));
-          } else {
+            if (injectSuccess) {
+              if ((window as any).electronAPI?.updateDictationHud) {
+                (window as any).electronAPI.updateDictationHud({ success: true, text: transcript });
+              }
+              this.playWakeChime();
+              window.dispatchEvent(new CustomEvent('argus_dictation_state', {
+                detail: { active: false, success: true, text: transcript }
+              }));
+            } else {
+              if ((window as any).electronAPI?.hideDictationHud) {
+                (window as any).electronAPI.hideDictationHud();
+              }
+              window.dispatchEvent(new CustomEvent('argus_dictation_state', {
+                detail: { active: false, success: false }
+              }));
+            }
             this.onResult(transcript);
           }
         } else {

@@ -32,11 +32,16 @@ except Exception:
 
 try:
     import pyautogui
-    import pyperclip
     pyautogui.FAILSAFE = False
     _HAS_PYAUTOGUI = True
 except Exception:
     _HAS_PYAUTOGUI = False
+
+try:
+    import pyperclip
+    _HAS_PYPERCLIP = True
+except Exception:
+    _HAS_PYPERCLIP = False
 
 try:
     from comtypes import CLSCTX_ALL
@@ -572,30 +577,39 @@ except Exception:
 _LAST_NON_ARGUS_HWND = None
 
 def force_foreground_window(hwnd: int) -> bool:
-    """Forces target HWND into absolute foreground using Win32 API."""
+    """Forces target HWND into absolute foreground using Win32 API with lock bypass."""
     global _LAST_NON_ARGUS_HWND
     if not _HAS_WIN32GUI:
         return False
     try:
         user32 = ctypes.windll.user32
+        # Restore window if minimized
+        if user32.IsIconic(hwnd):
+            user32.ShowWindow(hwnd, win32con.SW_RESTORE)
+        else:
+            user32.ShowWindow(hwnd, win32con.SW_SHOW)
+
+        # Bypass Windows foreground lock timeout by synthesizing an Alt key tap
+        user32.keybd_event(0x12, 0, 0, 0)
+        user32.keybd_event(0x12, 0, 2, 0)
+
         fg_hwnd = user32.GetForegroundWindow()
-        if fg_hwnd == hwnd:
-            _LAST_NON_ARGUS_HWND = hwnd
-            return True
-        fg_tid = user32.GetWindowThreadProcessId(fg_hwnd, None)
-        target_tid = user32.GetWindowThreadProcessId(hwnd, None)
-        
-        # Attach threads to inherit foreground activation rights
-        if fg_tid != target_tid:
-            user32.AttachThreadInput(fg_tid, target_tid, True)
-            
-        user32.ShowWindow(hwnd, win32con.SW_RESTORE)
-        user32.SetForegroundWindow(hwnd)
-        user32.BringWindowToTop(hwnd)
-        user32.SetFocus(hwnd)
-        
-        if fg_tid != target_tid:
-            user32.AttachThreadInput(fg_tid, target_tid, False)
+        if fg_hwnd != hwnd:
+            fg_tid = user32.GetWindowThreadProcessId(fg_hwnd, None)
+            target_tid = user32.GetWindowThreadProcessId(hwnd, None)
+            if fg_tid and target_tid and fg_tid != target_tid:
+                try:
+                    user32.AttachThreadInput(fg_tid, target_tid, True)
+                except Exception:
+                    pass
+            user32.SetForegroundWindow(hwnd)
+            user32.BringWindowToTop(hwnd)
+            user32.SetFocus(hwnd)
+            if fg_tid and target_tid and fg_tid != target_tid:
+                try:
+                    user32.AttachThreadInput(fg_tid, target_tid, False)
+                except Exception:
+                    pass
         _LAST_NON_ARGUS_HWND = hwnd
         return True
     except Exception:
@@ -1059,12 +1073,20 @@ def type_text(text: str, target_app: Optional[str] = None, field: Optional[str] 
     """
     Types arbitrary Unicode text (Russian, English, symbols) into active window or specified target application
     using clipboard + paste to avoid layout desynchronization.
-    If target_app is omitted and Argus is foreground, automatically switches to previous app first.
-    Supports Windows and macOS with native AppleScript fallbacks.
+    If target_app is omitted and Argus is foreground, automatically restores the previous active app.
+    Supports Windows and macOS with native fallbacks.
     """
     global _LAST_NON_ARGUS_HWND
     is_mac = sys.platform == "darwin"
     mod_key = 'command' if is_mac else 'ctrl'
+
+    # Check if a dictation target window was captured when Double-Ctrl was pressed
+    dictation_target = None
+    try:
+        import voice_dictation_hook
+        dictation_target = voice_dictation_hook.get_last_dictation_target()
+    except Exception:
+        pass
 
     if target_app:
         if not activate_running_window(target_app):
@@ -1073,34 +1095,67 @@ def type_text(text: str, target_app: Optional[str] = None, field: Optional[str] 
         else:
             time.sleep(0.35)
     else:
-        # If Argus is currently the foreground window, don't type into Argus!
+        # Check if we should restore focus to the window where dictation was triggered
         curr_title = get_foreground_window_title().lower()
-        if any(k in curr_title for k in ["argus", "vite", "electron"]):
-            if not is_mac and _LAST_NON_ARGUS_HWND and _HAS_WIN32GUI and win32gui.IsWindow(_LAST_NON_ARGUS_HWND):
-                force_foreground_window(_LAST_NON_ARGUS_HWND)
-                time.sleep(0.3)
-            elif _HAS_PYAUTOGUI:
-                switch_key = 'command' if is_mac else 'alt'
-                pyautogui.hotkey(switch_key, 'tab')
-                time.sleep(0.25)
+        if is_mac:
+            target_app_name = dictation_target.get("app") if dictation_target else None
+            if target_app_name:
+                subprocess.run(["osascript", "-e", f'tell application "{target_app_name}" to activate'], capture_output=True, timeout=2)
+                time.sleep(0.15)
+        else:
+            target_hwnd = (dictation_target.get("hwnd") if dictation_target else None) or _LAST_NON_ARGUS_HWND
+            if any(k in curr_title for k in ["argus", "vite", "electron"]) or not curr_title:
+                if target_hwnd and _HAS_WIN32GUI and win32gui.IsWindow(target_hwnd):
+                    force_foreground_window(target_hwnd)
+                    time.sleep(0.15)
+                elif _HAS_PYAUTOGUI:
+                    pyautogui.hotkey('alt', 'tab')
+                    time.sleep(0.2)
 
     if field:
         focus_input_in_active_window(field)
         time.sleep(0.12)
 
-    # 1. Copy text to clipboard (native macOS pbcopy or pyperclip)
+    # 1. Copy text to clipboard
+    copied = False
     if is_mac:
         try:
             p = subprocess.Popen(["pbcopy"], stdin=subprocess.PIPE)
             p.communicate(input=text.encode("utf-8"), timeout=2)
+            copied = True
         except Exception:
-            if _HAS_PYPERCLIP:
-                pyperclip.copy(text)
+            pass
+        if not copied and _HAS_PYPERCLIP:
+            pyperclip.copy(text)
+            copied = True
     else:
         if _HAS_PYPERCLIP:
-            pyperclip.copy(text)
+            try:
+                pyperclip.copy(text)
+                copied = True
+            except Exception:
+                pass
+        # Native Windows ctypes clipboard fallback
+        if not copied:
+            try:
+                CF_UNICODETEXT = 13
+                GMEM_MOVEABLE = 0x0002
+                u32 = ctypes.windll.user32
+                k32 = ctypes.windll.kernel32
+                if u32.OpenClipboard(0):
+                    u32.EmptyClipboard()
+                    encoded = text.encode('utf-16le') + b'\x00\x00'
+                    hGlobal = k32.GlobalAlloc(GMEM_MOVEABLE, len(encoded))
+                    pGlobal = k32.GlobalLock(hGlobal)
+                    ctypes.memmove(pGlobal, encoded, len(encoded))
+                    k32.GlobalUnlock(hGlobal)
+                    u32.SetClipboardData(CF_UNICODETEXT, hGlobal)
+                    u32.CloseClipboard()
+                    copied = True
+            except Exception:
+                pass
 
-    time.sleep(0.06)
+    time.sleep(0.08)
 
     # 2. Paste text into focused input
     if is_mac:
@@ -1116,9 +1171,21 @@ def type_text(text: str, target_app: Optional[str] = None, field: Optional[str] 
             return True
         return False
 
-    if _HAS_PYAUTOGUI:
-        pyautogui.hotkey('ctrl', 'v')
+    # Windows paste: synthesize Ctrl+V using user32 keybd_event & pyautogui
+    try:
+        u32 = ctypes.windll.user32
+        VK_CONTROL = 0x11
+        VK_V = 0x56
+        u32.keybd_event(VK_CONTROL, 0, 0, 0)
+        u32.keybd_event(VK_V, 0, 0, 0)
+        time.sleep(0.03)
+        u32.keybd_event(VK_V, 0, 2, 0)
+        u32.keybd_event(VK_CONTROL, 0, 2, 0)
         return True
+    except Exception:
+        if _HAS_PYAUTOGUI:
+            pyautogui.hotkey('ctrl', 'v')
+            return True
     return False
 
 def press_key(key_name: str) -> bool:
