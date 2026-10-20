@@ -7,47 +7,66 @@ export let API_BASE = `${LOCAL_SERVER_URL}/api`;
 
 let isLocalAvailable = true;
 
+const LOCAL_EXCLUSIVE_ROUTES = [
+  '/api/system',
+  '/api/plugins',
+  '/api/scenarios',
+  '/api/terminal',
+  '/api/voice',
+  '/api/ai/chat'
+];
+
 /**
  * Intelligent dual-target fetch:
- * Prioritizes local machine Python backend (127.0.0.1) for native OS controls,
- * GUI automation, Safari/Telegram integration, and offline speed.
- * Automatically fails over to central cloud server (153.52.69.55) if local backend is starting.
+ * System commands, plugins, scenarios, and AI chat MUST always execute on the local machine (127.0.0.1)
+ * to interact with desktop apps, browser, microphone, and hardware.
+ * Only central authentication and backup sync fail over to the cloud server.
  */
 export async function smartFetch(endpointPath: string, options: RequestInit = {}): Promise<Response> {
   const normPath = endpointPath.startsWith('/') ? endpointPath : `/${endpointPath}`;
+  const isLocalOnly = LOCAL_EXCLUSIVE_ROUTES.some((prefix) => normPath.startsWith(prefix));
 
-  if (isLocalAvailable) {
-    try {
-      const controller = new AbortController();
-      const signal = options.signal || controller.signal;
-      const timer = setTimeout(() => controller.abort(), 2500);
-      const res = await fetch(`${LOCAL_SERVER_URL}${normPath}`, { ...options, signal });
-      clearTimeout(timer);
-      isLocalAvailable = true;
-      API_BASE = `${LOCAL_SERVER_URL}/api`;
-      return res;
-    } catch (err: any) {
-      if (options.signal?.aborted) throw err;
-      isLocalAvailable = false;
-      console.warn(`[Argus API]: Local backend unreachable on ${normPath}, failing over to central cloud server.`);
-    }
-  }
-
-  // Cloud failover
-  try {
-    const res = await fetch(`${CLOUD_SERVER_URL}${normPath}`, options);
-    API_BASE = `${CLOUD_SERVER_URL}/api`;
-    return res;
-  } catch (cloudErr: any) {
-    // If cloud also failed, try local one last time before giving up
-    if (!isLocalAvailable) {
+  if (isLocalOnly) {
+    // Retry local backend with backoff in case process is starting up
+    let lastErr: any = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        const localRetry = await fetch(`${LOCAL_SERVER_URL}${normPath}`, options);
+        const controller = new AbortController();
+        const signal = options.signal || controller.signal;
+        const timer = setTimeout(() => controller.abort(), 8000);
+        const res = await fetch(`${LOCAL_SERVER_URL}${normPath}`, { ...options, signal });
+        clearTimeout(timer);
         isLocalAvailable = true;
         API_BASE = `${LOCAL_SERVER_URL}/api`;
-        return localRetry;
-      } catch {}
+        return res;
+      } catch (err: any) {
+        lastErr = err;
+        if (options.signal?.aborted) throw err;
+        await new Promise((r) => setTimeout(r, 350));
+      }
     }
+    throw lastErr || new Error('Локальная служба Argus на вашем компьютере запускается...');
+  }
+
+  // Non-exclusive endpoints: try local first
+  try {
+    const controller = new AbortController();
+    const signal = options.signal || controller.signal;
+    const timer = setTimeout(() => controller.abort(), 2000);
+    const res = await fetch(`${LOCAL_SERVER_URL}${normPath}`, { ...options, signal });
+    clearTimeout(timer);
+    isLocalAvailable = true;
+    API_BASE = `${LOCAL_SERVER_URL}/api`;
+    return res;
+  } catch (err: any) {
+    if (options.signal?.aborted) throw err;
+  }
+
+  // Cloud failover for general endpoints (auth, backup)
+  try {
+    const res = await fetch(`${CLOUD_SERVER_URL}${normPath}`, options);
+    return res;
+  } catch (cloudErr: any) {
     throw cloudErr;
   }
 }
@@ -96,7 +115,19 @@ export async function verifyKey(keyCode: string): Promise<UserProfile> {
       }
       throw error;
     }
-    return res.json();
+    const profile = await res.json();
+    // Warm up the local machine with verified session
+    try {
+      await fetch(`${LOCAL_SERVER_URL}/api/auth/verify-key`, {
+        method: 'POST',
+        headers,
+        body: payload,
+        signal: AbortSignal.timeout(1500)
+      });
+    } catch {}
+    isLocalAvailable = true;
+    API_BASE = `${LOCAL_SERVER_URL}/api`;
+    return profile;
   } catch (err: any) {
     if (err.isInvalidKey) throw err;
     if (err.name === 'AbortError' || err.message?.includes('timeout') || err.message?.includes('timed out')) {

@@ -23,7 +23,12 @@ import {
   fetchMessages,
   sendChatMessage,
   API_BASE,
-  smartFetch
+  smartFetch,
+  launchApp,
+  runScenario,
+  setVolume,
+  setBrightness,
+  lockPC
 } from './api';
 import { VoiceAssistant } from './utils/voice';
 import './styles/globals.css';
@@ -308,6 +313,29 @@ export const App: React.FC = () => {
       };
       setMessages((prev) => [...prev, asstMsg]);
       setStreamingMessageId(asstMsg.id);
+
+      // Client-Side Action Execution Guarantee
+      if (res.action_type) {
+        try {
+          if (res.action_type === 'open_url' && res.action_data?.url) {
+            launchApp(res.action_data.url).catch(() => {});
+          } else if (res.action_type === 'launch_app' && (res.action_data?.app || res.action_data?.launched)) {
+            launchApp(res.action_data.app || res.action_data.launched).catch(() => {});
+          } else if (res.action_type === 'scenario' && (res.action_data?.id || res.action_data?.scenario_id)) {
+            runScenario(res.action_data.id || res.action_data.scenario_id).catch(() => {});
+          } else if (res.action_type === 'volume_set' && res.action_data?.level !== undefined) {
+            setVolume({ level: res.action_data.level }).catch(() => {});
+          } else if (res.action_type === 'volume_change' && res.action_data?.delta !== undefined) {
+            setVolume({ delta: res.action_data.delta }).catch(() => {});
+          } else if (res.action_type === 'brightness_set' && res.action_data?.level !== undefined) {
+            setBrightness({ level: res.action_data.level }).catch(() => {});
+          } else if (res.action_type === 'lock_pc' || res.action_type === 'system_lock') {
+            lockPC().catch(() => {});
+          }
+        } catch (e) {
+          console.warn('Client-side action dispatch notice:', e);
+        }
+      }
 
       if (voiceAssistantRef.current && activeProf.voice_enabled !== false) {
         if (res.audio_base64) {

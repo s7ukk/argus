@@ -43,29 +43,8 @@ function logApp(msg) {
   } catch {}
 }
 
-function getBackendConfig() {
+function getFallbackScriptConfig() {
   const isWin = process.platform === 'win32';
-  const binaryName = isWin ? 'argus-backend.exe' : 'argus-backend';
-
-  const candidates = [
-    // 1. Packaged location (resources/backend-dist/argus-backend/argus-backend.exe)
-    process.resourcesPath ? path.join(process.resourcesPath, 'backend-dist', 'argus-backend', binaryName) : null,
-    process.resourcesPath ? path.join(process.resourcesPath, 'backend-dist', binaryName) : null,
-    process.resourcesPath ? path.join(process.resourcesPath, binaryName) : null,
-    // 2. Local dev repository location (backend-dist/argus-backend/argus-backend.exe)
-    path.join(__dirname, '..', 'backend-dist', 'argus-backend', binaryName),
-    path.join(__dirname, '..', 'backend-dist', binaryName),
-    path.join(__dirname, '..', '..', 'backend-dist', 'argus-backend', binaryName),
-  ].filter(Boolean);
-
-  for (const c of candidates) {
-    if (fs.existsSync(c)) {
-      logApp(`[Argus]: Found standalone backend binary at ${c}`);
-      return { command: c, args: [], cwd: path.dirname(c), isBinary: true };
-    }
-  }
-
-  // 3. Fallback to system Python for developer mode or non-binary environment
   let pyCmd = isWin ? 'python' : 'python3';
   if (isWin) {
     const localApp = process.env.LOCALAPPDATA || '';
@@ -107,8 +86,34 @@ function getBackendConfig() {
     }
   }
 
-  logApp(`[Argus]: Standalone binary not found, falling back to script: ${pyCmd} ${scriptPath}`);
   return { command: pyCmd, args: [scriptPath], cwd: scriptCwd, isBinary: false };
+}
+
+function getBackendConfig() {
+  const isWin = process.platform === 'win32';
+  const binaryName = isWin ? 'argus-backend.exe' : 'argus-backend';
+
+  const candidates = [
+    // 1. Packaged location (resources/backend-dist/argus-backend/argus-backend.exe)
+    process.resourcesPath ? path.join(process.resourcesPath, 'backend-dist', 'argus-backend', binaryName) : null,
+    process.resourcesPath ? path.join(process.resourcesPath, 'backend-dist', binaryName) : null,
+    process.resourcesPath ? path.join(process.resourcesPath, binaryName) : null,
+    // 2. Local dev repository location (backend-dist/argus-backend/argus-backend.exe)
+    path.join(__dirname, '..', 'backend-dist', 'argus-backend', binaryName),
+    path.join(__dirname, '..', 'backend-dist', binaryName),
+    path.join(__dirname, '..', '..', 'backend-dist', 'argus-backend', binaryName),
+  ].filter(Boolean);
+
+  for (const c of candidates) {
+    if (fs.existsSync(c)) {
+      logApp(`[Argus]: Found standalone backend binary at ${c}`);
+      return { command: c, args: [], cwd: path.dirname(c), isBinary: true };
+    }
+  }
+
+  const fb = getFallbackScriptConfig();
+  logApp(`[Argus]: Standalone binary not found, falling back to script: ${fb.command} ${fb.args.join(' ')}`);
+  return fb;
 }
 
 function sanitizeLog(data) {
@@ -169,12 +174,22 @@ async function startPythonBackend() {
           : path.join(__dirname, '..', 'backend-dist');
         if (fs.existsSync(bDir)) {
           require('child_process').execSync(`chmod -R 755 "${bDir}"`, { stdio: 'ignore' });
+          if (process.platform === 'darwin') {
+            try {
+              require('child_process').execSync(`xattr -r -d com.apple.quarantine "${bDir}"`, { stdio: 'ignore' });
+            } catch {}
+          }
         }
         if (cfg.isBinary && fs.existsSync(cfg.command)) {
           fs.chmodSync(cfg.command, 0o755);
+          if (process.platform === 'darwin') {
+            try {
+              require('child_process').execSync(`xattr -d com.apple.quarantine "${cfg.command}"`, { stdio: 'ignore' });
+            } catch {}
+          }
         }
       } catch (e) {
-        logApp(`[Argus chmod notice]: ${e.message}`);
+        logApp(`[Argus chmod/quarantine notice]: ${e.message}`);
       }
     }
 
@@ -204,12 +219,44 @@ async function startPythonBackend() {
       pythonProcess = null;
     });
 
-    // Wait for backend to be fully active and healthy
-    for (let i = 0; i < 35; i++) {
+    // Wait for backend to be fully active and healthy (up to 15 seconds)
+    let isHealthy = false;
+    for (let i = 0; i < 60; i++) {
       await new Promise(r => setTimeout(r, 250));
       if (await checkLocalBackendRunning()) {
         logApp('[Argus]: Python backend verified healthy on port 18274.');
+        isHealthy = true;
         break;
+      }
+    }
+
+    // Dynamic Script Fallback if standalone binary fails or exits early
+    if (!isHealthy && cfg.isBinary) {
+      logApp('[Argus]: Standalone binary did not become healthy in time. Attempting fallback python script launch...');
+      const fb = getFallbackScriptConfig();
+      if (pythonProcess) {
+        try { pythonProcess.kill(); } catch {}
+      }
+      logApp(`[Argus]: Spawning fallback script: ${fb.command} (args: ${JSON.stringify(fb.args)})`);
+      pythonProcess = spawn(fb.command, fb.args, {
+        cwd: fb.cwd,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        windowsHide: true
+      });
+      pythonProcess.stdout.on('data', (data) => {
+        const s = sanitizeLog(data);
+        if (s.trim()) logApp(`[Fallback stdout]: ${s.trim()}`);
+      });
+      pythonProcess.stderr.on('data', (data) => {
+        const s = sanitizeLog(data);
+        if (s.trim()) logApp(`[Fallback stderr]: ${s.trim()}`);
+      });
+      for (let i = 0; i < 40; i++) {
+        await new Promise(r => setTimeout(r, 250));
+        if (await checkLocalBackendRunning()) {
+          logApp('[Argus]: Fallback Python backend verified healthy on port 18274.');
+          break;
+        }
       }
     }
   } catch (err) {
