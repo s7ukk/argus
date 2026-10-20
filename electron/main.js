@@ -60,13 +60,32 @@ function getFallbackScriptConfig() {
       if (fs.existsSync(p)) { pyCmd = p; break; }
     }
   } else {
-    const macCandidates = [
-      '/opt/homebrew/bin/python3',
-      '/usr/local/bin/python3',
-      '/usr/bin/python3'
-    ];
-    for (const p of macCandidates) {
-      if (fs.existsSync(p)) { pyCmd = p; break; }
+    const bundledPythonCandidates = [
+      process.resourcesPath ? path.join(process.resourcesPath, 'backend-dist', 'argus-backend', '_internal', 'Python.framework', 'Versions', '3.12', 'Python') : null,
+      process.resourcesPath ? path.join(process.resourcesPath, 'backend-dist', 'argus-backend', '_internal', 'Python') : null,
+      path.join(__dirname, '..', 'backend-dist', 'argus-backend', '_internal', 'Python.framework', 'Versions', '3.12', 'Python'),
+      path.join(__dirname, '..', 'backend-dist', 'argus-backend', '_internal', 'Python'),
+    ].filter(Boolean);
+
+    for (const b of bundledPythonCandidates) {
+      if (fs.existsSync(b)) {
+        pyCmd = b;
+        try { fs.chmodSync(b, 0o755); } catch {}
+        break;
+      }
+    }
+
+    if (pyCmd === 'python3') {
+      const macCandidates = [
+        '/opt/homebrew/bin/python3',
+        '/usr/local/bin/python3',
+        '/Library/Frameworks/Python.framework/Versions/3.12/bin/python3',
+        '/Library/Frameworks/Python.framework/Versions/3.11/bin/python3',
+        '/usr/bin/python3'
+      ];
+      for (const p of macCandidates) {
+        if (fs.existsSync(p)) { pyCmd = p; break; }
+      }
     }
   }
 
@@ -131,7 +150,7 @@ const CLOUD_HEALTH_URL = 'http://153.52.69.55:18274/api/health';
 
 async function checkLocalBackendRunning() {
   try {
-    const res = await fetch(LOCAL_HEALTH_URL, { signal: AbortSignal.timeout(500) });
+    const res = await fetch(LOCAL_HEALTH_URL, { signal: AbortSignal.timeout(2000) });
     return res.ok;
   } catch {
     return false;
@@ -167,34 +186,49 @@ async function startPythonBackend() {
     const cfg = getBackendConfig();
     logApp(`[Argus]: Spawning local backend: ${cfg.command} (args: ${JSON.stringify(cfg.args)})`);
 
-    if (process.platform !== 'win32') {
+    const isWin = process.platform === 'win32';
+    const backendDir = process.resourcesPath ? path.join(process.resourcesPath, 'backend') : path.join(__dirname, '..', 'backend');
+    const bDistDir = process.resourcesPath ? path.join(process.resourcesPath, 'backend-dist', 'argus-backend') : path.join(__dirname, '..', 'backend-dist', 'argus-backend');
+    const internalDir = path.join(bDistDir, '_internal');
+
+    const pyPath = [
+      internalDir,
+      bDistDir,
+      backendDir,
+      process.resourcesPath || path.join(__dirname, '..'),
+      path.join(__dirname, '..')
+    ].filter(p => p && fs.existsSync(p)).join(isWin ? ';' : ':');
+
+    const spawnEnv = Object.assign({}, process.env, {
+      PYTHONUNBUFFERED: '1',
+      PYTHONPATH: pyPath
+    });
+
+    if (process.platform === 'darwin') {
       try {
+        const { execSync } = require('child_process');
         const bDir = process.resourcesPath
           ? path.join(process.resourcesPath, 'backend-dist')
           : path.join(__dirname, '..', 'backend-dist');
         if (fs.existsSync(bDir)) {
-          require('child_process').execSync(`chmod -R 755 "${bDir}"`, { stdio: 'ignore' });
-          if (process.platform === 'darwin') {
-            try {
-              require('child_process').execSync(`xattr -r -d com.apple.quarantine "${bDir}"`, { stdio: 'ignore' });
-            } catch {}
-          }
+          execSync(`chmod -R 755 "${bDir}"`, { stdio: 'ignore' });
+          execSync(`xattr -cr "${bDir}"`, { stdio: 'ignore' });
         }
         if (cfg.isBinary && fs.existsSync(cfg.command)) {
           fs.chmodSync(cfg.command, 0o755);
-          if (process.platform === 'darwin') {
-            try {
-              require('child_process').execSync(`xattr -d com.apple.quarantine "${cfg.command}"`, { stdio: 'ignore' });
-            } catch {}
-          }
+          execSync(`xattr -cr "${cfg.command}"`, { stdio: 'ignore' });
+          try {
+            execSync(`codesign --force --deep --sign - "${cfg.command}"`, { stdio: 'ignore' });
+          } catch {}
         }
       } catch (e) {
-        logApp(`[Argus chmod/quarantine notice]: ${e.message}`);
+        logApp(`[Argus macOS prep notice]: ${e.message}`);
       }
     }
 
     pythonProcess = spawn(cfg.command, cfg.args, {
       cwd: cfg.cwd,
+      env: spawnEnv,
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true
     });
@@ -240,6 +274,7 @@ async function startPythonBackend() {
       logApp(`[Argus]: Spawning fallback script: ${fb.command} (args: ${JSON.stringify(fb.args)})`);
       pythonProcess = spawn(fb.command, fb.args, {
         cwd: fb.cwd,
+        env: spawnEnv,
         stdio: ['ignore', 'pipe', 'pipe'],
         windowsHide: true
       });
