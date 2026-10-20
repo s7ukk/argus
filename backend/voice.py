@@ -2,6 +2,7 @@ import asyncio
 import base64
 import io
 import os
+import sys
 import re
 import tempfile
 import edge_tts
@@ -144,8 +145,8 @@ async def generate_speech_base64(
             return fish_b64
 
     # 2. High-quality Edge-TTS Neural Voices (Default: ru-RU-DmitryNeural male)
-    target_voice = voice if (voice and "Svetlana" not in voice) else "ru-RU-DmitryNeural"
-    voices_to_try = [target_voice, "ru-RU-DmitryNeural", "en-US-ChristopherNeural"]
+    target_voice = voice.strip() if (voice and voice.strip()) else "ru-RU-DmitryNeural"
+    voices_to_try = [target_voice, "ru-RU-DmitryNeural", "ru-RU-SvetlanaNeural", "en-US-ChristopherNeural"]
     
     seen = set()
     deduped = []

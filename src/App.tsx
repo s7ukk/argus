@@ -78,7 +78,20 @@ export const App: React.FC = () => {
       });
     }
 
+    const handleSettingsUpdated = (e: any) => {
+      const updated = e.detail;
+      if (updated && voiceAssistantRef.current) {
+        if (updated.voice_input_mode === 'trigger') {
+          voiceAssistantRef.current.startWakeWordMonitoring(updated.trigger_words);
+        } else {
+          voiceAssistantRef.current.stopWakeWordMonitoring();
+        }
+      }
+    };
+    window.addEventListener('argus_settings_updated', handleSettingsUpdated);
+
     return () => {
+      window.removeEventListener('argus_settings_updated', handleSettingsUpdated);
       voiceAssistantRef.current?.stopWakeWordMonitoring();
       voiceAssistantRef.current?.stopListening();
       voiceAssistantRef.current?.stopSpeaking();

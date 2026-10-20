@@ -22,6 +22,7 @@ import {
   updateSettings,
   fetchInstalledBrowsers,
   testFishAudio,
+  testEdgeTTS,
   executeTerminal,
   getTerminalAIAssistant
 } from '../api';
@@ -50,6 +51,10 @@ export const SettingsView: React.FC = () => {
   // Fish Audio preview test state
   const [testingFish, setTestingFish] = useState(false);
   const [fishTestError, setFishTestError] = useState<string | null>(null);
+
+  // Edge-TTS preview test state
+  const [testingEdge, setTestingEdge] = useState(false);
+  const [edgeTestError, setEdgeTestError] = useState<string | null>(null);
 
   // Terminal AI Assistant tester
   const [termPrompt, setTermPrompt] = useState('покажи сколько свободного места на дисках');
@@ -83,12 +88,34 @@ export const SettingsView: React.FC = () => {
       await updateSettings(settings);
       // Synchronize in localStorage for instant frontend access
       localStorage.setItem('argus_settings', JSON.stringify(settings));
+      window.dispatchEvent(new CustomEvent('argus_settings_updated', { detail: settings }));
       setSavedSuccess(true);
       setTimeout(() => setSavedSuccess(false), 2400);
     } catch (e: any) {
       alert(e.message || 'Ошибка сохранения настроек');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleTestEdgeVoice = async () => {
+    setEdgeTestError(null);
+    setTestingEdge(true);
+    try {
+      const res = await testEdgeTTS(
+        settings.edge_voice,
+        settings.voice_speed,
+        'Здравствуйте! Голосовой синтез Аргус работает отлично. Выбранный голос настроен.'
+      );
+      if (res && res.audio_base64) {
+        const cleanB64 = res.audio_base64.replace(/\s+/g, '');
+        const audio = new Audio(`data:audio/mpeg;base64,${cleanB64}`);
+        audio.play().catch((err) => console.warn('Edge voice play error:', err));
+      }
+    } catch (e: any) {
+      setEdgeTestError(e.message || 'Не удалось воспроизвести голос');
+    } finally {
+      setTestingEdge(false);
     }
   };
 
@@ -347,6 +374,64 @@ export const SettingsView: React.FC = () => {
             <span style={{ fontSize: 11, color: '#64748b', marginTop: 4, display: 'block' }}>
               Когда ассистент слышит любое из этих слов, он мгновенно начинает запись команды.
             </span>
+
+            {/* Quick Trigger Selection Chips */}
+            <div style={{ marginTop: 10 }}>
+              <span style={{ fontSize: 11, color: '#94a3b8', display: 'block', marginBottom: 6 }}>
+                Быстрый выбор триггер-слов (нажмите чтобы добавить / убрать):
+              </span>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {[
+                  'аргус',
+                  'argus',
+                  'эй аргус',
+                  'привет аргус',
+                  'джарвис',
+                  'компьютер',
+                  'помощник',
+                  'hey argus',
+                ].map((tw) => {
+                  const wordsList = settings.trigger_words
+                    .split(',')
+                    .map((w) => w.trim().toLowerCase())
+                    .filter(Boolean);
+                  const isSelected = wordsList.includes(tw.toLowerCase());
+                  return (
+                    <button
+                      key={tw}
+                      type="button"
+                      onClick={() => {
+                        let nextList = [...wordsList];
+                        if (isSelected) {
+                          nextList = nextList.filter((w) => w !== tw.toLowerCase());
+                        } else {
+                          nextList.push(tw.toLowerCase());
+                        }
+                        setSettings({ ...settings, trigger_words: nextList.join(', ') });
+                      }}
+                      style={{
+                        padding: '4px 10px',
+                        borderRadius: 99,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        border: isSelected
+                          ? '1px solid rgba(56, 189, 248, 0.6)'
+                          : '1px solid rgba(255, 255, 255, 0.1)',
+                        background: isSelected
+                          ? 'rgba(56, 189, 248, 0.2)'
+                          : 'rgba(255, 255, 255, 0.04)',
+                        color: isSelected ? '#38bdf8' : '#94a3b8',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      {isSelected ? '✓ ' : '+ '}
+                      {tw}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
 
           {/* Push-to-Talk Hotkey */}
@@ -570,8 +655,38 @@ export const SettingsView: React.FC = () => {
                 >
                   <option value="ru-RU-DmitryNeural">Дмитрий (ru-RU) — Уверенный мужской голос (Argus)</option>
                   <option value="ru-RU-SvetlanaNeural">Светлана (ru-RU) — Мягкий и выразительный женский голос</option>
-                  <option value="en-US-ChristopherNeural">Christopher (en-US) — Чистый американский английский</option>
+                  <option value="en-US-ChristopherNeural">Christopher (en-US) — Чистый американский английский (мужской)</option>
+                  <option value="en-US-JennyNeural">Jenny (en-US) — Чистый американский английский (женский)</option>
+                  <option value="en-GB-RyanNeural">Ryan (en-GB) — Британский английский (мужской)</option>
+                  <option value="en-GB-SoniaNeural">Sonia (en-GB) — Британский английский (женский)</option>
                 </select>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10 }}>
+                  <button
+                    type="button"
+                    onClick={handleTestEdgeVoice}
+                    disabled={testingEdge}
+                    className="btn-secondary"
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: 10,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    <Play size={13} />
+                    <span>{testingEdge ? 'Синтез...' : 'Прослушать голос (Тест)'}</span>
+                  </button>
+                </div>
+
+                {edgeTestError && (
+                  <div style={{ fontSize: 11.5, color: '#f87171', background: 'rgba(239,68,68,0.1)', padding: '6px 10px', borderRadius: 8, marginTop: 8 }}>
+                    {edgeTestError}
+                  </div>
+                )}
               </div>
 
               <div>

@@ -29,10 +29,13 @@ export interface ChatMessage {
 }
 
 export interface SystemStats {
+  os?: string;
+  disk_label?: string;
   cpu: {
     percent: number;
     cores: number;
     freq_mhz: number;
+    model?: string;
   };
   memory: {
     total_gb: number;

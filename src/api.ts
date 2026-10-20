@@ -418,6 +418,24 @@ export async function testFishAudio(apiKey: string, modelId?: string, text?: str
   return res.json();
 }
 
+export async function testEdgeTTS(voice: string, speed = 1.0, text = 'Привет! Я голосовой ассистент Аргус. Голос успешно настроен.'): Promise<any> {
+  const rateStr = speed >= 1.0 ? `+${Math.round((speed - 1.0) * 100)}%` : `${Math.round((speed - 1.0) * 100)}%`;
+  const res = await smartFetch('/api/voice/tts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      text,
+      voice,
+      rate: rateStr
+    })
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Ошибка синтеза' }));
+    throw new Error(err.detail || 'Не удалось синтезировать голос');
+  }
+  return res.json();
+}
+
 export async function dictateVoiceSunder(text: string, pressEnter = false): Promise<any> {
   const res = await smartFetch('/api/plugins/voice-sunder/dictate', {
     method: 'POST',

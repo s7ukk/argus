@@ -176,7 +176,7 @@ def execute_single_action(act: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]
 
     elif act_type == "empty_recycle":
         sc.empty_recycle_bin()
-        return "Корзина Windows очищена", "empty_recycle", {}
+        return ("Корзина macOS очищена" if sys.platform == "darwin" else "Корзина очищена"), "empty_recycle", {}
 
     elif act_type == "lock_pc":
         sc.lock_workstation()

@@ -812,13 +812,16 @@ def launch_application(app_name: str) -> Dict[str, Any]:
             "telegram": "Telegram", "телеграм": "Telegram", "телега": "Telegram", "тг": "Telegram", "телеграмм": "Telegram",
             "discord": "Discord", "дискорд": "Discord",
             "spotify": "Spotify", "спотифай": "Spotify",
+            "steam": "Steam", "стим": "Steam",
             "vscode": "Visual Studio Code", "код": "Visual Studio Code", "vs code": "Visual Studio Code",
             "code": "Visual Studio Code", "вскод": "Visual Studio Code",
             "calculator": "Calculator", "калькулятор": "Calculator", "кальк": "Calculator",
             "notes": "Notes", "заметки": "Notes", "блокнот": "TextEdit", "textedit": "TextEdit",
-            "terminal": "Terminal", "терминал": "Terminal",
+            "terminal": "Terminal", "терминал": "Terminal", "cmd": "Terminal", "cmd.exe": "Terminal", "powershell": "Terminal",
             "safari": "Safari", "сафари": "Safari", "браузер": "Safari", "browser": "Safari", "интернет": "Safari",
-            "finder": "Finder", "файлы": "Finder", "проводник": "Finder", "файндер": "Finder",
+            "finder": "Finder", "файлы": "Finder", "проводник": "Finder", "файндер": "Finder", "explorer": "Finder", "explorer.exe": "Finder",
+            "activity monitor": "Activity Monitor", "диспетчер задач": "Activity Monitor", "мониторинг системы": "Activity Monitor",
+            "taskmgr": "Activity Monitor", "taskmgr.exe": "Activity Monitor",
             "settings": "System Settings", "настройки": "System Settings", "параметры": "System Settings",
             "music": "Music", "музыка": "Music",
             "яндекс": "Yandex", "яндекс браузер": "Yandex",
@@ -1210,12 +1213,14 @@ def close_application(app_name: str) -> Dict[str, Any]:
             "safari": "Safari", "сафари": "Safari", "браузер": "Safari",
             "discord": "Discord", "дискорд": "Discord",
             "spotify": "Spotify", "спотифай": "Spotify",
-            "vscode": "Visual Studio Code", "код": "Visual Studio Code",
+            "steam": "Steam", "стим": "Steam",
+            "vscode": "Visual Studio Code", "код": "Visual Studio Code", "vs code": "Visual Studio Code", "code": "Visual Studio Code",
             "calculator": "Calculator", "калькулятор": "Calculator",
-            "notes": "Notes", "заметки": "Notes", "блокнот": "TextEdit",
+            "notes": "Notes", "заметки": "Notes", "блокнот": "TextEdit", "textedit": "TextEdit",
             "terminal": "Terminal", "терминал": "Terminal",
+            "activity monitor": "Activity Monitor", "диспетчер задач": "Activity Monitor", "мониторинг системы": "Activity Monitor", "taskmgr": "Activity Monitor", "taskmgr.exe": "Activity Monitor",
             "music": "Music", "музыка": "Music",
-            "finder": "Finder"
+            "finder": "Finder", "explorer": "Finder", "explorer.exe": "Finder"
         }
         target_mac = mac_close_map.get(app_lower, app_name)
         closed = False
@@ -1689,17 +1694,59 @@ def open_url(url: str, browser: Optional[str] = None) -> bool:
 
 # ─── HARDWARE TELEMETRY ─────────────────────────────────────────
 def get_system_stats() -> Dict[str, Any]:
-    """Retrieve full system hardware health and metrics."""
+    """Retrieve full system hardware health and metrics across Windows, macOS, and Linux."""
     cpu_percent = psutil.cpu_percent(interval=0.1)
     cpu_freq = psutil.cpu_freq()
     vm = psutil.virtual_memory()
-    disk_path = "/" if sys.platform != "win32" else "C:\\"
-    try:
-        disk = psutil.disk_usage(disk_path)
-    except Exception:
-        disk = psutil.disk_usage(os.path.expanduser("~"))
+
+    # Precise cross-platform disk usage detection
+    disk_stats = None
+    if sys.platform == "darwin":
+        # macOS APFS architecture: user data & storage reside at /System/Volumes/Data or ~.
+        # Root '/' is a sealed read-only snapshot that reports distorted or 0 GB free metrics.
+        for cand in ["/System/Volumes/Data", os.path.expanduser("~"), "/"]:
+            if os.path.exists(cand):
+                try:
+                    usage = shutil.disk_usage(cand)
+                    if usage.total > 0:
+                        used = usage.total - usage.free
+                        pct = round((used / usage.total) * 100, 1)
+                        disk_stats = {
+                            "total_gb": round(usage.total / (1024**3), 1),
+                            "used_gb": round(used / (1024**3), 1),
+                            "free_gb": round(usage.free / (1024**3), 1),
+                            "percent": pct
+                        }
+                        break
+                except Exception:
+                    continue
+    elif sys.platform == "win32":
+        try:
+            usage = shutil.disk_usage("C:\\")
+            used = usage.total - usage.free
+            pct = round((used / usage.total) * 100, 1) if usage.total > 0 else 0.0
+            disk_stats = {
+                "total_gb": round(usage.total / (1024**3), 1),
+                "used_gb": round(used / (1024**3), 1),
+                "free_gb": round(usage.free / (1024**3), 1),
+                "percent": pct
+            }
+        except Exception:
+            pass
+
+    if not disk_stats:
+        try:
+            d = psutil.disk_usage(os.path.expanduser("~") if sys.platform == "darwin" else ("C:\\" if sys.platform == "win32" else "/"))
+            disk_stats = {
+                "total_gb": round(d.total / (1024**3), 1),
+                "used_gb": round(d.used / (1024**3), 1),
+                "free_gb": round(d.free / (1024**3), 1),
+                "percent": d.percent
+            }
+        except Exception:
+            disk_stats = {"total_gb": 0.0, "used_gb": 0.0, "free_gb": 0.0, "percent": 0.0}
+
     battery = psutil.sensors_battery()
-    
     battery_info = None
     if battery:
         battery_info = {
@@ -1708,11 +1755,28 @@ def get_system_stats() -> Dict[str, Any]:
             "secsleft": battery.secsleft if battery.secsleft != psutil.POWER_TIME_UNLIMITED else None
         }
 
+    # Enhanced CPU model detection (e.g. Apple Silicon M1/M2/M3 on Mac)
+    cpu_model = ""
+    if sys.platform == "darwin":
+        try:
+            cpu_model = subprocess.check_output(["sysctl", "-n", "machdep.cpu.brand_string"], stderr=subprocess.DEVNULL).decode().strip()
+        except Exception:
+            cpu_model = "Apple Silicon / Intel"
+    elif sys.platform == "win32":
+        try:
+            import platform
+            cpu_model = platform.processor() or ""
+        except Exception:
+            pass
+
     return {
+        "os": "macOS" if sys.platform == "darwin" else ("Windows" if sys.platform == "win32" else "Linux"),
+        "disk_label": "Macintosh HD" if sys.platform == "darwin" else ("Диск C:" if sys.platform == "win32" else "Диск (/)"),
         "cpu": {
             "percent": cpu_percent,
-            "cores": psutil.cpu_count(logical=True),
-            "freq_mhz": int(cpu_freq.current) if cpu_freq else 0
+            "cores": psutil.cpu_count(logical=True) or 1,
+            "freq_mhz": int(cpu_freq.current) if cpu_freq else 0,
+            "model": cpu_model
         },
         "memory": {
             "total_gb": round(vm.total / (1024**3), 1),
@@ -1720,12 +1784,7 @@ def get_system_stats() -> Dict[str, Any]:
             "free_gb": round(vm.available / (1024**3), 1),
             "percent": vm.percent
         },
-        "disk": {
-            "total_gb": round(disk.total / (1024**3), 1),
-            "used_gb": round(disk.used / (1024**3), 1),
-            "free_gb": round(disk.free / (1024**3), 1),
-            "percent": disk.percent
-        },
+        "disk": disk_stats,
         "battery": battery_info,
         "volume": get_volume(),
         "brightness": get_brightness()

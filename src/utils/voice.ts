@@ -552,7 +552,7 @@ export class VoiceAssistant {
           method: 'POST',
           headers,
           body: reqBody,
-          signal: AbortSignal.timeout(1800)
+          signal: AbortSignal.timeout(4500)
         });
       } catch {
         res = await fetch(`${API_BASE}/voice/wake-check`, {

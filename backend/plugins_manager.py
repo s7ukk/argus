@@ -46,7 +46,7 @@ MODULE_PACKAGE_MAP = {
 
 def get_python_executable() -> str:
     """Returns current active Python interpreter path, searching system Python when frozen."""
-    if getattr(sys, 'frozen', False) or 'argus-backend' in sys.executable.lower():
+    if getattr(sys, 'frozen', False) or 'argus-backend' in sys.executable.lower() or 'argus' in os.path.basename(sys.executable).lower():
         if sys.platform == "win32":
             candidates = [
                 os.path.join(os.getenv("LOCALAPPDATA", ""), "Programs", "Python", "Python314", "python.exe"),
@@ -63,13 +63,21 @@ def get_python_executable() -> str:
             return "python"
         else:
             candidates = [
+                shutil.which("python3"),
                 "/opt/homebrew/bin/python3",
                 "/usr/local/bin/python3",
+                "/Library/Frameworks/Python.framework/Versions/Current/bin/python3",
+                "/Library/Frameworks/Python.framework/Versions/3.14/bin/python3",
+                "/Library/Frameworks/Python.framework/Versions/3.13/bin/python3",
+                "/Library/Frameworks/Python.framework/Versions/3.12/bin/python3",
+                "/Library/Frameworks/Python.framework/Versions/3.11/bin/python3",
+                os.path.expanduser("~/.pyenv/shims/python3"),
+                "/opt/local/bin/python3",
                 "/usr/bin/python3",
-                shutil.which("python3") or "python3"
+                "python3"
             ]
             for c in candidates:
-                if c and os.path.exists(c):
+                if c and (os.path.exists(c) if c.startswith("/") or c.startswith("~") else bool(shutil.which(c))):
                     return c
             return "python3"
     return sys.executable

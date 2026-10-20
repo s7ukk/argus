@@ -13,7 +13,8 @@ import {
   Lock,
   Layers,
   CheckCircle,
-  Activity
+  Activity,
+  Terminal
 } from 'lucide-react';
 import { SystemStats } from '../types';
 import { getSystemStats, setVolume, setBrightness, lockPC, launchApp } from '../api';
@@ -82,8 +83,8 @@ export const SystemView: React.FC = () => {
 
   const handleOpenTaskMgr = async () => {
     try {
-      await launchApp('taskmgr.exe');
-      notify('Диспетчер задач открыт');
+      await launchApp(stats?.os === 'macOS' ? 'Activity Monitor' : 'taskmgr.exe');
+      notify(stats?.os === 'macOS' ? 'Мониторинг системы открыт' : 'Диспетчер задач открыт');
     } catch (e) {}
   };
 
@@ -145,11 +146,11 @@ export const SystemView: React.FC = () => {
                   textTransform: 'uppercase',
                 }}
               >
-                Hardware Realtime
+                {stats?.os || 'Hardware Realtime'}
               </span>
             </div>
             <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
-              Мониторинг нагрузки оборудования Windows и прямое системное управление
+              Мониторинг нагрузки оборудования {stats?.os ? `(${stats.os})` : ''} и прямое системное управление
             </p>
           </div>
         </div>
@@ -222,7 +223,7 @@ export const SystemView: React.FC = () => {
                 {stats?.cpu?.percent ?? 0}%
               </span>
               <span style={{ fontSize: 12, color: '#64748b' }}>
-                {stats?.cpu?.cores ?? 0} ядер / {stats?.cpu?.freq_mhz ?? 0} MHz
+                {stats?.cpu?.model ? `${stats.cpu.model.split('@')[0].trim()} • ` : ''}{stats?.cpu?.cores ?? 0} ядер{stats?.cpu?.freq_mhz ? ` / ${stats.cpu.freq_mhz} MHz` : ''}
               </span>
             </div>
             {/* Progress Bar */}
@@ -290,7 +291,7 @@ export const SystemView: React.FC = () => {
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>
-                Системный диск (C:)
+                {stats?.disk_label || (stats?.os === 'macOS' ? 'Macintosh HD (SSD)' : 'Системный диск (C:)')}
               </span>
               <HardDrive size={18} color="#4ade80" />
             </div>
@@ -299,7 +300,7 @@ export const SystemView: React.FC = () => {
                 {stats?.disk?.percent ?? 0}%
               </span>
               <span style={{ fontSize: 12, color: '#64748b' }}>
-                {stats?.disk?.free_gb ?? 0} GB свободно
+                {stats?.disk?.free_gb ?? 0} GB свободно из {stats?.disk?.total_gb ?? 0} GB
               </span>
             </div>
             <div style={{ width: '100%', height: 6, borderRadius: 99, background: 'rgba(255, 255, 255, 0.08)', overflow: 'hidden' }}>
@@ -384,7 +385,7 @@ export const SystemView: React.FC = () => {
         {/* Quick System Action Buttons */}
         <div className="glass-card" style={{ padding: '20px', borderRadius: 16 }}>
           <h4 style={{ fontSize: 14, fontWeight: 700, color: '#ffffff', marginBottom: 14 }}>
-            Быстрые системные команды Windows
+            Быстрые системные команды {stats?.os ? `(${stats.os})` : ''}
           </h4>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
             <button
@@ -403,7 +404,53 @@ export const SystemView: React.FC = () => {
               }}
             >
               <Activity size={16} color="#38bdf8" />
-              <span>Диспетчер задач</span>
+              <span>{stats?.os === 'macOS' ? 'Мониторинг системы (Activity Monitor)' : 'Диспетчер задач'}</span>
+            </button>
+
+            <button
+              onClick={async () => {
+                const target = stats?.os === 'macOS' ? 'Finder' : 'explorer.exe';
+                await launchApp(target);
+                notify(stats?.os === 'macOS' ? 'Finder открыт' : 'Проводник открыт');
+              }}
+              className="glass-card"
+              style={{
+                padding: '10px 16px',
+                borderRadius: 12,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                fontSize: 13,
+                fontWeight: 600,
+                color: '#f1f5f9',
+                cursor: 'pointer',
+              }}
+            >
+              <Layers size={16} color="#4ade80" />
+              <span>{stats?.os === 'macOS' ? 'Открыть Finder' : 'Открыть Проводник'}</span>
+            </button>
+
+            <button
+              onClick={async () => {
+                const target = stats?.os === 'macOS' ? 'Terminal' : 'powershell';
+                await launchApp(target);
+                notify(stats?.os === 'macOS' ? 'Терминал macOS открыт' : 'Терминал открыт');
+              }}
+              className="glass-card"
+              style={{
+                padding: '10px 16px',
+                borderRadius: 12,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                fontSize: 13,
+                fontWeight: 600,
+                color: '#f1f5f9',
+                cursor: 'pointer',
+              }}
+            >
+              <Terminal size={16} color="#fbbf24" />
+              <span>Терминал</span>
             </button>
 
             <button
@@ -423,28 +470,6 @@ export const SystemView: React.FC = () => {
             >
               <Lock size={16} color="#c084fc" />
               <span>Заблокировать ПК</span>
-            </button>
-
-            <button
-              onClick={async () => {
-                await launchApp('explorer.exe');
-                notify('Проводник открыт');
-              }}
-              className="glass-card"
-              style={{
-                padding: '10px 16px',
-                borderRadius: 12,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                fontSize: 13,
-                fontWeight: 600,
-                color: '#f1f5f9',
-                cursor: 'pointer',
-              }}
-            >
-              <Layers size={16} color="#4ade80" />
-              <span>Открыть Проводник</span>
             </button>
           </div>
         </div>
