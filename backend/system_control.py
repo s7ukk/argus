@@ -160,6 +160,15 @@ def toggle_mute() -> bool:
 # ─── BRIGHTNESS CONTROLS ────────────────────────────────────────
 def get_brightness() -> int:
     """Get current screen brightness (0-100)."""
+    if sys.platform == "darwin":
+        try:
+            out = subprocess.check_output(["brightness", "-l"], timeout=2).decode()
+            m = re.search(r'brightness ([\d\.]+)', out)
+            if m:
+                return int(float(m.group(1)) * 100)
+        except Exception:
+            pass
+        return 80
     if _HAS_SBC:
         try:
             val = sbc.get_brightness()
@@ -174,6 +183,26 @@ def get_brightness() -> int:
 def set_brightness(level: int) -> int:
     """Set screen brightness (0-100)."""
     level = max(0, min(100, level))
+    if sys.platform == "darwin":
+        try:
+            val_float = round(level / 100.0, 2)
+            res = subprocess.run(["brightness", str(val_float)], capture_output=True, timeout=2)
+            if res.returncode == 0:
+                return level
+        except Exception:
+            pass
+        # AppleScript brightness emulation via key codes (F1 = 144, F2 = 145)
+        curr = get_brightness()
+        diff = level - curr
+        steps = max(1, min(16, abs(int(diff / 6))))
+        key_code = 145 if diff > 0 else 144
+        script = f'repeat {steps} times\ntell application "System Events" to key code {key_code}\ndelay 0.04\nend repeat'
+        try:
+            subprocess.run(["osascript", "-e", script], capture_output=True, timeout=3)
+        except Exception:
+            pass
+        return level
+
     if _HAS_SBC:
         try:
             sbc.set_brightness(level)
@@ -938,14 +967,34 @@ def get_foreground_window_title() -> str:
 def focus_input_in_active_window(field_hint: Optional[str] = None):
     """
     Intelligently focuses the target text field or address bar in external apps and browsers.
-    Supports Windows and macOS.
+    Supports Windows and macOS with native AppleScript fallbacks.
     """
-    if not _HAS_PYAUTOGUI:
-        return
     title = get_foreground_window_title().lower()
     hint = (field_hint or "").lower()
     is_mac = sys.platform == "darwin"
     mod_key = 'command' if is_mac else 'ctrl'
+
+    if is_mac:
+        try:
+            if any(b in title for b in ["chrome", "edge", "yandex", "firefox", "opera", "brave", "safari"]) or any(k in hint for k in ["поиск", "search", "сайт", "url", "строк", "адрес"]):
+                if any(k in hint for k in ["внутри", "страниц", "page", "inpage"]):
+                    subprocess.run(["osascript", "-e", 'tell application "System Events" to keystroke "/"'], capture_output=True)
+                else:
+                    subprocess.run(["osascript", "-e", 'tell application "System Events" to keystroke "l" using {command down}'], capture_output=True)
+                return
+            elif any(m in title for m in ["telegram", "телеграм", "discord", "дискорд", "slack"]):
+                if any(k in hint for k in ["поиск", "search", "чат", "chat", "контакт", "contact"]):
+                    subprocess.run(["osascript", "-e", 'tell application "System Events" to key code 53'], capture_output=True)
+                    time.sleep(0.05)
+                    subprocess.run(["osascript", "-e", 'tell application "System Events" to keystroke "k" using {command down}'], capture_output=True)
+                else:
+                    subprocess.run(["osascript", "-e", 'tell application "System Events" to key code 53'], capture_output=True)
+                return
+        except Exception:
+            pass
+
+    if not _HAS_PYAUTOGUI:
+        return
 
     # Browser search bar / address bar
     if any(b in title for b in ["chrome", "edge", "yandex", "firefox", "opera", "brave", "safari"]) or any(k in hint for k in ["поиск", "search", "сайт", "url", "строк", "адрес"]):
@@ -1684,33 +1733,48 @@ def get_system_stats() -> Dict[str, Any]:
 
 # ─── BROWSER TAB & WEBSITE INTERACTION ────────────────────────────
 def close_browser_tab() -> bool:
-    """Closes active browser tab (Ctrl+W on Windows/Linux, Cmd+W on macOS)."""
+    """Closes active browser tab (Cmd+W on macOS, Ctrl+W on Windows/Linux)."""
+    if sys.platform == "darwin":
+        try:
+            script = 'tell application "System Events" to keystroke "w" using {command down}'
+            subprocess.run(["osascript", "-e", script], capture_output=True, timeout=2)
+            return True
+        except Exception:
+            pass
     if _HAS_PYAUTOGUI:
         try:
-            if sys.platform == "darwin":
-                pyautogui.hotkey('command', 'w')
-            else:
-                pyautogui.hotkey('ctrl', 'w')
+            pyautogui.hotkey('ctrl', 'w')
             return True
         except Exception as e:
             print("close_browser_tab error:", e)
     return False
 
 def new_browser_tab() -> bool:
-    """Opens a new browser tab (Ctrl+T on Windows/Linux, Cmd+T on macOS)."""
+    """Opens a new browser tab (Cmd+T on macOS, Ctrl+T on Windows/Linux)."""
+    if sys.platform == "darwin":
+        try:
+            script = 'tell application "System Events" to keystroke "t" using {command down}'
+            subprocess.run(["osascript", "-e", script], capture_output=True, timeout=2)
+            return True
+        except Exception:
+            pass
     if _HAS_PYAUTOGUI:
         try:
-            if sys.platform == "darwin":
-                pyautogui.hotkey('command', 't')
-            else:
-                pyautogui.hotkey('ctrl', 't')
+            pyautogui.hotkey('ctrl', 't')
             return True
         except Exception:
             pass
     return False
 
 def refresh_browser_page() -> bool:
-    """Refreshes the current web page (F5 / Ctrl+R)."""
+    """Refreshes the current web page (Cmd+R on macOS, F5 / Ctrl+R on Windows/Linux)."""
+    if sys.platform == "darwin":
+        try:
+            script = 'tell application "System Events" to keystroke "r" using {command down}'
+            subprocess.run(["osascript", "-e", script], capture_output=True, timeout=2)
+            return True
+        except Exception:
+            pass
     if _HAS_PYAUTOGUI:
         try:
             pyautogui.hotkey('ctrl', 'r')
@@ -1721,6 +1785,15 @@ def refresh_browser_page() -> bool:
 
 def switch_browser_tab(direction: str = "next") -> bool:
     """Switches to next or previous browser tab."""
+    if sys.platform == "darwin":
+        try:
+            # Safari / Chrome tab switching: Cmd+Shift+[ and Cmd+Shift+]
+            key_char = "{" if direction == "prev" else "}"
+            script = f'tell application "System Events" to keystroke "{key_char}" using {{command down, shift down}}'
+            subprocess.run(["osascript", "-e", script], capture_output=True, timeout=2)
+            return True
+        except Exception:
+            pass
     if _HAS_PYAUTOGUI:
         try:
             if direction == "prev":
@@ -1734,6 +1807,14 @@ def switch_browser_tab(direction: str = "next") -> bool:
 
 def scroll_browser_page(direction: str = "down") -> bool:
     """Scrolls active page up or down."""
+    if sys.platform == "darwin":
+        try:
+            # AppleScript Page Down (code 121) / Page Up (code 116) or Down/Up keys
+            code = 121 if direction == "down" else 116
+            subprocess.run(["osascript", "-e", f'tell application "System Events" to key code {code}'], capture_output=True, timeout=2)
+            return True
+        except Exception:
+            pass
     if _HAS_PYAUTOGUI:
         try:
             amount = -650 if direction == "down" else 650
@@ -1746,38 +1827,37 @@ def scroll_browser_page(direction: str = "down") -> bool:
 def click_website_button(button_name: str) -> bool:
     """
     Interacts with active browser page to find and click a button or link by text.
-    Brings browser window to front, searches for element text via Ctrl+F, and activates it.
+    Brings browser window to front, searches for element text via Cmd+F / Ctrl+F, and activates it.
     """
-    if not _HAS_PYAUTOGUI or not button_name:
+    if not button_name:
         return False
     try:
         # 1. Bring running browser to front
-        for b_name in ["chrome", "edge", "yandex", "opera", "firefox", "brave", "vivaldi"]:
+        browsers = ["safari", "chrome", "edge", "yandex", "opera", "firefox", "brave", "vivaldi"]
+        for b_name in browsers:
             if activate_running_window(b_name):
                 time.sleep(0.4)
                 break
 
-        # 2. Focus browser inline search (Ctrl+F)
-        pyautogui.hotkey('ctrl', 'f')
+        # 2. Focus browser inline search (Cmd+F on macOS, Ctrl+F on Windows)
+        send_hotkey("cmd", "f")
         time.sleep(0.2)
 
         # 3. Copy and paste button text via clipboard
         clean_btn = button_name.strip()
-        pyperclip.copy(clean_btn)
-        time.sleep(0.05)
-        pyautogui.hotkey('ctrl', 'v')
+        type_text(clean_btn)
         time.sleep(0.25)
 
         # 4. Hit Enter to scroll element into view & highlight
-        pyautogui.press('enter')
+        press_key("enter")
         time.sleep(0.2)
 
         # 5. Dismiss search box while keeping element active
-        pyautogui.press('escape')
+        press_key("escape")
         time.sleep(0.15)
 
         # 6. Click/activate the focused button or link
-        pyautogui.press('enter')
+        press_key("enter")
         time.sleep(0.2)
         return True
     except Exception as e:

@@ -31,7 +31,7 @@ MODULE_PACKAGE_MAP = {
     "telebot": "pyTelegramBotAPI",
     "discord": "discord.py",
     "telegram": "python-telegram-bot",
-    "magic": "python-magic-bin",
+    "magic": "python-magic-bin" if sys.platform == "win32" else "python-magic",
     "fitz": "PyMuPDF",
     "crypto": "pycryptodome",
     "usb": "pyusb",

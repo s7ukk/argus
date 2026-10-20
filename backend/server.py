@@ -43,9 +43,9 @@ DEFAULT_SETTINGS = {
     "edge_voice": "ru-RU-DmitryNeural",
     "voice_speed": 1.0,
     "browser_mode": "ask",
-    "default_browser": "auto",
+    "default_browser": "safari" if sys.platform == "darwin" else "auto",
     "auto_heal_plugins": True,
-    "default_shell": "powershell"
+    "default_shell": "zsh" if sys.platform == "darwin" else "powershell"
 }
 
 def _load_settings() -> dict:
@@ -544,6 +544,14 @@ async def test_fish_audio(req: FishAudioTestRequest):
 
 def clean_text_for_speech(text: str) -> str:
     """Strips raw disk paths, save locations, URLs, code blocks, and technical symbols so voice sounds natural and human."""
+    if "Автономный AI Агент" in text or "Автономный GUI Агент" in text:
+        m_msg = re.search(r'Отправлено сообщение в ([^:\n]+): «([^»]+)»', text)
+        if m_msg:
+            return f"Сообщение в {m_msg.group(1)} успешно отправлено."
+        m_act = re.search(r'выполнил (?:действие|задачу) в ([^:\n]+)', text)
+        if m_act:
+            return f"Действие в {m_act.group(1)} успешно выполнено."
+
     # 1. Remove markdown code blocks
     t = re.sub(r'```[\s\S]*?```', '', text)
     # 2. Strip phrases like "сохранено по пути: ...", "файл сохранен в ...", "путь к файлу: ..."
