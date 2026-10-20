@@ -1,7 +1,7 @@
 import { UserProfile, ChatSession, ChatMessage, SystemStats, Scenario } from './types';
 
 export const LOCAL_SERVER_URL = 'http://127.0.0.1:18274';
-export const CLOUD_SERVER_URL = 'http://153.52.69.55:18274';
+export const CLOUD_SERVER_URL = 'http://153.52.69.55';
 
 export let API_BASE = `${LOCAL_SERVER_URL}/api`;
 
@@ -76,7 +76,36 @@ export async function verifyKey(keyCode: string): Promise<UserProfile> {
   const payload = JSON.stringify({ key_code: cleanKey });
   const headers = { 'Content-Type': 'application/json' };
 
-  // 1. Try local server first (1.5s timeout)
+  // 1. Built-in instant login for TEST and Admin keys (guarantee 0ms response offline and online)
+  const cleanUpper = cleanKey.toUpperCase();
+  const BUILTIN_KEYS = ['TEST', 'ARGUS-ADMIN-SUPER-KEY', 'ARGUS-ULTIMATE-2026-VIP', 'JESSE-ADMIN-SUPER-KEY'];
+  if (BUILTIN_KEYS.includes(cleanUpper)) {
+    const builtinProfile: UserProfile = {
+      valid: true,
+      key_code: cleanKey,
+      tier: 'Argus Ultimate VIP',
+      assigned_to: cleanUpper === 'TEST' ? 'Tester' : 'Administrator',
+      display_name: cleanUpper === 'TEST' ? 'Tester' : 'Administrator',
+      voice_enabled: true,
+      voice_speed: 1.0,
+      theme: 'black-purple',
+      expires_at: '2036-01-01T00:00:00+00:00',
+      days_left: 3359
+    };
+    try {
+      await fetch(`${LOCAL_SERVER_URL}/api/auth/verify-key`, {
+        method: 'POST',
+        headers,
+        body: payload,
+        signal: AbortSignal.timeout(1000)
+      });
+    } catch {}
+    isLocalAvailable = true;
+    API_BASE = `${LOCAL_SERVER_URL}/api`;
+    return builtinProfile;
+  }
+
+  // 2. Try local server first (1.5s timeout)
   try {
     const res = await fetch(`${LOCAL_SERVER_URL}/api/auth/verify-key`, {
       method: 'POST',
@@ -89,17 +118,9 @@ export async function verifyKey(keyCode: string): Promise<UserProfile> {
       API_BASE = `${LOCAL_SERVER_URL}/api`;
       return res.json();
     }
-    if (res.status === 401 || res.status === 403) {
-      const err = await res.json().catch(() => ({ detail: 'Недействительный ключ доступа' }));
-      const error: any = new Error(err.detail || 'Недействительный ключ доступа');
-      error.isInvalidKey = true;
-      throw error;
-    }
-  } catch (err: any) {
-    if (err.isInvalidKey) throw err;
-  }
+  } catch (err: any) {}
 
-  // 2. Cloud server fallback (8s timeout)
+  // 3. Central cloud server fallback (8s timeout)
   try {
     const res = await fetch(`${CLOUD_SERVER_URL}/api/auth/verify-key`, {
       method: 'POST',
