@@ -42,6 +42,7 @@ export const ScenariosView: React.FC = () => {
   const [newTriggers, setNewTriggers] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [newIcon, setNewIcon] = useState('Sparkles');
+  const [customPromptInput, setCustomPromptInput] = useState('');
   const [newSteps, setNewSteps] = useState<ScenarioStep[]>([
     { type: 'volume_set', level: 40, label: 'Громкость 40%' },
     { type: 'launch_app', app: 'vscode', label: 'Запуск VS Code' },
@@ -101,7 +102,20 @@ export const ScenariosView: React.FC = () => {
       setNewSteps((prev) => [...prev, { type: 'open_url', url: 'https://youtube.com', label: 'Открыть YouTube' }]);
     } else if (stepType === 'clean') {
       setNewSteps((prev) => [...prev, { type: 'empty_recycle', label: 'Очистить корзину' }]);
+    } else if (stepType === 'custom') {
+      if (customPromptInput.trim()) {
+        const txt = customPromptInput.trim();
+        setNewSteps((prev) => [...prev, { type: 'custom_command', prompt: txt, label: `ТЗ: ${txt}` }]);
+        setCustomPromptInput('');
+      }
     }
+  };
+
+  const handleAddCustomPromptStep = () => {
+    if (!customPromptInput.trim()) return;
+    const txt = customPromptInput.trim();
+    setNewSteps((prev) => [...prev, { type: 'custom_command', prompt: txt, label: `ТЗ: ${txt}` }]);
+    setCustomPromptInput('');
   };
 
   const handleRemoveStep = (index: number) => {
@@ -119,8 +133,13 @@ export const ScenariosView: React.FC = () => {
       setCreateError('Укажите хотя бы одно голосовое слово активации');
       return;
     }
-    if (newSteps.length === 0) {
-      setCreateError('Добавьте хотя бы одно действие в сценарий');
+    let effectiveSteps = [...newSteps];
+    if (effectiveSteps.length === 0 && customPromptInput.trim()) {
+      const txt = customPromptInput.trim();
+      effectiveSteps.push({ type: 'custom_command', prompt: txt, label: `ТЗ: ${txt}` });
+    }
+    if (effectiveSteps.length === 0) {
+      setCreateError('Добавьте хотя бы одно действие или напишите своё ТЗ');
       return;
     }
 
@@ -133,13 +152,14 @@ export const ScenariosView: React.FC = () => {
         triggers: trigs,
         icon: newIcon,
         is_builtin: false,
-        steps: newSteps,
+        steps: effectiveSteps,
       });
       setScenarios((prev) => [...prev, created]);
       setShowCreateModal(false);
       setNewName('');
       setNewTriggers('');
       setNewDesc('');
+      setCustomPromptInput('');
       setNewSteps([{ type: 'volume_set', level: 50, label: 'Громкость 50%' }]);
     } catch (err: any) {
       setCreateError(err.message || 'Не удалось сохранить сценарий');
@@ -571,7 +591,7 @@ export const ScenariosView: React.FC = () => {
                   <label style={{ fontSize: 12, fontWeight: 600, color: '#cbd5e1' }}>
                     Шаги сценария ({newSteps.length}):
                   </label>
-                  <div style={{ display: 'flex', gap: 6 }}>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     <button
                       type="button"
                       onClick={() => handleAddStep('volume')}
@@ -633,6 +653,49 @@ export const ScenariosView: React.FC = () => {
                       + Сайт
                     </button>
                   </div>
+                </div>
+
+                {/* Custom prompt (ТЗ) input */}
+                <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+                  <input
+                    type="text"
+                    value={customPromptInput}
+                    onChange={(e) => setCustomPromptInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddCustomPromptStep();
+                      }
+                    }}
+                    placeholder="Напишите своё ТЗ / команду (например: открой телеграм и напиши Кириллу привет)"
+                    style={{
+                      flex: 1,
+                      padding: '8px 12px',
+                      borderRadius: 8,
+                      background: 'rgba(255, 255, 255, 0.05)',
+                      border: '1px solid rgba(168, 85, 247, 0.35)',
+                      color: '#ffffff',
+                      fontSize: 12,
+                      outline: 'none',
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddCustomPromptStep}
+                    style={{
+                      padding: '8px 12px',
+                      borderRadius: 8,
+                      background: 'linear-gradient(135deg, #a855f7, #6366f1)',
+                      border: 'none',
+                      color: '#ffffff',
+                      fontSize: 11.5,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    + Добавить ТЗ
+                  </button>
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

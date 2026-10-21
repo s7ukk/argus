@@ -122,24 +122,35 @@ def delete_scenario(scenario_id: str) -> bool:
     return True
 
 def match_scenario_by_trigger(text: str) -> Optional[Dict[str, Any]]:
-    """Checks if incoming user instruction triggers any registered scenario."""
-    clean_t = text.lower().strip()
-    clean_t = re.sub(r'^(?:аргус|argus|эй\s+аргус|привет\s+аргус|включи|запусти|активируй|перейди\s+в|выполни)\s+', '', clean_t).strip()
+    """Checks if incoming user instruction triggers any registered scenario with strict word boundaries."""
+    raw_t = text.lower().strip()
+    clean_t = re.sub(r'^(?:аргус|argus|эй\s+аргус|привет\s+аргус|включи|запусти|активируй|перейди\s+в|выполни)\s+', '', raw_t).strip()
     clean_t = re.sub(r'^(?:режим\s+)?', '', clean_t).strip()
+
+    if not clean_t:
+        return None
 
     all_s = load_scenarios()
     for s in all_s:
         for trig in s.get("triggers", []):
             trig_clean = trig.lower().strip()
-            # Direct match or substring match
-            if trig_clean in clean_t or clean_t in trig_clean or trig_clean in text.lower():
+            if not trig_clean:
+                continue
+            # 1. Exact match
+            if clean_t == trig_clean or raw_t == trig_clean:
                 return s
+            # 2. Strict word boundary match (e.g. "включи режим отдыха")
+            # Never allow short substrings like "hi" inside "chill mode"!
+            if len(trig_clean) >= 3:
+                pattern = rf'(?<![a-zA-Zа-яА-Я0-9]){re.escape(trig_clean)}(?![a-zA-Zа-яА-Я0-9])'
+                if re.search(pattern, clean_t) or re.search(pattern, raw_t):
+                    return s
     return None
 
 def execute_scenario(scenario: Dict[str, Any]) -> Dict[str, Any]:
     """
     Executes all actions of a scenario sequentially with safety delays.
-    Returns structured results and clear confirmation message.
+    Supports atomic structured steps and free-form natural language prompts (ТЗ).
     """
     # Import locally to avoid circular dependencies
     import backend.argus_ai as argus
@@ -148,12 +159,38 @@ def execute_scenario(scenario: Dict[str, Any]) -> Dict[str, Any]:
     s_name = scenario.get("name", "Сценарий")
     results = []
 
+    # 1. Top-level custom prompt (ТЗ) if provided
+    top_prompt = scenario.get("custom_prompt") or scenario.get("instruction")
+    if top_prompt and isinstance(top_prompt, str) and top_prompt.strip():
+        try:
+            planned_actions = argus.local_multi_action_planner(top_prompt.strip())
+            for pact in planned_actions:
+                msg, a_type, a_data = argus.execute_single_action(pact)
+                if msg:
+                    results.append(msg)
+                time.sleep(0.35)
+        except Exception as e:
+            print(f"Top-level custom prompt execution error ({top_prompt}):", e)
+
+    # 2. Structured & prompt steps
     for step in steps:
         try:
-            msg, a_type, a_data = argus.execute_single_action(step)
-            if msg:
-                results.append(msg)
-            time.sleep(0.35)
+            stype = step.get("type", "")
+            # Check for free-form custom text / prompt step
+            if stype in ["custom_command", "prompt", "custom", "instruction"] or step.get("prompt"):
+                p_text = step.get("prompt") or step.get("command") or step.get("label", "")
+                if p_text:
+                    pacts = argus.local_multi_action_planner(p_text)
+                    for pa in pacts:
+                        msg, a_type, a_data = argus.execute_single_action(pa)
+                        if msg:
+                            results.append(msg)
+                        time.sleep(0.35)
+            else:
+                msg, a_type, a_data = argus.execute_single_action(step)
+                if msg:
+                    results.append(msg)
+                time.sleep(0.35)
         except Exception as e:
             print(f"Scenario step error ({step}):", e)
 

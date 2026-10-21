@@ -89,11 +89,17 @@ export const App: React.FC = () => {
       const detail = e.detail;
       if (detail?.active) {
         setDictationState({ active: true });
+        (window as any).electronAPI?.showDictationHud?.();
       } else if (detail?.success) {
         setDictationState({ active: false, success: true, text: detail.text });
-        setTimeout(() => setDictationState(null), 2500);
+        (window as any).electronAPI?.updateDictationHud?.({ success: true, text: detail.text });
+        setTimeout(() => {
+          setDictationState(null);
+          (window as any).electronAPI?.hideDictationHud?.();
+        }, 2200);
       } else {
         setDictationState(null);
+        (window as any).electronAPI?.hideDictationHud?.();
       }
     };
     window.addEventListener('argus_dictation_state', handleDictationState);

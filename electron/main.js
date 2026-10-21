@@ -431,17 +431,27 @@ let ipcHandlersRegistered = false;
 
 function registerIpcHandlers() {
   ipcMain.on('show-dictation-hud', () => {
-    if (!dictationHudWindow) createDictationHudWindow();
-    dictationHudWindow?.showInactive();
-    dictationHudWindow?.webContents.send('hud-update', { active: true });
+    if (!dictationHudWindow || dictationHudWindow.isDestroyed()) createDictationHudWindow();
+    if (dictationHudWindow) {
+      try {
+        const primaryDisplay = screen.getPrimaryDisplay();
+        const { width } = primaryDisplay.workAreaSize;
+        dictationHudWindow.setPosition(Math.round((width - 480) / 2), 35);
+      } catch (e) {}
+      dictationHudWindow.setAlwaysOnTop(true, 'screen-saver', 1);
+      dictationHudWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+      dictationHudWindow.showInactive();
+      dictationHudWindow.webContents.send('hud-update', { active: true });
+    }
   });
 
   ipcMain.on('update-dictation-hud', (event, state) => {
-    dictationHudWindow?.webContents.send('hud-update', state);
+    if (!dictationHudWindow || dictationHudWindow.isDestroyed()) return;
+    dictationHudWindow.webContents.send('hud-update', state);
     if (state.success || state.error) {
       setTimeout(() => {
         try { dictationHudWindow?.hide(); } catch (e) {}
-      }, 1600);
+      }, 2000);
     }
   });
 

@@ -260,6 +260,10 @@ export class VoiceAssistant {
                 detail: { active: false, success: false }
               }));
             }
+            // Dictated text is injected directly into target app and NOT duplicated into AI chat
+          } else {
+            // Normal chat voice input from microphone button in chat
+            this.playWakeChime();
             this.onResult(transcript);
           }
         } else {

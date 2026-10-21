@@ -56,6 +56,21 @@ try:
 except Exception:
     _HAS_SBC = False
 
+# Native macOS CoreDisplay setup for hardware display brightness
+_MAC_CORE_DISPLAY = None
+if sys.platform == "darwin":
+    try:
+        import ctypes
+        import ctypes.util
+        cd_path = ctypes.util.find_library("CoreDisplay") or "/System/Library/Frameworks/CoreDisplay.framework/CoreDisplay"
+        _MAC_CORE_DISPLAY = ctypes.CDLL(cd_path)
+        _MAC_CORE_DISPLAY.CoreDisplay_Display_GetUserBrightness.argtypes = [ctypes.c_uint32]
+        _MAC_CORE_DISPLAY.CoreDisplay_Display_GetUserBrightness.restype = ctypes.c_double
+        _MAC_CORE_DISPLAY.CoreDisplay_Display_SetUserBrightness.argtypes = [ctypes.c_uint32, ctypes.c_double]
+        _MAC_CORE_DISPLAY.CoreDisplay_Display_SetUserBrightness.restype = None
+    except Exception:
+        _MAC_CORE_DISPLAY = None
+
 # Windows Virtual Keys with Extended Key flag
 VK_VOLUME_MUTE = 0xAD
 VK_VOLUME_DOWN = 0xAE
@@ -167,6 +182,13 @@ def toggle_mute() -> bool:
 def get_brightness() -> int:
     """Get current screen brightness (0-100)."""
     if sys.platform == "darwin":
+        if _MAC_CORE_DISPLAY:
+            try:
+                b_val = _MAC_CORE_DISPLAY.CoreDisplay_Display_GetUserBrightness(0)
+                if b_val >= 0.0:
+                    return int(round(b_val * 100))
+            except Exception:
+                pass
         try:
             out = subprocess.check_output(["brightness", "-l"], timeout=2).decode()
             m = re.search(r'brightness ([\d\.]+)', out)
@@ -174,22 +196,27 @@ def get_brightness() -> int:
                 return int(float(m.group(1)) * 100)
         except Exception:
             pass
+        if _HAS_SBC:
+            try:
+                val = sbc.get_brightness()
+                if isinstance(val, list) and len(val) > 0:
+                    return int(val[0])
+                elif isinstance(val, int):
+                    return val
+            except Exception:
+                pass
         return 80
-    if _HAS_SBC:
-        try:
-            val = sbc.get_brightness()
-            if isinstance(val, list) and len(val) > 0:
-                return int(val[0])
-            elif isinstance(val, int):
-                return val
-        except Exception:
-            pass
-    return 80
 
 def set_brightness(level: int) -> int:
     """Set screen brightness (0-100)."""
     level = max(0, min(100, level))
     if sys.platform == "darwin":
+        if _MAC_CORE_DISPLAY:
+            try:
+                _MAC_CORE_DISPLAY.CoreDisplay_Display_SetUserBrightness(0, float(level) / 100.0)
+                return level
+            except Exception:
+                pass
         try:
             val_float = round(level / 100.0, 2)
             res = subprocess.run(["brightness", str(val_float)], capture_output=True, timeout=2)
@@ -197,16 +224,12 @@ def set_brightness(level: int) -> int:
                 return level
         except Exception:
             pass
-        # AppleScript brightness emulation via key codes (F1 = 144, F2 = 145)
-        curr = get_brightness()
-        diff = level - curr
-        steps = max(1, min(16, abs(int(diff / 6))))
-        key_code = 145 if diff > 0 else 144
-        script = f'repeat {steps} times\ntell application "System Events" to key code {key_code}\ndelay 0.04\nend repeat'
-        try:
-            subprocess.run(["osascript", "-e", script], capture_output=True, timeout=3)
-        except Exception:
-            pass
+        if _HAS_SBC:
+            try:
+                sbc.set_brightness(level)
+                return level
+            except Exception:
+                pass
         return level
 
     if _HAS_SBC:
@@ -835,7 +858,29 @@ WEB_SERVICE_FALLBACKS = {
     "whatsapp": "https://web.whatsapp.com",
     "ватсап": "https://web.whatsapp.com",
     "rutube": "https://rutube.ru",
-    "рутуб": "https://rutube.ru"
+    "рутуб": "https://rutube.ru",
+    "deepseek": "https://chat.deepseek.com",
+    "deep seek": "https://chat.deepseek.com",
+    "дипсик": "https://chat.deepseek.com",
+    "дип сик": "https://chat.deepseek.com",
+    "tiktok": "https://www.tiktok.com",
+    "тикток": "https://www.tiktok.com",
+    "тик ток": "https://www.tiktok.com",
+    "дикси": "https://dixy.ru",
+    "dixy": "https://dixy.ru",
+    "chatgpt": "https://chatgpt.com",
+    "чатгпт": "https://chatgpt.com",
+    "steam": "https://store.steampowered.com",
+    "стим": "https://store.steampowered.com",
+    "telegram": "https://web.telegram.org",
+    "телеграм": "https://web.telegram.org",
+    "телега": "https://web.telegram.org",
+    "discord": "https://discord.com",
+    "дискорд": "https://discord.com",
+    "yandex": "https://yandex.ru",
+    "яндекс": "https://yandex.ru",
+    "google": "https://google.com",
+    "гугл": "https://google.com"
 }
 
 def launch_application(app_name: str) -> Dict[str, Any]:
@@ -937,7 +982,7 @@ def launch_application(app_name: str) -> Dict[str, Any]:
             if target_key and (target_key == cat_k or target_key in cat_k):
                 matched_path = cat_p
                 break
-            if no_space and (no_space == cat_norm or no_space in cat_norm or cat_norm in no_space):
+            if no_space and (no_space == cat_norm or (len(no_space) >= 3 and no_space in cat_norm)):
                 matched_path = cat_p
                 break
 

@@ -425,7 +425,13 @@ APP_MAP = {
     "мой компьютер": "explorer", "этот компьютер": "explorer",
     "terminal": "terminal", "терминал": "terminal", "консоль": "terminal",
     "powershell": "terminal", "cmd": "terminal", "командная строка": "terminal",
-    "settings": "settings", "настройки": "settings", "параметры": "settings", "настройки винды": "settings"
+    "settings": "settings", "настройки": "settings", "параметры": "settings", "настройки винды": "settings",
+    # Modern AI & Social Apps
+    "deepseek": "deepseek", "deep seek": "deepseek", "дипсик": "deepseek", "дип сик": "deepseek",
+    "tiktok": "tiktok", "тикток": "tiktok", "тик ток": "tiktok",
+    "дикси": "дикси", "dixy": "дикси",
+    "chatgpt": "chatgpt", "chat gpt": "chatgpt", "чатгпт": "chatgpt", "чат гпт": "chatgpt",
+    "vk": "vk", "вк": "vk"
 }
 
 KNOWN_KEYBOARD_KEYS = {
@@ -444,17 +450,38 @@ KNOWN_KEYBOARD_KEYS = {
 }
 
 def clean_clause_text(text: str) -> str:
-    """Removes polite filler words and colloquial particles."""
+    """Removes polite filler words, Russian/English profanity, and normalizes brand names."""
     t = text.lower().strip()
+    
+    # Strip leading bot address
+    t = re.sub(r'^\s*(?:аргус|argus|эй\s+аргус|эй|слушай|слушай\s+аргус|бот|ассистент)[,\s:]+', '', t, flags=re.IGNORECASE)
+
+    # Profanity and fillers removal (never let swearing break command intent or become an app name)
     fillers = [
         r'\bпожалуйста\b', r'\bпж\b', r'\bплиз\b', r'\bplease\b',
-        r'\bсейчас\b', r'\bбыстро\b', r'\bсрочно\b', r'\bзаебал\b', r'\bбля\b', r'\bблин\b',
+        r'\bсейчас\b', r'\bбыстро\b', r'\bсрочно\b', r'\bблин\b',
         r'\bмне\b', r'\bнам\b', r'\bты\b', r'\bже\b', r'\bка\b', r'\bну-ка\b', r'\bдавай\b',
         r'\bможешь\b', r'\bможешь ли\b', r'\bсможешь\b', r'\bхочу\b', r'\bхотел бы\b',
-        r'\bнужно\b', r'\bнадо\b', r'\bпопробуй\b', r'\bбудь добр\b'
+        r'\bнужно\b', r'\bнадо\b', r'\bпопробуй\b', r'\bбудь добр\b',
+        # Russian profanities & abusive words
+        r'\bдолбо[её]б(?:а|у|ом|ы|ов)?\b', r'\bдолба[её]б(?:а|у|ом|ы|ов)?\b',
+        r'\bблять?\b', r'\bблядь\b', r'\bбля\b', r'\bнахуй\b', r'\bнах\b', r'\bпохуй\b',
+        r'\bсука\b', r'\bсуки\b', r'\bпид[оа]р(?:ас|аз)?(?:а|у|ом|ы|ов)?\b',
+        r'\bг[оа]ндон(?:а|у|ом|ы)?\b', r'\b[её]бан(?:ый|ая|ое|ые|ого)?\b', r'\b[её]бать\b',
+        r'\bза[её]бал(?:а|и)?\b', r'\bхуй(?:ня|ни|ню|нем|не|я)?\b', r'\bхер(?:ня|ни)?\b',
+        r'\bмудак(?:а|у|ом|и)?\b', r'\bмудила\b', r'\bдебил(?:а|у|ом|ы)?\b',
+        r'\bидиот(?:а|у|ом|ы)?\b', r'\bпридурок(?:а|у|ом|и)?\b',
+        # English profanities
+        r'\bfuck(?:ing|er)?\b', r'\bshit\b', r'\bbitch\b', r'\basshole\b', r'\bdick\b'
     ]
     for pattern in fillers:
         t = re.sub(pattern, '', t, flags=re.IGNORECASE)
+
+    # Normalize popular brand synonyms
+    t = re.sub(r'\b(?:deep\s*seek|дип\s*сик)\b', 'deepseek', t, flags=re.IGNORECASE)
+    t = re.sub(r'\b(?:тик\s*ток)\b', 'tiktok', t, flags=re.IGNORECASE)
+    t = re.sub(r'\b(?:чат\s*гпт|chat\s*gpt)\b', 'chatgpt', t, flags=re.IGNORECASE)
+
     return re.sub(r'\s+', ' ', t).strip()
 
 def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
@@ -809,17 +836,28 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
             "рутуб": "https://rutube.ru", "rutube": "https://rutube.ru",
             "вайлдберриз": "https://wildberries.ru", "вб": "https://wildberries.ru", "wildberries": "https://wildberries.ru",
             "озон": "https://ozon.ru", "ozon": "https://ozon.ru",
-            "авито": "https://avito.ru", "avito": "https://avito.ru"
+            "авито": "https://avito.ru", "avito": "https://avito.ru",
+            "tiktok": "https://www.tiktok.com", "тикток": "https://www.tiktok.com", "тик ток": "https://www.tiktok.com",
+            "deepseek": "https://chat.deepseek.com", "дипсик": "https://chat.deepseek.com", "дип сик": "https://chat.deepseek.com", "deep seek": "https://chat.deepseek.com",
+            "дикси": "https://dixy.ru", "dixy": "https://dixy.ru",
+            "chatgpt": "https://chatgpt.com", "чатгпт": "https://chatgpt.com",
+            "spotify": "https://open.spotify.com", "спотифай": "https://open.spotify.com",
+            "discord": "https://discord.com", "дискорд": "https://discord.com",
+            "steam": "https://store.steampowered.com", "стим": "https://store.steampowered.com"
         }
-        if site_raw.lower() in site_aliases:
-            return {"type": "open_url", "url": site_aliases[site_raw.lower()]}
-        url_match = re.search(r'(https?://[^\s"\'«»]+|[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(?:/[^\s"\'«»]*)?)', site_raw)
+        site_lower = site_raw.lower()
+        if site_lower in site_aliases:
+            return {"type": "open_url", "url": site_aliases[site_lower]}
+        url_match = re.search(r'(https?://[^\s"\'«»“”<>]+|[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(?:/[^\s"\'«»“”<>]*)?)', site_raw)
         if url_match:
             u = url_match.group(1).strip('"\'«»“”<> ')
             if not u.startswith("http://") and not u.startswith("https://"):
                 u = "https://" + u
             return {"type": "open_url", "url": u}
-        # If site name has no domain, search Google for it
+        # If single word without dot (e.g. "tiktok"), open as www.{word}.com
+        clean_word = re.sub(r'[^a-zA-Z0-9-]', '', site_lower)
+        if clean_word and len(clean_word) >= 3:
+            return {"type": "open_url", "url": f"https://www.{clean_word}.com"}
         return {"type": "search_web", "query": site_raw, "engine": "google"}
 
     # General URL in text
@@ -1217,15 +1255,20 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
     if c.strip() in ["открой", "открыть", "запусти", "запустить", "включи", "включить", "open", "launch", "start", "run"]:
         return {"type": "clarify", "message": "Какое приложение или сайт вы хотите открыть?"}
 
-    has_open_verb = any(c.startswith(k) or f" {k} " in f" {c} " for k in [
+    open_verbs = [
         "открой", "открыть", "запусти", "запустить", "включи", "включить", "стартуй",
         "зайди в", "зайди на", "зайди", "перейди в", "перейди на", "перейди",
         "open", "launch", "start", "run"
-    ])
+    ]
+    has_open_verb = any(c.startswith(k) or f" {k} " in f" {c} " or c.endswith(k) for k in open_verbs)
 
     if has_open_verb:
+        # Strip verb from either beginning OR end (handles "tiktok зайди" as well as "зайди в tiktok")
         target_app = re.sub(r'^(?:открой|открыть|запусти|запустить|включи|включить|стартуй|зайди\s+в|зайди\s+на|зайди|перейди\s+в|перейди\s+на|перейди|open|launch|start|run)\s+(?:приложение\s+|программу\s+|софт\s+)?', '', c).strip()
-        if not target_app or target_app in ["открой", "открыть", "запусти", "запустить", "open", "launch"]:
+        target_app = re.sub(r'\s+(?:открой|открыть|запусти|запустить|включи|включить|зайди\s+в|зайди\s+на|зайди|перейди\s+в|перейди\s+на|перейди|open|launch|start|run)$', '', target_app).strip()
+        target_app = re.sub(r'^(?:в\s+приложение|в\s+программу|приложение|программу|на\s+сайт|сайт)\s+', '', target_app).strip()
+        target_app = re.sub(r'\s+(?:приложение|программу|на\s+сайт|сайт)$', '', target_app).strip()
+        if not target_app or target_app in open_verbs:
             return {"type": "clarify", "message": "Какое приложение или сайт вы хотите открыть?"}
 
         # Check for generic browser request

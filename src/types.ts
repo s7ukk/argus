@@ -140,6 +140,8 @@ export interface TerminalAIAssistantResult {
 export interface ScenarioStep {
   type: string;
   label?: string;
+  prompt?: string;
+  command?: string;
   level?: number;
   delta?: number;
   app?: string;
@@ -158,6 +160,7 @@ export interface Scenario {
   icon?: string;
   triggers: string[];
   description?: string;
+  custom_prompt?: string;
   is_builtin?: boolean;
   steps: ScenarioStep[];
 }
