@@ -6,6 +6,9 @@ on:
     branches: [ "main", "master" ]
     tags: [ "v*" ]
 
+permissions:
+  contents: write
+
 jobs:
   build-macos:
     strategy:
@@ -81,11 +84,24 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: false
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Publish to GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: success()
+        with:
+          tag_name: v2.0.0-macos
+          name: Argus AI macOS v2.0.0
+          files: |
+            release/*.dmg
+            release/*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Upload macOS Build Artifacts (${{ matrix.arch }})
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: Argus-AI-macOS-${{ matrix.arch }}
           path: |
             release/*.dmg
             release/*.zip
-          retention-days: 14
+          retention-days: 1
