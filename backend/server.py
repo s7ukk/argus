@@ -313,37 +313,51 @@ async def voice_sunder_dictate(req: VoiceSunderDictateRequest):
         sc.press_key("enter")
     return {"success": success, "text": text, "pressed_enter": req.press_enter}
 
-@app.post("/api/plugins/create")
-async def create_plugin_endpoint(
-    name: str = Form(...),
-    description: str = Form(""),
-    entrypoint: str = Form("main.py"),
-    file: Optional[UploadFile] = File(None),
-    files: Optional[List[UploadFile]] = File(None),
-    paths_json: Optional[str] = Form(None)
-):
-    files_data = []
-    rel_paths = []
-    if paths_json:
-        try:
-            rel_paths = json.loads(paths_json)
-        except Exception:
-            rel_paths = []
+try:
+    import multipart
+    _HAS_MULTIPART = True
+except Exception:
+    _HAS_MULTIPART = False
 
-    if files:
-        for idx, f in enumerate(files):
+if _HAS_MULTIPART:
+    @app.post("/api/plugins/create")
+    async def create_plugin_endpoint(
+        name: str = Form(...),
+        description: str = Form(""),
+        entrypoint: str = Form("main.py"),
+        file: Optional[UploadFile] = File(None),
+        files: Optional[List[UploadFile]] = File(None),
+        paths_json: Optional[str] = Form(None)
+    ):
+        files_data = []
+        rel_paths = []
+        if paths_json:
             try:
-                content = await f.read()
-                rel_p = rel_paths[idx] if idx < len(rel_paths) else f.filename
-                files_data.append((rel_p, content))
-            except Exception as e:
-                print(f"Error reading uploaded file {f.filename}: {e}")
-    elif file:
-        content = await file.read()
-        files_data.append((file.filename, content))
+                rel_paths = json.loads(paths_json)
+            except Exception:
+                rel_paths = []
 
-    manifest = pm.create_plugin_with_files(name, description, entrypoint, files_data)
-    return manifest
+        if files:
+            for idx, f in enumerate(files):
+                try:
+                    content = await f.read()
+                    rel_p = rel_paths[idx] if idx < len(rel_paths) else f.filename
+                    files_data.append((rel_p, content))
+                except Exception as e:
+                    print(f"Error reading uploaded file {f.filename}: {e}")
+        elif file:
+            content = await file.read()
+            files_data.append((file.filename, content))
+
+        manifest = pm.create_plugin_with_files(name, description, entrypoint, files_data)
+        return manifest
+else:
+    @app.post("/api/plugins/create")
+    async def create_plugin_endpoint_fallback():
+        raise HTTPException(
+            status_code=501,
+            detail="python-multipart is not installed in this environment. Plugin uploads via form data are disabled."
+        )
 
 @app.post("/api/plugins/{plugin_id}/start")
 async def start_plugin_endpoint(plugin_id: str):

@@ -11,19 +11,42 @@ parent_dir = os.path.dirname(script_dir)
 if parent_dir and parent_dir not in sys.path:
     sys.path.insert(1, parent_dir)
 
-# Automatic dependency recovery if running via system Python
+# PyInstaller static analyzer anchors
 try:
-    import uvicorn
-    import fastapi
+    import multipart
 except ImportError:
+    pass
+
+try:
+    import uvicorn.logging
+    import uvicorn.loops
+    import uvicorn.loops.asyncio
+    import uvicorn.protocols
+    import uvicorn.protocols.http
+    import uvicorn.protocols.http.h11_impl
+    import uvicorn.lifespan
+    import uvicorn.lifespan.on
+except ImportError:
+    pass
+
+# Automatic dependency recovery if running via system Python
+if not getattr(sys, "frozen", False):
     try:
-        import subprocess
-        print("[Argus Backend]: Attempting automatic dependency installation...")
-        subprocess.run([sys.executable, "-m", "pip", "install", "--user", "fastapi", "uvicorn", "pydantic"], check=False)
         import uvicorn
         import fastapi
-    except Exception as e:
-        print(f"[Argus Backend]: Dependency recovery error: {e}", file=sys.stderr)
+        import multipart
+    except ImportError:
+        try:
+            import subprocess
+            print("[Argus Backend]: Attempting automatic dependency installation...")
+            subprocess.run(
+                [sys.executable, "-m", "pip", "install", "--user", "fastapi", "uvicorn[standard]", "pydantic", "python-multipart", "psutil", "pyautogui", "pyperclip"],
+                check=False
+            )
+            import uvicorn
+            import fastapi
+        except Exception as e:
+            print(f"[Argus Backend]: Dependency recovery error: {e}", file=sys.stderr)
 
 if __name__ == "__main__":
     multiprocessing.freeze_support()

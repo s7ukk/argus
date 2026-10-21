@@ -15,7 +15,7 @@ jobs:
           - os: macos-14
             arch: arm64
             target_flag: --arm64
-          - os: macos-13
+          - os: macos-14
             arch: x64
             target_flag: --x64
     runs-on: ${{ matrix.os }}
@@ -40,6 +40,7 @@ jobs:
         run: |
           python3 -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install python-multipart
           pip install pyinstaller
 
       - name: Install Node Dependencies
@@ -60,7 +61,9 @@ jobs:
           PID=$!
           echo "Started backend PID: $PID, waiting 6 seconds..."
           sleep 6
+          echo "Testing /api/health..."
           curl -v http://127.0.0.1:18274/api/health
+          echo "Testing /api/system/stats..."
           curl -v http://127.0.0.1:18274/api/system/stats
           kill -9 $PID || true
 

@@ -10,7 +10,7 @@
     "dev": "concurrently -k -n \"VITE,ELECTRON\" -c \"cyan,green\" \"npm run dev:vite\" \"npm run dev:electron\"",
     "build": "vite build",
     "build:frontend": "vite build",
-    "build:backend": "pyinstaller --noconfirm --onedir --name argus-backend --distpath backend-dist run_backend.py",
+    "build:backend": "pyinstaller --noconfirm --onedir --name argus-backend --distpath backend-dist --collect-all uvicorn --collect-all multipart run_backend.py",
     "dist:win": "npm run build:frontend && npm run build:backend && electron-builder --win",
     "dist:mac": "npm run build:frontend && npm run build:backend && electron-builder --mac",
     "dist": "npm run build:frontend && npm run build:backend && electron-builder",
