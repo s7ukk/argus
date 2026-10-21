@@ -95,12 +95,17 @@ function getBackendConfig() {
   const isWin = process.platform === 'win32';
   const binaryName = isWin ? 'argus-backend.exe' : 'argus-backend';
 
+  const safeCwd = app.isPackaged ? app.getPath('userData') : path.join(__dirname, '..');
+
   const candidates = [
-    // 1. Packaged location (resources/backend-dist/argus-backend/argus-backend.exe)
+    // 1. Packaged macOS Contents/MacOS/ location (standard for macOS helper binaries)
+    process.resourcesPath ? path.join(process.resourcesPath, '..', 'MacOS', binaryName) : null,
+    process.resourcesPath ? path.join(process.resourcesPath, '..', 'MacOS', 'argus-backend', binaryName) : null,
+    // 2. Packaged location (resources/backend-dist/argus-backend/argus-backend)
     process.resourcesPath ? path.join(process.resourcesPath, 'backend-dist', 'argus-backend', binaryName) : null,
     process.resourcesPath ? path.join(process.resourcesPath, 'backend-dist', binaryName) : null,
     process.resourcesPath ? path.join(process.resourcesPath, binaryName) : null,
-    // 2. Local dev repository location (backend-dist/argus-backend/argus-backend.exe)
+    // 3. Local dev repository location (backend-dist/argus-backend/argus-backend)
     path.join(__dirname, '..', 'backend-dist', 'argus-backend', binaryName),
     path.join(__dirname, '..', 'backend-dist', binaryName),
     path.join(__dirname, '..', '..', 'backend-dist', 'argus-backend', binaryName),
@@ -109,11 +114,12 @@ function getBackendConfig() {
   for (const c of candidates) {
     if (fs.existsSync(c)) {
       logApp(`[Argus]: Found standalone backend binary at ${c}`);
-      return { command: c, args: [], cwd: path.dirname(c), isBinary: true };
+      return { command: c, args: [], cwd: safeCwd, isBinary: true };
     }
   }
 
   const fb = getFallbackScriptConfig();
+  fb.cwd = safeCwd;
   logApp(`[Argus]: Standalone binary not found, falling back to script: ${fb.command} ${fb.args.join(' ')}`);
   return fb;
 }
@@ -238,7 +244,14 @@ async function startPythonBackend() {
     pythonProcess.stderr.on('data', (data) => {
       const sanitized = sanitizeLog(data);
       if (sanitized.includes('10054') || sanitized.includes('_call_connection_lost')) return;
-      if (sanitized.trim()) logApp(`[Backend stderr]: ${sanitized.trim()}`);
+      if (sanitized.trim()) {
+        logApp(`[Backend stderr]: ${sanitized.trim()}`);
+        try {
+          const uLog = path.join(app.getPath('userData'), 'backend_stderr.log');
+          fs.appendFileSync(uLog, `[${new Date().toISOString()}] ${sanitized.trim()}
+`);
+        } catch {}
+      }
     });
 
     pythonProcess.on('close', (code) => {
