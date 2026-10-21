@@ -171,24 +171,26 @@ async def generate_speech_base64(
 
     return None
 
-def transcribe_audio_wav_base64(wav_b64: str, lang: str = "ru-RU") -> Optional[str]:
-    """Fast transcribe base64 encoded 16kHz WAV audio using Google Speech API."""
+def transcribe_audio_wav_base64(wav_b64: str) -> Optional[str]:
+    """Transcribe base64 encoded 16kHz WAV audio using Google Speech API."""
     try:
         audio_bytes = base64.b64decode(wav_b64)
         wav_io = io.BytesIO(audio_bytes)
         
         r = sr.Recognizer()
-        r.energy_threshold = 80
+        r.energy_threshold = 100
         r.dynamic_energy_threshold = False
-        r.pause_threshold = 0.35
         
         with sr.AudioFile(wav_io) as source:
             audio = r.record(source)
             
         try:
-            return r.recognize_google(audio, language=lang)
+            return r.recognize_google(audio, language="ru-RU")
         except sr.UnknownValueError:
-            return None
+            try:
+                return r.recognize_google(audio, language="en-US")
+            except Exception:
+                return None
         except Exception as ge:
             print("Google STT error:", ge)
             return None
