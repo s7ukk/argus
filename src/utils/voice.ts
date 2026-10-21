@@ -56,6 +56,10 @@ export class VoiceAssistant {
     window.addEventListener('focus', resumeContexts, { passive: true });
   }
 
+  public getIsDictating(): boolean {
+    return this.isDictating;
+  }
+
   public playWakeChime() {
     try {
       const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -83,22 +87,34 @@ export class VoiceAssistant {
     this.stopSpeaking();
 
     try {
-      this.mediaStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          channelCount: 1,
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        }
-      });
+      // Fast start: reuse existing hardware audio stream if already open in background
+      if (this.wakeStream && this.wakeStream.active) {
+        this.mediaStream = this.wakeStream;
+      } else {
+        this.mediaStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            channelCount: 1,
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }
+        });
+      }
 
-      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      if (this.audioContext.state === 'suspended') {
-        await this.audioContext.resume();
+      if (this.wakeAudioContext && this.wakeAudioContext.state !== 'closed') {
+        this.audioContext = this.wakeAudioContext;
+        if (this.audioContext.state === 'suspended') {
+          await this.audioContext.resume();
+        }
+      } else {
+        this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        if (this.audioContext.state === 'suspended') {
+          await this.audioContext.resume();
+        }
       }
 
       const source = this.audioContext.createMediaStreamSource(this.mediaStream);
-      this.processor = this.audioContext.createScriptProcessor(4096, 1, 1);
+      this.processor = this.audioContext.createScriptProcessor(2048, 1, 1);
       this.audioChunks = [];
       this.commandSpeakingDetected = false;
 
@@ -119,7 +135,7 @@ export class VoiceAssistant {
           }
           const rms = Math.sqrt(sum / inputData.length);
 
-          if (rms > 0.005) {
+          if (rms > 0.006) {
             this.commandSpeakingDetected = true;
             if (this.commandSilenceTimer) {
               clearTimeout(this.commandSilenceTimer);
@@ -127,9 +143,10 @@ export class VoiceAssistant {
             }
           } else if (this.commandSpeakingDetected) {
             if (!this.commandSilenceTimer) {
+              // Rapid responsive silence stop (650ms)
               this.commandSilenceTimer = setTimeout(() => {
                 this.stopListening();
-              }, 2000);
+              }, 650);
             }
           }
         }
@@ -142,14 +159,14 @@ export class VoiceAssistant {
       this.isListening = true;
       this.onStatusChange(true);
 
-      // Timeout after 5s if user never speaks anything
+      // Timeout after 8s if user never speaks anything
       if (autoStopOnSilence) {
         if (this.commandTimeoutTimer) clearTimeout(this.commandTimeoutTimer);
         this.commandTimeoutTimer = setTimeout(() => {
           if (this.isListening && !this.commandSpeakingDetected) {
             this.stopListening();
           }
-        }, 12000);
+        }, 8000);
       }
     } catch (err) {
       console.error('[Argus Voice]: Microphone access error:', err);
@@ -172,6 +189,9 @@ export class VoiceAssistant {
       this.commandTimeoutTimer = null;
     }
 
+    const wasDictating = this.isDictating;
+    this.isDictating = false;
+
     try {
       const inputSampleRate = this.audioContext?.sampleRate || 44100;
 
@@ -179,14 +199,16 @@ export class VoiceAssistant {
         this.processor.disconnect();
         this.processor = null;
       }
-      if (this.mediaStream) {
+      // Only close stream/context if NOT sharing with wakeStream/wakeAudioContext
+      if (this.mediaStream && this.mediaStream !== this.wakeStream) {
         this.mediaStream.getTracks().forEach((t) => t.stop());
-        this.mediaStream = null;
       }
-      if (this.audioContext) {
+      this.mediaStream = null;
+
+      if (this.audioContext && this.audioContext !== this.wakeAudioContext) {
         try { await this.audioContext.close(); } catch (e) {}
-        this.audioContext = null;
       }
+      this.audioContext = null;
 
       if (this.audioChunks.length === 0) return;
 
@@ -201,8 +223,8 @@ export class VoiceAssistant {
       }
       this.audioChunks = [];
 
-      // Only process if user actually spoke (> 0.25s)
-      if (totalLength / inputSampleRate < 0.25) return;
+      // Only process if user actually spoke (> 0.2s)
+      if (totalLength / inputSampleRate < 0.2) return;
 
       // Downsample float32 samples from hardware rate to 16kHz
       const downsampled = this.downsampleBuffer(merged, inputSampleRate, 16000);
@@ -229,7 +251,7 @@ export class VoiceAssistant {
         const data = await res.json();
         if (data.success && data.transcript && data.transcript.trim()) {
           const transcript = data.transcript.trim();
-          if (this.isDictating) {
+          if (wasDictating) {
             let injectSuccess = false;
             try {
               const dictRes = await fetch(`${LOCAL_SERVER_URL}/api/plugins/voice-sunder/dictate`, {
@@ -260,24 +282,25 @@ export class VoiceAssistant {
                 detail: { active: false, success: false }
               }));
             }
-            // Dictated text is injected directly into target app and NOT duplicated into AI chat
+            // CRUCIAL: ALWAYS RETURN HERE. Dictation mode NEVER sends text to the AI chat!
+            return;
           } else {
             // Normal chat voice input from microphone button in chat
             this.playWakeChime();
             this.onResult(transcript);
           }
         } else {
-          if (this.isDictating) {
+          if (wasDictating) {
             if ((window as any).electronAPI?.hideDictationHud) {
               (window as any).electronAPI.hideDictationHud();
             }
             window.dispatchEvent(new CustomEvent('argus_dictation_state', {
               detail: { active: false, success: false }
             }));
+            return;
           }
         }
       }
-      this.isDictating = false;
     } catch (err) {
       console.error('[Argus Voice]: STT request error:', err);
     }
@@ -509,7 +532,8 @@ export class VoiceAssistant {
       }
 
       const source = this.wakeAudioContext.createMediaStreamSource(this.wakeStream);
-      this.wakeProcessor = this.wakeAudioContext.createScriptProcessor(4096, 1, 1);
+      // 2048 samples reduces audio processing latency to ~46ms
+      this.wakeProcessor = this.wakeAudioContext.createScriptProcessor(2048, 1, 1);
       this.wakeChunks = [];
       this.wakePreRoll = [];
 
@@ -534,34 +558,49 @@ export class VoiceAssistant {
         }
         const rms = Math.sqrt(sum / input.length);
 
-        // Adapt ambient noise floor
-        this.ambientNoiseRms = this.ambientNoiseRms * 0.95 + rms * 0.05;
-        const dynamicSpeechThreshold = Math.max(0.0035, this.ambientNoiseRms * 1.4);
+        if (!this.wakeSpeakingDetected) {
+          // Adapt ambient noise floor only during silence to avoid biasing towards speech
+          this.ambientNoiseRms = this.ambientNoiseRms * 0.92 + rms * 0.08;
+        }
 
-        if (rms > dynamicSpeechThreshold) {
-          if (!this.wakeSpeakingDetected) {
+        const speechStartThreshold = Math.max(0.007, this.ambientNoiseRms * 1.8);
+        const speechContinueThreshold = Math.max(0.004, this.ambientNoiseRms * 1.25);
+
+        if (!this.wakeSpeakingDetected) {
+          if (rms > speechStartThreshold) {
             this.wakeSpeakingDetected = true;
-            // Prepend leading pre-roll frames so first syllable is never lost
-            this.wakeChunks = [...this.wakePreRoll];
-          }
-          this.wakeChunks.push(new Float32Array(input));
-          if (this.wakeSilenceTimer) {
-            clearTimeout(this.wakeSilenceTimer);
-            this.wakeSilenceTimer = null;
-          }
-        } else if (this.wakeSpeakingDetected) {
-          // Trailing speech frames
-          this.wakeChunks.push(new Float32Array(input));
-          if (!this.wakeSilenceTimer) {
-            this.wakeSilenceTimer = setTimeout(() => {
-              this.processVadWakePhrase();
-            }, 750);
+            this.wakeChunks = [...this.wakePreRoll, new Float32Array(input)];
+            if (this.wakeSilenceTimer) {
+              clearTimeout(this.wakeSilenceTimer);
+              this.wakeSilenceTimer = null;
+            }
+          } else {
+            // Keep a rolling buffer of 6 frames (~260ms) as pre-roll
+            this.wakePreRoll.push(new Float32Array(input));
+            if (this.wakePreRoll.length > 6) {
+              this.wakePreRoll.shift();
+            }
           }
         } else {
-          // Keep a rolling buffer of 5 frames (~400ms) as pre-roll
-          this.wakePreRoll.push(new Float32Array(input));
-          if (this.wakePreRoll.length > 5) {
-            this.wakePreRoll.shift();
+          // Speech is in progress
+          this.wakeChunks.push(new Float32Array(input));
+
+          if (rms > speechContinueThreshold) {
+            if (this.wakeSilenceTimer) {
+              clearTimeout(this.wakeSilenceTimer);
+              this.wakeSilenceTimer = null;
+            }
+            // If user or continuous sound lasts > 2.2 seconds (~48 chunks), trigger check immediately
+            if (this.wakeChunks.length > 48) {
+              this.processVadWakePhrase();
+            }
+          } else {
+            // User paused or finished speaking wake word -> trigger fast check (180ms silence delay)
+            if (!this.wakeSilenceTimer) {
+              this.wakeSilenceTimer = setTimeout(() => {
+                this.processVadWakePhrase();
+              }, 180);
+            }
           }
         }
       };
@@ -587,9 +626,9 @@ export class VoiceAssistant {
     let totalLength = 0;
     for (const arr of this.wakeChunks) totalLength += arr.length;
 
-    // Minimum 0.25 seconds and maximum 12.0 seconds of audio
+    // Minimum 0.22 seconds and maximum 10.0 seconds of audio
     const durationSec = totalLength / inputRate;
-    if (durationSec < 0.25 || durationSec > 12.0) {
+    if (durationSec < 0.22 || durationSec > 10.0) {
       this.wakeChunks = [];
       return;
     }

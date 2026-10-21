@@ -709,7 +709,7 @@ async def stop_voice_endpoint():
 # Voice STT (Speech to Text)
 @app.post("/api/voice/stt")
 async def speech_to_text(req: STTRequest):
-    transcript = voice_engine.transcribe_audio_wav_base64(req.audio_base64)
+    transcript = await asyncio.to_thread(voice_engine.transcribe_audio_wav_base64, req.audio_base64)
     if not transcript:
         return {"success": False, "transcript": ""}
     return {"success": True, "transcript": transcript}
@@ -725,7 +725,7 @@ async def wake_check_endpoint(req: WakeCheckRequest):
     Fast server-side wake word detector for Electron & Web.
     Transcribes incoming audio clip and checks if Argus wake trigger is present.
     """
-    transcript = voice_engine.transcribe_audio_wav_base64(req.audio_base64)
+    transcript = await asyncio.to_thread(voice_engine.transcribe_audio_wav_base64, req.audio_base64)
     if not transcript or not transcript.strip():
         return {"wake_detected": False, "transcript": "", "command": ""}
 
@@ -735,7 +735,8 @@ async def wake_check_endpoint(req: WakeCheckRequest):
         "аргус", "argus", "эй аргус", "hey argus", "привет аргус", "hi argus",
         "август", "аргуст", "argos", "агрус", "аргос", "артус", "арбуз", "аркус",
         "аргуз", "аргас", "агус", "алгус", "ай аргус", "слушай аргус", "аргуса", "аргусе",
-        "а груз", "а-груз", "аргусу", "аргусом", "алиса аргус", "argo", "агрос"
+        "а груз", "а-груз", "аргусу", "аргусом", "алиса аргус", "argo", "агрос",
+        "оргус", "арго", "арбус", "аргаз", "агруз", "а ргус"
     ]
     if req.wake_words:
         custom_list = [w.strip().lower() for w in req.wake_words.split(",") if w.strip()]

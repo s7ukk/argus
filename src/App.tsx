@@ -59,6 +59,11 @@ export const App: React.FC = () => {
   useEffect(() => {
     voiceAssistantRef.current = new VoiceAssistant(
       (transcript) => {
+        // Dictation into external apps must NEVER leak into AI chat
+        if (voiceAssistantRef.current?.getIsDictating?.()) {
+          console.log('[Argus Voice]: Dictation mode active — transcript excluded from AI chat.');
+          return;
+        }
         setInputText(transcript);
         handleSend(transcript);
       },
@@ -104,7 +109,7 @@ export const App: React.FC = () => {
     };
     window.addEventListener('argus_dictation_state', handleDictationState);
 
-    // Continuous Double-Ctrl Global Background Poller
+    // Continuous Double-Ctrl Global Background Poller (for Web browser mode when Electron IPC is absent)
     let isDictationSubscribed = true;
     const pollDoubleCtrl = async () => {
       while (isDictationSubscribed) {
@@ -123,7 +128,9 @@ export const App: React.FC = () => {
         }
       }
     };
-    pollDoubleCtrl();
+    if (!(window as any).electronAPI?.onVoiceSunderTrigger) {
+      pollDoubleCtrl();
+    }
 
     const handleSettingsUpdated = (e: any) => {
       const updated = e.detail;
