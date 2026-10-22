@@ -1962,6 +1962,45 @@ def get_system_stats() -> Dict[str, Any]:
         "brightness": get_brightness()
     }
 
+# ─── WINDOW MANAGEMENT ────────────────────────────────────────────
+def minimize_current_window() -> bool:
+    """Minimizes the currently active/focused window."""
+    if sys.platform == "darwin":
+        try:
+            script = 'tell application "System Events" to keystroke "m" using {command down}'
+            subprocess.run(["osascript", "-e", script], capture_output=True, timeout=2)
+            return True
+        except Exception:
+            pass
+    if _HAS_PYAUTOGUI:
+        try:
+            import ctypes
+            hwnd = ctypes.windll.user32.GetForegroundWindow()
+            if hwnd:
+                ctypes.windll.user32.ShowWindow(hwnd, 6)  # SW_MINIMIZE = 6
+                return True
+        except Exception:
+            pass
+    return False
+
+def minimize_all_windows() -> bool:
+    """Minimizes all windows (Show Desktop: Win+D on Windows, Cmd+F3/Cmd+M on macOS)."""
+    if sys.platform == "darwin":
+        try:
+            # Cmd+Option+H+M minimizes all, or Cmd+F3 shows desktop
+            script = 'tell application "System Events" to key code 99 using {command down}'  # F3
+            subprocess.run(["osascript", "-e", script], capture_output=True, timeout=2)
+            return True
+        except Exception:
+            pass
+    if _HAS_PYAUTOGUI:
+        try:
+            pyautogui.hotkey('win', 'd')
+            return True
+        except Exception:
+            pass
+    return False
+
 # ─── BROWSER TAB & WEBSITE INTERACTION ────────────────────────────
 def close_browser_tab() -> bool:
     """Closes active browser tab (Cmd+W on macOS, Ctrl+W on Windows/Linux)."""

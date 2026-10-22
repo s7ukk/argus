@@ -271,6 +271,14 @@ def execute_single_action(act: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]
                 pyautogui.hotkey('alt', 'f4')
         return "Активное окно закрыто", "close_active_window", {}
 
+    elif act_type == "minimize_window":
+        ok = sc.minimize_current_window()
+        return "Окно свёрнуто", "minimize_window", {"success": ok}
+
+    elif act_type == "minimize_all_windows":
+        ok = sc.minimize_all_windows()
+        return "Все окна свёрнуты", "minimize_all", {"success": ok}
+
     elif act_type == "close_app":
         app = act.get("app", "")
         res = sc.close_application(app)
@@ -720,20 +728,39 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
             folder = "pictures"
         return {"type": "save_destination", "folder": folder}
 
-    # 1.2 Browser Tabs & Page Navigation
+    # 1.2 Window Minimize (смахнуть = swipe away / dismiss = minimize, NOT close)
+    # "смахни вкладки" / "махни вкладки" / "убери окна" = minimize windows (NOT close browser tabs!)
+    # Only "закрой вкладку/вкладки" = close browser tab(s)
     if any(k in c for k in [
-        "махни все вкладки", "смахни все вкладки", "закрой все вкладки", "закрыть все вкладки",
-        "убери все вкладки", "убрать все вкладки", "прикрой все вкладки", "закрыть все вкладки браузера",
-        "закрой все вкладки браузера", "смахни вкладки", "махни вкладки", "закрой вкладки", "закрыть вкладки",
-        "убери вкладки", "убрать вкладки", "close all tabs", "close tabs", "закрой все окна", "смахни окна", "махни окна"
+        "смахни вкладки", "махни вкладки", "смахни все вкладки", "махни все вкладки",
+        "смахни окна", "махни окна", "смахни все окна", "махни все окна",
+        "убери вкладки", "убери окна", "убрать вкладки", "убрать окна",
+        "сверни все", "сверни всё", "сверни окна", "сверни вкладки",
+        "minimize all", "show desktop", "покажи рабочий стол"
+    ]):
+        return {"type": "minimize_all_windows"}
+    if any(k in c for k in [
+        "смахни вкладку", "махни вкладку", "смахни эту вкладку", "махни эту вкладку",
+        "смахни окно", "махни окно", "смахни это окно", "махни это окно",
+        "смахнуть вкладку", "смахни страницу", "махни страницу",
+        "убери вкладку", "убери окно", "убрать вкладку",
+        "сверни", "сверни окно", "сверни вкладку", "сверни это", "сверни приложение",
+        "minimize", "minimize window"
+    ]):
+        return {"type": "minimize_window"}
+
+    # 1.3 Browser Tab Close (только "закрой" = close, НЕ "смахни")
+    if any(k in c for k in [
+        "закрой все вкладки", "закрыть все вкладки", "закрой все вкладки браузера",
+        "закрыть все вкладки браузера", "прикрой все вкладки", "close all tabs", "close tabs"
     ]):
         return {"type": "close_all_browser_tabs"}
-
     if any(k in c for k in [
-        "махни вкладку", "махни эту вкладку", "закрой вкладку", "закрыть вкладку", "закрой эту вкладку", "закрыть эту вкладку",
-        "смахни вкладку", "смахни эту вкладку", "смахнуть вкладку", "смахни страницу", "махни страницу",
-        "убери вкладку", "убрать вкладку", "прикрой вкладку",
-        "закрой страницу", "закрыть страницу", "close tab", "закрой ютуб", "закрыть ютуб",
+        "закрой вкладку", "закрыть вкладку", "закрой эту вкладку", "закрыть эту вкладку",
+        "прикрой вкладку",
+        "закрой страницу", "закрыть страницу", "close tab",
+        "закрой вкладку браузера", "закрыть вкладку браузера",
+        "закрой ютуб", "закрыть ютуб",
         "закрой youtube", "закрыть youtube", "закрой саундклауд", "закрыть саундклауд",
         "закрой soundcloud", "закрой вк", "закрыть вк"
     ]):
@@ -1753,8 +1780,11 @@ CONVERSATIONAL_KNOWLEDGE = {
     "hello": "Hello. All Argus systems are operational and ready. How can I assist you?",
     "как дела": "Все модули Argus функционируют в штатном режиме с максимальной производительностью. Ожидаю ваших указаний.",
     "how are you": "All systems operating at peak performance. Ready for your instructions.",
-    "кто ты": "Я Argus — ваш персональный автономный ИИ-ассистент для глубокого управления Windows, автоматизации задач, взаимодействия с сайтами и работы за компьютером.",
-    "who are you": "I am Argus — your personal autonomous AI assistant for Windows control, workflow automation, and productivity.",
+    "что делаешь": "Работаю в фоновом режиме, жду ваших команд. Чем могу помочь?",
+    "чем занимаешься": "Работаю в фоновом режиме, жду ваших команд. Готов к любой задаче.",
+    "что делаем": "Жду ваших указаний. Готов запустить приложение, открыть сайт, поискать информацию или выполнить команду.",
+    "кто ты": "Я Argus — ваш персональный автономный ИИ-ассистент для глубокого управления Windows и macOS, автоматизации задач, взаимодействия с сайтами и работы за компьютером.",
+    "who are you": "I am Argus — your personal autonomous AI assistant for Windows and macOS control, workflow automation, and productivity.",
     "что ты умеешь": "Я умею полноценно управлять компьютером: открывать любые сайты и нажимать кнопки на страницах, запускать и закрывать любые программы (Chrome, Telegram, Discord, VS Code, GoLand, Postman, Steam и др.), создавать и удалять файлы и папки на компьютере, анализировать содержимое файлов, делать скриншоты в любую папку (Загрузки, Рабочий стол), настраивать громкость и яркость экрана («на полную», «в ноль»), закрывать программы с фильтрами исключений («кроме vs code»), очищать корзину, блокировать ПК, искать в Google, YouTube, Wildberries и Ozon, а также управлять плагинами.",
     "почему небо синее": "Небо кажется синим из-за рэлеевского рассеяния солнечного света в атмосфере: газы атмосферы рассеивают короткие синие и фиолетовые волны значительно сильнее, чем длинные красные.",
     "почему небо голубое": "Небо голубое благодаря рэлеевскому рассеянию: солнечный свет рассеивается молекулами воздуха, при этом коротковолновые синие и голубые лучи рассеиваются сильнее всего.",
@@ -1888,8 +1918,16 @@ def query_encyclopedia_knowledge(query: str, en: bool) -> Optional[str]:
     clean_q = query.strip().rstrip('?.!').strip()
     low_q = clean_q.lower()
     
-    # Exclude conversational greetings and smalltalk
-    if any(s in low_q for s in ["как дела", "как жизнь", "как ты", "как поживаешь", "как успехи", "как настроение", "кто ты", "что ты умеешь", "привет", "здравствуй"]):
+    # Exclude conversational greetings, smalltalk, and personal questions
+    _CONVERSATIONAL_BLACKLIST = [
+        "как дела", "как жизнь", "как ты", "как поживаешь", "как успехи", "как настроение",
+        "кто ты", "что ты умеешь", "привет", "здравствуй", "что делаешь", "чем занимаешься",
+        "что делаем", "что нового", "как у тебя", "что ты", "ты кто", "ты что",
+        "как тебя зовут", "что можешь", "что умеешь", "ты живой", "ты бот", "ты робот",
+        "что слышно", "что скажешь", "что думаешь", "какие новости",
+        "what are you doing", "how are you", "who are you", "what can you do"
+    ]
+    if any(s in low_q for s in _CONVERSATIONAL_BLACKLIST):
         return None
     
     prefixes = [
@@ -1897,7 +1935,7 @@ def query_encyclopedia_knowledge(query: str, en: bool) -> Optional[str]:
         "что это такое ", "что это ", "расскажи про ", "расскажи о ", "расскажи об ",
         "объясни что такое ", "объясни ", "для чего нужен ", "для чего нужна ", "для чего нужно ",
         "для чего нужны ", "зачем нужен ", "зачем нужна ", "зачем нужно ", "зачем нужны ",
-        "как работает ", "как устроен ", "как устроена ", "как устроены ", "что делает ",
+        "как работает ", "как устроен ", "как устроена ", "как устроены ",
         "what is ", "who is ", "what are ", "tell me about ", "how does ", "why is "
     ]
     target_topic = None
@@ -1906,17 +1944,25 @@ def query_encyclopedia_knowledge(query: str, en: bool) -> Optional[str]:
             target_topic = clean_q[len(p):].strip()
             break
             
+    # Only fall back to keyword extraction for SHORT explicit factual questions (<=3 words ending in ?)
+    # Do NOT trigger on conversational/action phrases like "что делаешь", "как смотришь"
     if not target_topic:
-        question_triggers = ["что", "кто", "как", "для чего", "зачем", "почему", "где", "когда", "какой", "what", "how", "why"]
-        if any(tr in low_q for tr in question_triggers) or query.strip().endswith('?'):
-            stop_words = {
+        words = clean_q.split()
+        if len(words) <= 3 and query.strip().endswith('?'):
+            _fact_stop = {
                 'для', 'чего', 'нужен', 'нужна', 'нужно', 'нужны', 'что', 'такое', 'такой', 'такая', 'такие',
-                'как', 'работает', 'устроен', 'устроена', 'почему', 'где', 'когда', 'кто', 'расскажи', 'про',
-                'объясни', 'вкратце', 'это', 'бывает', 'ли', 'же', 'мне', 'назови', 'опиши'
+                'как', 'почему', 'где', 'когда', 'кто', 'это', 'бывает', 'ли', 'же', 'мне'
             }
-            words = [w for w in re.findall(r'[a-zA-Zа-яА-ЯёЁ0-9\-]+', clean_q) if w.lower() not in stop_words]
-            if words:
-                target_topic = ' '.join(words)
+            nouns = [w for w in re.findall(r'[a-zA-Zа-яА-ЯёЁ0-9\-]+', clean_q) if w.lower() not in _fact_stop]
+            # Must have at least 1 real noun AND it must not be a common verb
+            _common_verbs = {
+                'делаешь', 'делаем', 'делать', 'делаю', 'знаешь', 'думаешь', 'хочешь', 'можешь',
+                'смотришь', 'слышишь', 'видишь', 'скажешь', 'думаем', 'идет', 'идёт', 'будет',
+                'стоит', 'говоришь', 'означает', 'занимаешься', 'помнишь', 'работаешь',
+                'doing', 'going', 'mean', 'think', 'happen'
+            }
+            if nouns and not any(n.lower() in _common_verbs for n in nouns):
+                target_topic = ' '.join(nouns)
             
     if not target_topic or len(target_topic) < 2:
         return None
