@@ -2198,6 +2198,8 @@ def resolve_file_path(path_str: str) -> str:
     desktop = os.path.join(user_home, 'Desktop')
     downloads = os.path.join(user_home, 'Downloads')
     documents = os.path.join(user_home, 'Documents')
+    pictures = os.path.join(user_home, 'Pictures')
+    videos = os.path.join(user_home, 'Videos')
 
     s_lower = s.lower()
     if 'рабоч' in s_lower or 'desktop' in s_lower:
@@ -2206,16 +2208,41 @@ def resolve_file_path(path_str: str) -> str:
         base = downloads
     elif 'документ' in s_lower or 'document' in s_lower:
         base = documents
+    elif 'картинк' in s_lower or 'фото' in s_lower or 'picture' in s_lower:
+        base = pictures
+    elif 'видео' in s_lower or 'video' in s_lower:
+        base = videos
     else:
         base = desktop
 
-    # Clean location words from filename
-    clean_name = re.sub(r'^(?:desktop/|desktop\\|downloads/|downloads\\|documents/|documents\\|на\s+рабочем\s+столе|на\s+рабочий\s+стол|в\s+загрузках|в\s+загрузки|в\s+документах|в\s+папке|в\s+папку)\s*', '', s, flags=re.IGNORECASE).strip()
-    clean_name = re.sub(r'\s+(?:на\s+рабочем\s+столе|на\s+рабочий\s+стол|в\s+загрузках|в\s+загрузки|в\s+документах)$', '', clean_name, flags=re.IGNORECASE).strip()
+    # Clean location words and noun prefixes from filename
+    clean_name = re.sub(
+        r'^(?:desktop/|desktop\\|downloads/|downloads\\|documents/|documents\\|'
+        r'папку|папка|папке|папкой|файл|файла|файлу|файлом|'
+        r'на\s+рабочем\s+столе|на\s+рабочий\s+стол|в\s+загрузках|в\s+загрузки|'
+        r'в\s+документах|в\s+документы|в\s+папке|в\s+папку)\s*',
+        '', s, flags=re.IGNORECASE
+    ).strip()
+    clean_name = re.sub(
+        r'\s+(?:на\s+рабочем\s+столе|на\s+рабочий\s+стол|в\s+загрузках|в\s+загрузки|в\s+документах|в\s+документы)$',
+        '', clean_name, flags=re.IGNORECASE
+    ).strip()
 
     if os.path.isabs(clean_name):
         return os.path.normpath(clean_name)
-    return os.path.normpath(os.path.join(base, clean_name))
+
+    # 1. Primary path in chosen base
+    primary_path = os.path.normpath(os.path.join(base, clean_name))
+    if os.path.exists(primary_path):
+        return primary_path
+
+    # 2. Check other common user folders if primary does not exist (e.g. user created in Documents, then asked to delete without specifying location)
+    for alt_base in [documents, downloads, desktop, pictures, videos, user_home]:
+        alt_path = os.path.normpath(os.path.join(alt_base, clean_name))
+        if os.path.exists(alt_path):
+            return alt_path
+
+    return primary_path
 
 def create_file(target: str, content: str = "") -> Dict[str, Any]:
     try:

@@ -153,7 +153,14 @@ def build_system_prompt(user_name: str, os_name: str, memory_summary: str = "") 
         "   - terminal_command: {\"type\": \"terminal_command\", \"command\": \"...\", \"shell\": \"powershell\" | \"bash\"}\n"
         "   - messenger_send: {\"type\": \"messenger_send\", \"messenger\": \"telegram\" | \"discord\" | \"whatsapp\" | \"auto\", \"contact\": \"имя\", \"message\": \"текст\"}\n\n"
         "4. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО добавлять 'close_app', если пользователь не просил явно закрыть приложение!\n"
-        "5. Отвечай кратко, емко, интеллектуально и дружелюбно. Никаких шаблонных отписок вроде 'Принято, я слушаю'."
+        "5. Отвечай кратко, емко, интеллектуально и дружелюбно. Никаких шаблонных отписок вроде 'Принято, я слушаю'.\n"
+        "6. ФОРМАТИРОВАНИЕ МАТЕМАТИКИ И ТЕКСТА:\n"
+        "   - КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО использовать сырой LaTeX синтаксис (теги вроде \\[, \\], \\(, \\), \\Delta, \\cdot, \\frac, \\sqrt, \\pm, \\times).\n"
+        "   - Все формулы, вычисления и уравнения пиши понятным, красивым и читаемым человеческим текстом (например: x^2 - 3x + 5 = 0; Дискриминант D = b^2 - 4ac = 9 - 20 = -11; D < 0, действительных корней нет; x1,2 = (3 ± i*sqrt(11)) / 2).\n"
+        "7. НАПИСАНИЕ КОДА И СКРИПТОВ:\n"
+        "   - Если пользователь просит написать код, скрипт, программу, функцию, эссе, стих (например: 'напиши код на python', 'напиши скрипт на python') — ЭТО ЗАПРОС К ИНТЕЛЛЕКТУ!\n"
+        "   - Напиши качественный, понятный код внутри блока ```python ... ``` с краткими пояснениями прямо в поле 'reply', а поле 'actions' оставь пустым массивом [].\n"
+        "   - КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО генерировать действие 'type_text' на запросы написать код/скрипт/программу!"
     )
 
 def query_openrouter(
@@ -175,15 +182,30 @@ def query_openrouter(
         return _OPENROUTER_CACHE[cache_key]
 
     os_name = "macOS" if sys.platform == "darwin" else "Windows"
-    sys_prompt = system_override or build_system_prompt(user_name, os_name)
+    try:
+        import backend.user_memory as user_memory
+        mem_summary = user_memory.get_memory_summary()
+    except Exception:
+        mem_summary = ""
+
+    sys_prompt = system_override or build_system_prompt(user_name, os_name, memory_summary=mem_summary)
 
     messages = [{"role": "system", "content": sys_prompt}]
     if history:
-        for h in history[-8:]:
+        last_role = None
+        for h in history[-10:]:
             r = "user" if h.get("role") == "user" else "assistant"
             cnt = h.get("content", "").strip()
             if cnt:
-                messages.append({"role": r, "content": cnt})
+                if r == last_role and len(messages) > 1:
+                    messages[-1]["content"] += f"\n{cnt}"
+                else:
+                    messages.append({"role": r, "content": cnt})
+                    last_role = r
+
+    if len(messages) > 1 and messages[-1]["role"] == "user":
+        messages.append({"role": "assistant", "content": "Понял вас. Чем могу помочь далее?"})
+
     messages.append({"role": "user", "content": prompt})
 
     url = "https://openrouter.ai/api/v1/chat/completions"
@@ -239,6 +261,15 @@ def query_openrouter(
         reply, actions = parse_model_response(raw_content)
         if reply:
             reply = re.sub(r'[\U00010000-\U0010ffff]', '', reply).strip()
+            reply = re.sub(r'\\\[\s*', '\n', reply)
+            reply = re.sub(r'\s*\\\]', '\n', reply)
+            reply = re.sub(r'\\\(\s*', '', reply)
+            reply = re.sub(r'\s*\\\)', '', reply)
+            reply = re.sub(r'\\Delta\b', 'D', reply)
+            reply = re.sub(r'\\cdot\b|\\times\b', '*', reply)
+            reply = re.sub(r'\\pm\b', '±', reply)
+            reply = re.sub(r'\\sqrt\{([^}]+)\}', r'sqrt(\1)', reply)
+            reply = re.sub(r'\\frac\{([^}]+)\}\{([^}]+)\}', r'(\1) / (\2)', reply)
 
         if reply or actions:
             if len(_OPENROUTER_CACHE) > 300:

@@ -121,6 +121,81 @@ def stop_all_audio():
         except Exception:
             pass
 
+def clean_text_for_speech(text: str) -> str:
+    """Converts LaTeX, code blocks, technical slashes, and paths into clean, natural spoken Russian without reading symbols out loud."""
+    if not text:
+        return ""
+
+    if "Автономный AI Агент" in text or "Автономный GUI Агент" in text:
+        m_msg = re.search(r'Отправлено сообщение в ([^:\n]+): «([^»]+)»', text)
+        if m_msg:
+            return f"Сообщение в {m_msg.group(1)} успешно отправлено."
+        m_act = re.search(r'выполнил (?:действие|задачу) в ([^:\n]+)', text)
+        if m_act:
+            return f"Действие в {m_act.group(1)} успешно выполнено."
+        return "Действие успешно выполнено."
+
+    # 1. Remove markdown code blocks completely so voice doesn't read 50 lines of code
+    t = re.sub(r'```[\s\S]*?```', ' код программы. ', text)
+    t = re.sub(r'`[^`]+`', ' код ', t)
+
+    # 2. LaTeX math delimiters and environments
+    t = re.sub(r'\\\[|\\\]|\\\(|\\\)', ' ', t)
+    t = re.sub(r'\$\$|\$', ' ', t)
+
+    # 3. LaTeX commands to natural spoken Russian words
+    t = re.sub(r'\\Delta\b', 'Дискриминант ', t)
+    t = re.sub(r'\\cdot\b|\\times\b', ' умножить на ', t)
+    t = re.sub(r'\\pm\b', ' плюс-минус ', t)
+    t = re.sub(r'\\sqrt\{([^}]+)\}', r' корень из \1 ', t)
+    t = re.sub(r'\\frac\{([^}]+)\}\{([^}]+)\}', r' \1 разделить на \2 ', t)
+    t = re.sub(r'\\geq\b', ' больше либо равно ', t)
+    t = re.sub(r'\\leq\b', ' меньше либо равно ', t)
+    t = re.sub(r'\\neq\b', ' не равно ', t)
+    t = re.sub(r'\^\{?2\}?', ' в квадрате ', t)
+    t = re.sub(r'\^\{?3\}?', ' в кубе ', t)
+    t = re.sub(r'\^\{?(\d+)\}?', r' в степени \1 ', t)
+    t = re.sub(r'\\[a-zA-Z]+(?:\{([^}]*)\})?', r' \1 ', t)
+
+    # 4. Remove comments like // ... and slashes
+    t = re.sub(r'//[^\n]*', ' ', t)
+    t = re.sub(r'/+', ' ', t)
+    t = re.sub(r'\\+', ' ', t)
+
+    # 5. Remove HTML tags
+    t = re.sub(r'<[^>]+>', ' ', t)
+
+    # 6. Strip phrases like "сохранено по пути: ...", "путь к файлу: ..."
+    t = re.sub(r'(?:файл\s+)?(?:сохранен|сохранено|записан|записано|расположен|находится)\s+(?:по пути|по адресу|в директорию|в каталог|в папку|в)[\s:]+[^\n\.\,]+', 'файл успешно сохранен.', t, flags=re.IGNORECASE)
+    t = re.sub(r'(?:путь|расположение|директория|папка)\s*(?:к файлу|сохранения)?[\s:]+[^\n\.\,]+', '', t, flags=re.IGNORECASE)
+
+    # 7. Remove Windows absolute paths and URLs
+    t = re.sub(r':\s*[a-zA-Z]:[\\/][^\s\)\"]+', '.', t)
+    t = re.sub(r'[a-zA-Z]:[\\/][^\s\)\"]+', '', t)
+    t = re.sub(r'https?://[^\s\)\"]+', '', t)
+    t = re.sub(r'\b[\w\-_]+\.(?:png|jpg|jpeg|lnk|exe|py|json|txt|log|docx?|xlsx?)\b', '', t, flags=re.IGNORECASE)
+
+    # 8. Clean markdown symbols & brackets
+    t = t.replace('**', '').replace('*', '').replace('#', '').replace('•', '').replace('—', ' - ').replace('~', '')
+    t = re.sub(r'[\[\]{}]', ' ', t)
+
+    # 9. Trailing punctuation and duplicate spaces
+    t = re.sub(r':\s*\.', '.', t)
+    t = re.sub(r':\s*$', '.', t)
+    t = re.sub(r'\s*([.,!?])\s*', r'\1 ', t)
+    t = re.sub(r'\s+', ' ', t).strip()
+
+    if len(t) > 350:
+        sentences = re.split(r'(?<=[.!?])\s+', t)
+        shortened = ""
+        for s in sentences:
+            if len(shortened) + len(s) < 320:
+                shortened += (s + " ")
+            else:
+                break
+        t = shortened.strip() if shortened.strip() else t[:320] + "..."
+    return t
+
 async def generate_speech_base64(
     text: str,
     voice: Optional[str] = None,
@@ -133,10 +208,8 @@ async def generate_speech_base64(
     """
     if not text or not text.strip():
         return None
-        
-    clean_text = text.replace("**", "").replace("*", "").replace("`", "").replace("#", "")
-    if len(clean_text) > 400:
-        clean_text = clean_text[:400] + "..."
+
+    clean_text = clean_text_for_speech(text)
 
     # 1. Try Fish Audio if key is provided
     if fish_api_key and fish_api_key.strip():

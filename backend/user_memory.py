@@ -138,9 +138,11 @@ def extract_and_learn(user_text: str) -> Optional[str]:
 
     return None
 
-def query_memory_question(user_text: str) -> Optional[str]:
+def query_memory_question(user_text: str, has_history: bool = False) -> Optional[str]:
     """
     Answers questions about stored user facts (e.g. 'сколько мне лет', 'как меня зовут').
+    If the fact is not in local memory and has_history is True, returns None to allow
+    the LLM to answer using the multi-turn conversation context.
     """
     low = user_text.lower().strip()
     mem = load_memory()
@@ -149,28 +151,28 @@ def query_memory_question(user_text: str) -> Optional[str]:
     if any(q in low for q in ["сколько мне лет", "какой мой возраст", "мой возраст", "how old am i", "my age"]):
         if mem.get("age"):
             return f"Вам {mem['age']} лет."
-        else:
+        elif not has_history:
             return "Вы пока не говорили мне, сколько вам лет. Напишите, например: «мне 18 лет», и я запомню."
 
     # 2. Question about Name
     if any(q in low for q in ["как меня зовут", "какое мое имя", "какое моё имя", "кто я", "what is my name", "who am i"]):
         if mem.get("name"):
             return f"Вас зовут {mem['name']}."
-        else:
+        elif not has_history:
             return "Вы пока не назвали свое имя. Скажите, например: «меня зовут Алексей», и я запомню."
 
     # 3. Question about City / Location
     if any(q in low for q in ["где я живу", "из какого я города", "в каком я городе", "мой город", "where do i live"]):
         if mem.get("city"):
             return f"Вы живете в {mem['city']}."
-        else:
+        elif not has_history:
             return "Вы еще не говорили, в каком городе живете."
 
     # 4. Question about Occupation
     if any(q in low for q in ["кем я работаю", "где я работаю", "какая у меня профессия", "чем я занимаюсь"]):
         if mem.get("occupation"):
             return f"Вы работаете: {mem['occupation']}."
-        else:
+        elif not has_history:
             return "Вы еще не рассказывали о своей профессии."
 
     # 5. General memory summary: "что ты обо мне знаешь", "что ты помнишь обо мне", "что ты знаешь про меня"

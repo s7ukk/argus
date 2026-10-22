@@ -561,38 +561,7 @@ async def test_fish_audio(req: FishAudioTestRequest):
         raise HTTPException(status_code=400, detail="Не удалось сгенерировать голос через Fish Audio. Проверьте API ключ и модель.")
     return {"success": True, "audio_base64": audio_b64}
 
-def clean_text_for_speech(text: str) -> str:
-    """Strips raw disk paths, save locations, URLs, code blocks, and technical symbols so voice sounds natural and human."""
-    if "Автономный AI Агент" in text or "Автономный GUI Агент" in text:
-        m_msg = re.search(r'Отправлено сообщение в ([^:\n]+): «([^»]+)»', text)
-        if m_msg:
-            return f"Сообщение в {m_msg.group(1)} успешно отправлено."
-        m_act = re.search(r'выполнил (?:действие|задачу) в ([^:\n]+)', text)
-        if m_act:
-            return f"Действие в {m_act.group(1)} успешно выполнено."
-
-    # 1. Remove markdown code blocks
-    t = re.sub(r'```[\s\S]*?```', '', text)
-    # 2. Strip phrases like "сохранено по пути: ...", "файл сохранен в ...", "путь к файлу: ..."
-    t = re.sub(r'(?:файл\s+)?(?:сохранен|сохранено|записан|записано|расположен|находится)\s+(?:по пути|по адресу|в директорию|в каталог|в папку|в)[\s:]+[^\n\.\,]+', 'файл успешно сохранен.', t, flags=re.IGNORECASE)
-    t = re.sub(r'(?:путь|расположение|директория|папка)\s*(?:к файлу|сохранения)?[\s:]+[^\n\.\,]+', '', t, flags=re.IGNORECASE)
-    # 3. Remove Windows absolute paths e.g. 'C:\Users\...' or 'D:/...'
-    t = re.sub(r':\s*[a-zA-Z]:[\\/][^\s\)\"\']+', '.', t)
-    t = re.sub(r'[a-zA-Z]:[\\/][^\s\)\"\']+', '', t)
-    # 4. Remove UNIX/relative paths e.g. /home/... or ~/Downloads/...
-    t = re.sub(r'[~\\/][\w\-\./\\]+', '', t)
-    # 5. Remove URLs
-    t = re.sub(r'https?://[^\s\)\"\']+', '', t)
-    # 6. Remove technical filenames e.g. screenshot_20261017_232015.png, main.py
-    t = re.sub(r'\b[\w\-_]+\.(?:png|jpg|jpeg|lnk|exe|py|json|txt|log|docx?|xlsx?)\b', '', t, flags=re.IGNORECASE)
-    # 7. Clean markdown symbols & formatting
-    t = t.replace('**', '').replace('*', '').replace('`', '').replace('#', '').replace('•', '').replace('—', ' - ')
-    # 8. Replace trailing colons, dangling punctuation and duplicate spaces
-    t = re.sub(r':\s*\.', '.', t)
-    t = re.sub(r':\s*$', '.', t)
-    t = re.sub(r'\s*([.,!?])\s*', r'\1 ', t)
-    t = re.sub(r'\s+', ' ', t).strip()
-    return t
+clean_text_for_speech = voice_engine.clean_text_for_speech
 
 # Argus AI Chat & Action Execution
 @app.post("/api/ai/chat")

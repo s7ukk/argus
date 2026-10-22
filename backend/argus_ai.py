@@ -1132,27 +1132,47 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         m_msg = extract_case_match(orig_c, m_msg)
         return {"type": "messenger_send", "messenger": m_app, "contact": m_target, "message": m_msg}
 
-    # Pattern 3: 'найди/открой [чат/контакт] <contact> [и напиши/отправь <message>]'
-    m3 = re.match(
-        r'^(?:найди|открой|выбери|поищи)\s+(?:(?:чат|диалог|беседу|группу|канал|контакт|переписку)\s+)?(?:с\s+|для\s+)?([a-zA-Zа-яА-ЯёЁ0-9_\-\.]+)(?:\s+(?:и\s+)?(?:напиши|напечатай|отправь|скинь)\s+(?:сообщение\s+|текст\s+|слово\s+)?(.*))?$',
+    # Pattern 3A: Explicit chat keyword e.g. 'найди/открой чат/диалог/контакт <contact> [и напиши <msg>]'
+    m3_chat = re.match(
+        r'^(?:найди|открой|выбери|поищи)\s+(?:чат|диалог|беседу|группу|канал|контакт|переписку)\s+(?:с\s+|для\s+)?([a-zA-Zа-яА-ЯёЁ0-9_\-\.]+)(?:\s+(?:и\s+)?(?:напиши|напечатай|отправь|скинь)\s+(?:сообщение\s+|текст\s+|слово\s+)?(.*))?$',
         c, re.IGNORECASE
     )
-    if m3:
-        raw_target = extract_case_match(orig_c, m3.group(1).strip())
+    if m3_chat:
+        raw_target = extract_case_match(orig_c, m3_chat.group(1).strip())
         target_name = normalize_contact_name(raw_target)
-        raw_msg = m3.group(2)
-        if target_name.lower() not in ["приложение", "программу", "файл", "папку", "вкладку", "окно", "видео", "музыку"]:
-            msg_text = ""
+        raw_msg = m3_chat.group(2)
+        if target_name.lower() not in ['приложение', 'программу', 'файл', 'папку', 'вкладку', 'окно', 'видео', 'музыку']:
+            msg_text = ''
             if raw_msg:
                 msg_text = re.sub(r'^["«\']|["»\']$', '', raw_msg.strip()).strip()
                 msg_text = extract_case_match(orig_c, msg_text)
-            dest_m = "auto"
+            dest_m = 'auto'
             for kw in MESSENGER_KEYWORDS:
                 if kw in c:
                     dest_m = normalize_messenger(kw)
                     break
-            return {"type": "messenger_send", "messenger": dest_m, "contact": target_name, "message": msg_text}
+            return {'type': 'messenger_send', 'messenger': dest_m, 'contact': target_name, 'message': msg_text}
 
+    # Pattern 3B: Find contact and send message (MUST have message verb): 'найди/поищи <contact> и напиши/отправь <msg>'
+    m3_write = re.match(
+        r'^(?:найди|поищи)\s+(?:с\s+|для\s+)?([a-zA-Zа-яА-ЯёЁ0-9_\-\.]+)\s+(?:и\s+)?(?:напиши|напечатай|отправь|скинь)\s+(?:сообщение\s+|текст\s+|слово\s+)?(.*)$',
+        c, re.IGNORECASE
+    )
+    if m3_write:
+        raw_target = extract_case_match(orig_c, m3_write.group(1).strip())
+        target_name = normalize_contact_name(raw_target)
+        raw_msg = m3_write.group(2)
+        if target_name.lower() not in ['приложение', 'программу', 'файл', 'папку', 'вкладку', 'окно', 'видео', 'музыку', 'постман', 'хром', 'калькулятор', 'браузер']:
+            msg_text = ''
+            if raw_msg:
+                msg_text = re.sub(r'^["«\']|["»\']$', '', raw_msg.strip()).strip()
+                msg_text = extract_case_match(orig_c, msg_text)
+            dest_m = 'auto'
+            for kw in MESSENGER_KEYWORDS:
+                if kw in c:
+                    dest_m = normalize_messenger(kw)
+                    break
+            return {'type': 'messenger_send', 'messenger': dest_m, 'contact': target_name, 'message': msg_text}
     # Pattern 4A: Explicit contact prefix: "напиши/отправь [сообщение] пользователю/контакту/для/в чат/в диалог <contact> <message>"
     m4_prefix = re.match(
         r'^(?:напиши|напечатай|отправь|скинь)\s+(?:сообщение\s+|текст\s+|слово\s+)?(?:пользователю|контакту|для|в\s+чат|в\s+диалог)\s+([a-zA-Zа-яА-ЯёЁ0-9_\-\.]+)\s+(?:сообщение\s+|текст\s+|слово\s+)?(.*)$',
@@ -1194,6 +1214,20 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
 
     # 14. In-App Automation: Typing Text & Messages (Voice Sunder dictation)
     if any(c.startswith(verb) for verb in ["напиши ", "напечатай ", "введи ", "вбей ", "продиктуй ", "вставь ", "type ", "write "]):
+        # Guard: If user asks AI to write/create code, scripts, programs, essays, poems, etc.
+        # it is an AI GENERATION request, NOT a keyboard automation!
+        ai_coding_terms = [
+            "код", "скрипт", "программ", "функци", "класс", "алгоритм", "бот", "парсер",
+            "запрос", "сочинени", "стих", "эссе", "рассказ", "стать", "текст про", "текст о",
+            "письмо", "резюме", "план", "решение", "пример", "code", "script", "program", "function"
+        ]
+        lang_terms = [
+            "на python", "на питон", "на js", "на javascript", "на c++", "на c#", "на html",
+            "на css", "на sql", "на bash", "на баше", "на джаве", "на java", "на go", "на rust"
+        ]
+        if any(term in c for term in ai_coding_terms) or any(l in c for l in lang_terms):
+            return None
+
         raw_text = re.sub(r'^(?:напиши|напечатай|введи|вбей|продиктуй|вставь|type|write)\s+(?:текст[:\s]+)?', '', orig_c, flags=re.IGNORECASE).strip()
         press_enter = False
         m_enter = re.search(r'\s+(?:и\s+)?(?:нажми\s+(?:enter|ввод|ентер)|нажми\s+кнопку\s+enter|отправь)$', raw_text, re.IGNORECASE)
@@ -1636,7 +1670,7 @@ def process_command(user_text: str, user_name: str = "Пользователь",
     if learned_reply:
         return learned_reply, "general", {}
 
-    memory_reply = user_memory.query_memory_question(raw)
+    memory_reply = user_memory.query_memory_question(raw, has_history=bool(history))
     if memory_reply:
         return memory_reply, "general", {}
 
