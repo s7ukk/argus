@@ -706,7 +706,7 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         return {"type": "screenshot", "folder": folder}
 
     # 1.1 Save destination specification (e.g. "сохрани его в папку загрузки")
-    if any(k in c for k in ["сохрани", "сохранить", "save"]) and not any(k in c for k in ["файл", "file", "код"]):
+    if any(k in c for k in ["сохрани", "сохранить", "save"]) and not any(k in c for k in ["файл", "file", "код", "папку", "папка", "создай", "создать"]):
         folder = "desktop"
         if any(f in c for f in ["загрузк", "загруз", "download"]):
             folder = "downloads"
@@ -717,7 +717,14 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         return {"type": "save_destination", "folder": folder}
 
     # 1.2 Browser Tabs & Page Navigation
-    if any(k in c for k in ["закрой вкладку", "закрыть вкладку", "закрой эту вкладку", "закрыть эту вкладку", "закрой страницу", "закрыть страницу", "close tab", "закрой ютуб", "закрыть ютуб", "закрой youtube", "закрыть youtube", "закрой саундклауд", "закрыть саундклауд", "закрой soundcloud", "закрой вк", "закрыть вк"]):
+    if any(k in c for k in [
+        "закрой вкладку", "закрыть вкладку", "закрой эту вкладку", "закрыть эту вкладку",
+        "смахни вкладку", "смахни эту вкладку", "смахнуть вкладку", "смахни страницу",
+        "убери вкладку", "убрать вкладку", "прикрой вкладку",
+        "закрой страницу", "закрыть страницу", "close tab", "закрой ютуб", "закрыть ютуб",
+        "закрой youtube", "закрыть youtube", "закрой саундклауд", "закрыть саундклауд",
+        "закрой soundcloud", "закрой вк", "закрыть вк"
+    ]):
         return {"type": "close_browser_tab"}
     if any(k in c for k in ["новая вкладка", "новую вкладку", "открой вкладку", "открыть новую вкладку", "new tab"]):
         return {"type": "new_browser_tab"}
@@ -860,17 +867,19 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
             target = "в документах " + target
         return {"type": "create_file", "path": target, "content": content}
 
-    # Create folder: "создай папку Проект на рабочем столе"
+    # Create folder: "создай папку TEXT и сохрани в загрузки", "создай папку Проект на рабочем столе"
     if any(k in c for k in ["создай папку", "создать папку", "сделай папку", "новая папка", "create folder", "mkdir"]):
-        m_cd = re.search(r'(?:создай|создать|сделай|новая)\s+папк[ау]\s+([^\s]+)(?:\s+(?:на\s+рабочем\s+столе|в\s+загрузках|в\s+документах))?', raw_c, re.IGNORECASE)
+        m_cd = re.search(r'(?:создай|создать|сделай|новая)\s+папк[ау]\s+([^\s]+)(?:\s+(?:и\s+)?(?:сохрани\s+)?(?:в|на)\s+([^\s]+))?', raw_c, re.IGNORECASE)
         f_name = "Новая папка"
+        dest_hint = ""
         if m_cd:
             f_name = m_cd.group(1).strip('"\'«»')
-        if "на рабочем столе" in c or "на рабочий стол" in c:
+            dest_hint = (m_cd.group(2) or "").lower()
+        if any(w in c or w in dest_hint for w in ["рабоч", "desktop", "стол"]):
             f_name = "на рабочем столе " + f_name
-        elif "в загрузках" in c or "в загрузки" in c:
+        elif any(w in c or w in dest_hint for w in ["загруз", "download"]):
             f_name = "в загрузках " + f_name
-        elif "в документах" in c or "в документы" in c:
+        elif any(w in c or w in dest_hint for w in ["документ", "document"]):
             f_name = "в документах " + f_name
         return {"type": "create_folder", "path": f_name}
 
@@ -1534,7 +1543,7 @@ def local_multi_action_planner(user_text: str) -> List[Dict[str, Any]]:
 
     # 1. Normalize verb boundaries to avoid missing clauses without punctuation
     # e.g. "Открой браузер сделай скриншот" -> "Открой браузер; сделай скриншот"
-    verb_boundary = r'(?<=\w)\s+(?=(?:открой|запусти|зайди в|зайди на|зайди|перейди в|перейди на|перейди|найди чат|найди диалог|найди контакт|сделай скриншот|сделай скрин|заскринь|сохрани|закрой вкладку|закрой|выключи|напиши|напечатай|отправь|нажми|кликни|почисти корзину|очисти корзину|заблокируй|обнови|прокрути|поставь яркость|поставь звук|поставь громкость|поставь|установи|прибавь|убавь|создай файл|создай папку|создай|удали файл|удали папку|удали|проверь|проанализируй|список файлов)\b)'
+    verb_boundary = r'(?<=\w)\s+(?=(?:открой|запусти|зайди в|зайди на|зайди|перейди в|перейди на|перейди|найди чат|найди диалог|найди контакт|сделай скриншот|сделай скрин|заскринь|сохрани скриншот|закрой вкладку|смахни вкладку|закрой|выключи|напиши|напечатай|отправь|нажми|кликни|почисти корзину|очисти корзину|заблокируй|обнови|прокрути|поставь яркость|поставь звук|поставь громкость|поставь|установи|прибавь|убавь|создай файл|создай папку|создай|удали файл|удали папку|удали|проверь|проанализируй|список файлов)\b)'
     user_text_norm = re.sub(verb_boundary, '; ', user_text, flags=re.IGNORECASE)
 
     clauses = re.split(r'\b(и\s+потом|а\s+затем|после\s+этого|потом|затем|а\s+также|также|дальше|and\s+then|then)\b|[;,]', user_text_norm, flags=re.IGNORECASE)
@@ -1743,6 +1752,7 @@ def query_encyclopedia_knowledge(query: str, en: bool) -> Optional[str]:
     """
     Instantly fetches factual definitions and summaries (0.2s latency)
     for questions like 'что такое...', 'кто такой...', 'what is...', 'who is...'.
+    Supports multi-concept queries (e.g. 'что такое Политика и Депортамент') and typo auto-correction.
     """
     clean_q = query.strip().rstrip('?.!').strip()
     prefixes = [
@@ -1758,30 +1768,75 @@ def query_encyclopedia_knowledge(query: str, en: bool) -> Optional[str]:
             
     if not target_topic:
         words = clean_q.split()
-        if len(words) <= 3 and query.strip().endswith('?'):
+        if len(words) <= 4 and query.strip().endswith('?'):
             target_topic = clean_q
             
     if not target_topic or len(target_topic) < 2:
         return None
 
     lang = "en" if en else "ru"
-    try:
-        topic_enc = urllib.parse.quote(target_topic.replace(' ', '_'))
-        url = f"https://{lang}.wikipedia.org/api/rest_v1/page/summary/{topic_enc}"
-        req = urllib.request.Request(
-            url,
-            headers={"User-Agent": "ArgusAI/2.4 (https://github.com/argus; contact@argus.ai)"}
-        )
-        with urllib.request.urlopen(req, timeout=3) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            extract = data.get("extract")
-            title = data.get("title")
-            if extract and len(extract) > 20:
-                clean_extract = re.sub(r'[\u0300-\u036f]', '', extract).replace('\xa0', ' ').strip()
-                clean_title = re.sub(r'[\u0300-\u036f]', '', title).replace('\xa0', ' ').strip()
-                return f"{clean_title}: {clean_extract}"
-    except Exception:
-        pass
+    terms = [t.strip() for t in re.split(r'\s+(?:и|или|and|or)\s+|,', target_topic) if t.strip()]
+    if not terms:
+        terms = [target_topic]
+
+    summaries = []
+
+    for term in terms:
+        # 1. Direct page summary
+        found = False
+        try:
+            topic_enc = urllib.parse.quote(term.replace(' ', '_'))
+            url = f"https://{lang}.wikipedia.org/api/rest_v1/page/summary/{topic_enc}"
+            req = urllib.request.Request(
+                url,
+                headers={"User-Agent": "ArgusAI/2.4 (https://github.com/argus; contact@argus.ai)"}
+            )
+            with urllib.request.urlopen(req, timeout=3.5) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                extract = data.get("extract")
+                title = data.get("title")
+                if extract and len(extract) > 20:
+                    clean_extract = re.sub(r'[\u0300-\u036f]', '', extract).replace('\xa0', ' ').strip()
+                    clean_title = re.sub(r'[\u0300-\u036f]', '', title).replace('\xa0', ' ').strip()
+                    summaries.append(f"{clean_title}: {clean_extract}")
+                    found = True
+        except Exception:
+            pass
+
+        if found:
+            continue
+
+        # 2. Wikipedia Search API with typo suggestion (e.g. 'Депортамент' -> 'департамент')
+        try:
+            s_url = f"https://{lang}.wikipedia.org/w/api.php?action=query&list=search&srsearch={urllib.parse.quote(term)}&format=json&utf8=1"
+            req_s = urllib.request.Request(s_url, headers={"User-Agent": "ArgusAI/2.4 (https://github.com/argus)"})
+            with urllib.request.urlopen(req_s, timeout=3.5) as resp_s:
+                s_data = json.loads(resp_s.read().decode("utf-8"))
+                query_info = s_data.get("query", {})
+                suggestion = query_info.get("searchinfo", {}).get("suggestion")
+                hits = query_info.get("search", [])
+
+                best_term = suggestion or (hits[0]["title"] if hits else None)
+                if best_term:
+                    b_enc = urllib.parse.quote(best_term.replace(' ', '_'))
+                    u_best = f"https://{lang}.wikipedia.org/api/rest_v1/page/summary/{b_enc}"
+                    req_b = urllib.request.Request(u_best, headers={"User-Agent": "ArgusAI/2.4 (https://github.com/argus)"})
+                    with urllib.request.urlopen(req_b, timeout=3.5) as resp_b:
+                        d_b = json.loads(resp_b.read().decode("utf-8"))
+                        ext_b = d_b.get("extract")
+                        t_b = d_b.get("title")
+                        if ext_b and len(ext_b) > 20:
+                            clean_extract = re.sub(r'[\u0300-\u036f]', '', ext_b).replace('\xa0', ' ').strip()
+                            clean_title = re.sub(r'[\u0300-\u036f]', '', t_b).replace('\xa0', ' ').strip()
+                            summaries.append(f"{clean_title}: {clean_extract}")
+        except Exception:
+            pass
+
+    if summaries:
+        if len(summaries) == 1:
+            return summaries[0]
+        return "\n\n".join(f"• {s}" for s in summaries)
+
     return None
 
 def get_conversational_reply(raw_text: str, en: bool, user_name: str = "Пользователь", history: Optional[List[Dict[str, Any]]] = None) -> str:
@@ -1851,26 +1906,38 @@ def process_command(user_text: str, user_name: str = "Пользователь",
     if memory_reply:
         return memory_reply, "general", {}
 
-    # 0. Contextual Pronoun Resolution (using dialogue history)
-    # e.g. "закрой его", "закрой её", "удали его", "проверь его"
+    # 0. Contextual Pronoun & Folder/File Resolution (using dialogue history)
+    # e.g. "закрой его", "закрой её", "удали его", "удали эту папку", "удали папку", "удали эту", "проверь его"
     resolved_text = raw
-    if history and any(p in raw.lower() for p in ["его", "ее", "её", "это", "туда же"]):
+    low_raw = raw.lower()
+    if history and any(p in low_raw for p in ["его", "ее", "её", "это", "туда же", "эту", "ту", "папку", "папка", "файл"]):
         for prev_msg in reversed(history):
             prev_content = prev_msg.get("content", "")
-            # Check if previous launched an app: e.g. "Запущено приложение: GoLand"
+
+            # 1. Check if user wants to delete previously created folder
+            # e.g. previous was "Папка создана: C:\Users\stuck\Desktop\text"
+            if any(k in low_raw for k in ["удали", "delete", "сотри", "уничтожь"]):
+                m_fld = re.search(r'Папка создана:\s*([a-zA-Z]:[\\/][^\s\.\n\r]+|/[^\s\.\n\r]+|[a-zA-Z]:[\\/][^\n\r]+|/[^\n\r]+)', prev_content)
+                if m_fld:
+                    target_folder = m_fld.group(1).strip().rstrip('.')
+                    resolved_text = f"удали папку {target_folder}"
+                    break
+
+            # 2. Check if previous launched an app: e.g. "Запущено приложение: GoLand"
             m_app = re.search(r'Запущено приложение:\s*([a-zA-Z0-9_\- ]+)', prev_content)
-            if m_app and any(k in raw.lower() for k in ["закрой", "close", "выключи"]):
+            if m_app and any(k in low_raw for k in ["закрой", "close", "выключи"]):
                 app_name = m_app.group(1).strip()
-                resolved_text = re.sub(r'\b(его|ее|её|это)\b', app_name, resolved_text, flags=re.IGNORECASE)
+                resolved_text = re.sub(r'\b(его|ее|её|это|эту|ту)\b', app_name, resolved_text, flags=re.IGNORECASE)
                 break
-            # Check if previous was a screenshot or file path
-            m_file = re.search(r'([a-zA-Z]:[\\/][^\s\)\"\']+\.[a-zA-Z0-9]{2,4})', prev_content)
+
+            # 3. Check if previous was a screenshot or file path
+            m_file = re.search(r'([a-zA-Z]:[\\/][^\s\)\"\']+\.[a-zA-Z0-9]{2,4}|/[^\s\)\"\']+\.[a-zA-Z0-9]{2,4})', prev_content)
             if m_file:
                 target_f = m_file.group(1).strip()
-                if any(k in raw.lower() for k in ["удали", "delete", "сотри"]):
+                if any(k in low_raw for k in ["удали", "delete", "сотри"]):
                     resolved_text = f"удали файл {target_f}"
                     break
-                if any(k in raw.lower() for k in ["проверь", "проанализируй", "посмотри"]):
+                if any(k in low_raw for k in ["проверь", "проанализируй", "посмотри"]):
                     resolved_text = f"проанализируй файл {target_f}"
                     break
 
