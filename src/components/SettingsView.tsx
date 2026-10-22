@@ -35,7 +35,7 @@ export const SettingsView: React.FC = () => {
     voice_provider: 'edge-tts',
     fish_api_key: '',
     fish_model_id: '',
-    edge_voice: 'ru-RU-SvetlanaNeural',
+    edge_voice: 'ru-RU-DmitryNeural',
     voice_speed: 1.0,
     browser_mode: 'ask',
     default_browser: 'auto',

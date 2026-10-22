@@ -279,6 +279,20 @@ def execute_single_action(act: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]
         ok = sc.minimize_all_windows()
         return "Все окна свёрнуты", "minimize_all", {"success": ok}
 
+    elif act_type == "minimize_app":
+        app = act.get("app", "")
+        ok = sc.minimize_application(app)
+        app_disp = app.capitalize()
+        if app.lower() in ["vscode", "код", "vs code"]:
+            app_disp = "VS Code"
+        elif app.lower() in ["chrome", "хром", "браузер"]:
+            app_disp = "Chrome"
+        elif app.lower() in ["telegram", "телеграм", "телега", "тг"]:
+            app_disp = "Telegram"
+        elif app.lower() in ["discord", "дискорд"]:
+            app_disp = "Discord"
+        return f"Окно {app_disp} свёрнуто", "minimize_app", {"success": ok, "app": app}
+
     elif act_type == "close_app":
         app = act.get("app", "")
         res = sc.close_application(app)
@@ -728,6 +742,16 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
             folder = "pictures"
         return {"type": "save_destination", "folder": folder}
 
+    # 1.1 App-specific Minimize ("сверни телеграм", "скрой хром", "убери дискорд", "смахни телеграм", etc.)
+    minimize_verbs = ["сверни", "смахни", "убери", "скрой", "свернуть", "смахнуть", "убрать", "скрыть", "спрячь", "спрятать"]
+    if any(verb in c for verb in minimize_verbs):
+        for alias in sorted(APP_MAP.keys(), key=lambda x: len(x), reverse=True):
+            if alias in ["все", "всё", "окна", "вкладки", "окно", "вкладка", "страницу", "интернет"]:
+                continue
+            pattern = r'(?:\b|^)' + re.escape(alias) + r'(?:\b|$)'
+            if re.search(pattern, c):
+                return {"type": "minimize_app", "app": APP_MAP[alias]}
+
     # 1.2 Window Minimize (смахнуть = swipe away / dismiss = minimize, NOT close)
     # "смахни вкладки" / "махни вкладки" / "убери окна" = minimize windows (NOT close browser tabs!)
     # Only "закрой вкладку/вкладки" = close browser tab(s)
@@ -922,12 +946,18 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
             f_name = "в документах " + f_name
         return {"type": "create_folder", "path": f_name}
 
-    # Delete file or folder: "удали файл test.txt", "удали папку Test"
-    if any(k in c for k in ["удали файл", "удалить файл", "сотри файл", "удали папку", "удалить папку", "delete file"]):
-        m_del = re.search(r'(?:удали|удалить|сотри)\s+(?:файл|папку)\s+(.+)', raw_c, re.IGNORECASE)
-        target = ""
-        if m_del:
-            target = m_del.group(1).strip().strip('"\'«»')
+    # Delete file or folder: "удали файл test.txt", "удали папку Test", "удали эту папку", "удали её", "сотри папку"
+    if any(k in c for k in [
+        "удали файл", "удалить файл", "сотри файл",
+        "удали папку", "удалить папку", "сотри папку", "стереть папку",
+        "удали эту папку", "удалить эту папку", "удали данную папку",
+        "удали эту", "удали это", "удали ее", "удали её", "удали его",
+        "delete file", "delete folder"
+    ]) or re.search(r'\b(?:удали|удалить|сотри)\s+(?:эту|данную|ту)?\s*(?:папку|файл)\b', c):
+        m_del = re.search(r'(?:удали|удалить|сотри)\s+(?:эту|данную|ту)?\s*(?:файл|папку)?\s*(.*)', raw_c, re.IGNORECASE)
+        target = m_del.group(1).strip().strip('"\'«»') if m_del else ""
+        if not target or target.lower() in ["эту", "эту папку", "это", "ее", "её", "ту", "папку", "папка", "файл", "данную папку"]:
+            target = sc.get_last_created_item() or ""
         return {"type": "delete_file", "path": target}
 
     # Analyze / inspect file: "проанализируй файл ...", "проверь файл ...", "посмотри файл ..."
@@ -1788,6 +1818,20 @@ CONVERSATIONAL_KNOWLEDGE = {
     "что ты умеешь": "Я умею полноценно управлять компьютером: открывать любые сайты и нажимать кнопки на страницах, запускать и закрывать любые программы (Chrome, Telegram, Discord, VS Code, GoLand, Postman, Steam и др.), создавать и удалять файлы и папки на компьютере, анализировать содержимое файлов, делать скриншоты в любую папку (Загрузки, Рабочий стол), настраивать громкость и яркость экрана («на полную», «в ноль»), закрывать программы с фильтрами исключений («кроме vs code»), очищать корзину, блокировать ПК, искать в Google, YouTube, Wildberries и Ozon, а также управлять плагинами.",
     "почему небо синее": "Небо кажется синим из-за рэлеевского рассеяния солнечного света в атмосфере: газы атмосферы рассеивают короткие синие и фиолетовые волны значительно сильнее, чем длинные красные.",
     "почему небо голубое": "Небо голубое благодаря рэлеевскому рассеянию: солнечный свет рассеивается молекулами воздуха, при этом коротковолновые синие и голубые лучи рассеиваются сильнее всего.",
+    "нет": "Хорошо, отменил. Ожидаю ваших указаний.",
+    "не надо": "Понял вас, отменяю. Чем могу помочь?",
+    "не нужно": "Хорошо, не буду. Ожидаю следующих команд.",
+    "отмена": "Действие отменено. Жду ваших указаний.",
+    "отбой": "Принято, отбой. Системы готовы к работе.",
+    "стоп": "Остановил выполнение. Ожидаю дальнейших указаний.",
+    "хватит": "Хорошо, остановился. Чем займёмся дальше?",
+    "понял": "Отлично. Всегда готов к новым задачам.",
+    "понятно": "Договорились. Если что-то понадобится — обращайтесь.",
+    "ясно": "Принято. Готов к выполнению любых команд.",
+    "ок": "Принято. Что делаем дальше?",
+    "хорошо": "Вас понял. Готов продолжить работу.",
+    "ладно": "Хорошо. Ожидаю ваших команд.",
+    "да": "Слушаю вас. Какую задачу выполняем?",
 }
 
 def generate_smart_code_reply(prompt: str) -> Optional[str]:
@@ -2044,8 +2088,9 @@ def get_conversational_reply(raw_text: str, en: bool, user_name: str = "Поль
 
     # 1.1 Local conversational phrases & greetings
     t = raw_text.lower().strip()
+    clean_t = re.sub(r'[^\w\s]', '', t)
     for k, reply in CONVERSATIONAL_KNOWLEDGE.items():
-        if k in t:
+        if re.search(r'(?:\b|^)' + re.escape(k) + r'(?:\b|$)', clean_t):
             return reply
 
     # 1.2 Code Generation check
@@ -2078,6 +2123,10 @@ def get_conversational_reply(raw_text: str, en: bool, user_name: str = "Поль
             return "До связи. Все системы Argus остаются активными и ждут ваших указаний."
         if any(h in low_t for h in ["привет", "здравствуй", "добрый день", "добрый вечер", "доброе утро"]):
             return f"Здравствуйте, {u_name}! Чем могу помочь вам сегодня за компьютером?"
+        if any(re.search(r'\b' + re.escape(w) + r'\b', low_t) for w in ["нет", "не", "не надо", "не нужно", "отмена", "отбой"]):
+            return "Хорошо, отменил. Ожидаю ваших указаний."
+        if any(re.search(r'\b' + re.escape(w) + r'\b', low_t) for w in ["стоп", "хватит", "остановись", "прекрати"]):
+            return "Остановил выполнение. Ожидаю дальнейших указаний."
         return f"Принято, {u_name}. Я внимательно слушаю и готов выполнить команду или продолжить диалог."
 
 # ─── MAIN MASTER ENTRY POINT ────────────────────────────────────

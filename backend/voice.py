@@ -220,18 +220,15 @@ async def generate_speech_base64(
         if fish_b64:
             return fish_b64
 
-    # 2. High-quality Edge-TTS Neural Voices (Default: ru-RU-DmitryNeural male)
-    target_voice = voice.strip() if (voice and voice.strip()) else "ru-RU-DmitryNeural"
-    voices_to_try = [target_voice, "ru-RU-DmitryNeural", "ru-RU-SvetlanaNeural", "en-US-ChristopherNeural"]
-    
-    seen = set()
-    deduped = []
-    for v in voices_to_try:
-        if v not in seen:
-            seen.add(v)
-            deduped.append(v)
+    # 2. High-quality Edge-TTS Neural Voices (Strictly Dmitry male voice: ru-RU-DmitryNeural)
+    # Never fallback to Svetlana or English voices - Dmitry ONLY!
+    target_voice = "ru-RU-DmitryNeural"
+    if voice and "dmitry" in voice.lower():
+        target_voice = "ru-RU-DmitryNeural"
+    elif voice and "svetlana" not in voice.lower() and "christopher" not in voice.lower() and "jenny" not in voice.lower():
+        target_voice = voice.strip()
 
-    for v in deduped:
+    for attempt in range(2):
         try:
             async def _stream_voice(v_name: str):
                 communicate = edge_tts.Communicate(clean_text, v_name, rate=rate)
@@ -241,11 +238,12 @@ async def generate_speech_base64(
                         buf.extend(chunk["data"])
                 return buf
 
-            audio_data = await asyncio.wait_for(_stream_voice(v), timeout=4.5)
+            audio_data = await asyncio.wait_for(_stream_voice(target_voice), timeout=7.0)
             if audio_data and len(audio_data) > 100:
                 return base64.b64encode(audio_data).decode("utf-8")
         except Exception as e:
-            print(f"[Edge-TTS Voice Notice]: Voice {v} attempt: {e}")
+            print(f"[Edge-TTS Voice Notice]: Attempt {attempt + 1} Dmitry error: {e}")
+            await asyncio.sleep(0.2)
             continue
 
     return None

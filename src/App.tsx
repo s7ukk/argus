@@ -353,6 +353,30 @@ export const App: React.FC = () => {
     try {
       const shouldRequestAudio = activeProf.voice_enabled !== false;
       const res = await sendChatMessage(targetChatId, activeProf.key_code, textToSend, shouldRequestAudio, controller.signal);
+
+      // Start audio playback IMMEDIATELY at the exact moment the text begins rendering
+      if (voiceAssistantRef.current && activeProf.voice_enabled !== false) {
+        if (res.audio_base64) {
+          voiceAssistantRef.current.playBase64Audio(res.audio_base64, res.reply);
+        } else {
+          smartFetch('/api/voice/tts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              text: res.reply,
+              voice: 'ru-RU-DmitryNeural'
+            })
+          })
+            .then((r) => (r.ok ? r.json() : null))
+            .then((data) => {
+              if (data && data.audio_base64 && voiceAssistantRef.current) {
+                voiceAssistantRef.current.playBase64Audio(data.audio_base64, res.reply);
+              }
+            })
+            .catch(() => {});
+        }
+      }
+
       const asstMsg: ChatMessage = {
         id: res.message_id || 'asst-' + Date.now(),
         role: 'assistant',
@@ -385,28 +409,6 @@ export const App: React.FC = () => {
           }
         } catch (e) {
           console.warn('Client-side action dispatch notice:', e);
-        }
-      }
-
-      if (voiceAssistantRef.current && activeProf.voice_enabled !== false) {
-        if (res.audio_base64) {
-          voiceAssistantRef.current.playBase64Audio(res.audio_base64, res.reply);
-        } else {
-          smartFetch('/api/voice/tts', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              text: res.reply,
-              voice: 'ru-RU-DmitryNeural'
-            })
-          })
-            .then((r) => (r.ok ? r.json() : null))
-            .then((data) => {
-              if (data && data.audio_base64 && voiceAssistantRef.current) {
-                voiceAssistantRef.current.playBase64Audio(data.audio_base64, res.reply);
-              }
-            })
-            .catch(() => {});
         }
       }
     } catch (err: any) {

@@ -653,7 +653,7 @@ class STTRequest(BaseModel):
 async def generate_tts(req: TTSRequest):
     settings = _load_settings()
     voice_name = req.voice or settings.get("edge_voice") or "ru-RU-DmitryNeural"
-    if not voice_name or not voice_name.strip():
+    if not voice_name or not voice_name.strip() or "Svetlana" in voice_name:
         voice_name = "ru-RU-DmitryNeural"
     
     speed_val = settings.get("voice_speed", 1.0)

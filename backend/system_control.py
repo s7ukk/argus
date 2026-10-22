@@ -1963,42 +1963,213 @@ def get_system_stats() -> Dict[str, Any]:
     }
 
 # ─── WINDOW MANAGEMENT ────────────────────────────────────────────
+def minimize_application(app_query: str) -> bool:
+    """Minimizes/hides a specific target application on Windows or macOS."""
+    if not app_query:
+        return False
+    query = app_query.lower().strip()
+
+    if sys.platform == "darwin":
+        # macOS: hide process or miniaturize its windows
+        app_disp = query.capitalize()
+        if query in ["telegram", "телеграм", "телега", "тг"]:
+            app_disp = "Telegram"
+        elif query in ["chrome", "хром", "браузер"]:
+            app_disp = "Google Chrome"
+        elif query in ["discord", "дискорд"]:
+            app_disp = "Discord"
+        elif query in ["vscode", "код", "vs code"]:
+            app_disp = "Visual Studio Code"
+        elif query in ["postman", "постман"]:
+            app_disp = "Postman"
+        
+        script = f'''
+        tell application "System Events"
+            set matchedProcesses to (every application process whose name contains "{app_disp}" or name contains "{query}")
+            repeat with p in matchedProcesses
+                set visible of p to false
+            end repeat
+        end tell
+        try
+            tell application "{app_disp}" to set miniaturized of every window to true
+        end try
+        '''
+        try:
+            subprocess.run(["osascript", "-e", script], capture_output=True, timeout=3)
+            return True
+        except Exception as e:
+            print("macOS minimize app error:", e)
+            return False
+
+    # Windows implementation
+    proc_aliases = {
+        "telegram": ["telegram.exe"],
+        "телеграм": ["telegram.exe"],
+        "телега": ["telegram.exe"],
+        "тг": ["telegram.exe"],
+        "chrome": ["chrome.exe"],
+        "хром": ["chrome.exe"],
+        "браузер": ["chrome.exe", "msedge.exe", "browser.exe"],
+        "discord": ["discord.exe"],
+        "дискорд": ["discord.exe"],
+        "vscode": ["code.exe"],
+        "код": ["code.exe"],
+        "vs code": ["code.exe"],
+        "postman": ["postman.exe"],
+        "постман": ["postman.exe"],
+        "notepad": ["notepad.exe"],
+        "блокнот": ["notepad.exe"],
+        "steam": ["steam.exe"],
+        "стим": ["steam.exe"],
+        "spotify": ["spotify.exe"],
+        "спотифай": ["spotify.exe"]
+    }
+    target_procs = proc_aliases.get(query, [f"{query}.exe", query])
+
+    try:
+        hDesk = ctypes.windll.user32.OpenInputDesktop(0, False, 0x01FF)
+        if hDesk:
+            ctypes.windll.user32.SetThreadDesktop(hDesk)
+    except Exception:
+        pass
+
+    found_hwnds = []
+    try:
+        import win32gui
+        import win32process
+
+        def enum_cb(hwnd, _):
+            if win32gui.IsWindowVisible(hwnd):
+                try:
+                    _, pid = win32process.GetWindowThreadProcessId(hwnd)
+                    p = psutil.Process(pid)
+                    pname = p.name().lower()
+                    title = win32gui.GetWindowText(hwnd).lower()
+                    if any(tp in pname for tp in target_procs) or (query in title and len(title) > 0):
+                        found_hwnds.append(hwnd)
+                except Exception:
+                    pass
+
+        win32gui.EnumWindows(enum_cb, None)
+    except Exception:
+        pass
+
+    if found_hwnds:
+        for hwnd in found_hwnds:
+            try:
+                ctypes.windll.user32.ShowWindowAsync(hwnd, 6)  # SW_MINIMIZE = 6
+                ctypes.windll.user32.PostMessageW(hwnd, 0x0112, 0xF020, 0)  # WM_SYSCOMMAND, SC_MINIMIZE
+            except Exception:
+                pass
+        return True
+    return False
+
 def minimize_current_window() -> bool:
     """Minimizes the currently active/focused window."""
     if sys.platform == "darwin":
         try:
-            script = 'tell application "System Events" to keystroke "m" using {command down}'
+            script = '''
+            tell application "System Events"
+                set frontApp to first application process whose frontmost is true
+                if name of frontApp does not contain "Argus" then
+                    set visible of frontApp to false
+                else
+                    set frontProcesses to every application process whose visible is true and name does not contain "Argus" and name is not "Finder"
+                    if (count of frontProcesses) > 0 then
+                        set visible of (item 1 of frontProcesses) to false
+                    end if
+                end if
+            end tell
+            '''
             subprocess.run(["osascript", "-e", script], capture_output=True, timeout=2)
             return True
         except Exception:
             pass
-    if _HAS_PYAUTOGUI:
-        try:
-            import ctypes
-            hwnd = ctypes.windll.user32.GetForegroundWindow()
-            if hwnd:
-                ctypes.windll.user32.ShowWindow(hwnd, 6)  # SW_MINIMIZE = 6
+        return False
+
+    # Windows implementation
+    try:
+        hDesk = ctypes.windll.user32.OpenInputDesktop(0, False, 0x01FF)
+        if hDesk:
+            ctypes.windll.user32.SetThreadDesktop(hDesk)
+
+        hwnd = ctypes.windll.user32.GetForegroundWindow()
+        argus_pid = os.getpid()
+        from ctypes import wintypes
+        pid = wintypes.DWORD()
+        ctypes.windll.user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+
+        # If active window is Argus itself, minimize the top non-Argus visible window
+        if pid.value == argus_pid or pid.value == 0:
+            target_hwnd = [None]
+            def cb(h, _):
+                if ctypes.windll.user32.IsWindowVisible(h):
+                    p = wintypes.DWORD()
+                    ctypes.windll.user32.GetWindowThreadProcessId(h, ctypes.byref(p))
+                    if p.value != argus_pid and p.value != 0:
+                        length = ctypes.windll.user32.GetWindowTextLengthW(h)
+                        if length > 0:
+                            target_hwnd[0] = h
+                            return False
                 return True
-        except Exception:
-            pass
+            WNDENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+            ctypes.windll.user32.EnumWindows(WNDENUMPROC(cb), 0)
+            if target_hwnd[0]:
+                hwnd = target_hwnd[0]
+
+        if hwnd:
+            ctypes.windll.user32.ShowWindowAsync(hwnd, 6)  # SW_MINIMIZE = 6
+            ctypes.windll.user32.PostMessageW(hwnd, 0x0112, 0xF020, 0)
+            return True
+    except Exception as e:
+        print("minimize_current_window error:", e)
     return False
 
 def minimize_all_windows() -> bool:
-    """Minimizes all windows (Show Desktop: Win+D on Windows, Cmd+F3/Cmd+M on macOS)."""
+    """Minimizes all windows and reveals the desktop on Windows and macOS."""
     if sys.platform == "darwin":
         try:
-            # Cmd+Option+H+M minimizes all, or Cmd+F3 shows desktop
-            script = 'tell application "System Events" to key code 99 using {command down}'  # F3
+            # Hide all visible applications on macOS (shows clean desktop)
+            script = '''
+            tell application "System Events"
+                set visible of every process whose visible is true and name is not "Finder" to false
+            end tell
+            '''
             subprocess.run(["osascript", "-e", script], capture_output=True, timeout=2)
             return True
         except Exception:
             pass
-    if _HAS_PYAUTOGUI:
-        try:
-            pyautogui.hotkey('win', 'd')
-            return True
-        except Exception:
-            pass
+        return False
+
+    # Windows implementation: Shell COM MinimizeAll is 100% reliable
+    try:
+        import win32com.client
+        shell = win32com.client.Dispatch("Shell.Application")
+        shell.MinimizeAll()
+        return True
+    except Exception:
+        pass
+
+    try:
+        subprocess.run(
+            ["powershell", "-NoProfile", "-Command", "(New-Object -ComObject Shell.Application).MinimizeAll()"],
+            capture_output=True,
+            timeout=2
+        )
+        return True
+    except Exception:
+        pass
+
+    try:
+        # Win+M keybd_event synthesis via ctypes
+        ctypes.windll.user32.keybd_event(0x5B, 0, 0, 0)
+        ctypes.windll.user32.keybd_event(0x4D, 0, 0, 0)
+        ctypes.windll.user32.keybd_event(0x4D, 0, 2, 0)
+        ctypes.windll.user32.keybd_event(0x5B, 0, 2, 0)
+        return True
+    except Exception:
+        pass
+
     return False
 
 # ─── BROWSER TAB & WEBSITE INTERACTION ────────────────────────────
@@ -2300,12 +2471,23 @@ def resolve_file_path(path_str: str) -> str:
 
     return primary_path
 
+_LAST_CREATED_ITEM: Optional[str] = None
+
+def get_last_created_item() -> Optional[str]:
+    global _LAST_CREATED_ITEM
+    return _LAST_CREATED_ITEM
+
+def set_last_created_item(path: str):
+    global _LAST_CREATED_ITEM
+    _LAST_CREATED_ITEM = path
+
 def create_file(target: str, content: str = "") -> Dict[str, Any]:
     try:
         path = resolve_file_path(target)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:
             f.write(content)
+        set_last_created_item(path)
         return {"success": True, "path": path, "name": os.path.basename(path), "size": len(content)}
     except Exception as e:
         return {"success": False, "error": str(e)}
@@ -2314,12 +2496,22 @@ def create_folder(target: str) -> Dict[str, Any]:
     try:
         path = resolve_file_path(target)
         os.makedirs(path, exist_ok=True)
+        set_last_created_item(path)
         return {"success": True, "path": path, "name": os.path.basename(path)}
     except Exception as e:
         return {"success": False, "error": str(e)}
 
 def delete_file_or_folder(target: str) -> Dict[str, Any]:
     try:
+        global _LAST_CREATED_ITEM
+        clean_target = (target or "").strip().lower().strip('"\'«»')
+        if not clean_target or clean_target in [
+            "эту", "эту папку", "это", "ее", "её", "ту", "папку", "папка",
+            "файл", "данную папку", "данный файл", "созданную папку", "эту папочку"
+        ]:
+            if _LAST_CREATED_ITEM and os.path.exists(_LAST_CREATED_ITEM):
+                target = _LAST_CREATED_ITEM
+
         path = resolve_file_path(target)
         norm = os.path.normpath(path).lower()
         if norm in ["c:\\", "c:", "c:\\windows", "c:\\program files", "c:\\users"]:
@@ -2330,6 +2522,8 @@ def delete_file_or_folder(target: str) -> Dict[str, Any]:
             shutil.rmtree(path)
         else:
             os.remove(path)
+        if _LAST_CREATED_ITEM and os.path.normpath(_LAST_CREATED_ITEM).lower() == norm:
+            _LAST_CREATED_ITEM = None
         return {"success": True, "path": path, "name": os.path.basename(path)}
     except Exception as e:
         return {"success": False, "error": str(e)}
