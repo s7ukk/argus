@@ -20,10 +20,10 @@ _OPENROUTER_CACHE: Dict[str, Tuple[str, List[Dict[str, Any]]]] = {}
 _LAST_KEY: Optional[str] = None
 
 # Free models router and top-tier free fallback models
-FREE_PRIMARY_MODEL = "minimax/minimax-m3.1-flash:free"
+FREE_PRIMARY_MODEL = "cohere/north-mini-code:free"
 FREE_FALLBACK_MODELS = [
-    "minimax/minimax-m3.1-flash:free",
     "cohere/north-mini-code:free",
+    "dots-studio/dots-3-note-preview:free",
     "openrouter/free"
 ]
 
@@ -32,8 +32,8 @@ def load_openrouter_api_key() -> Optional[str]:
     Safely retrieves OPENROUTER_API_KEY from environment or .env files.
     Checks:
     1. os.environ['OPENROUTER_API_KEY']
-    2. Project root .env
-    3. User Data AppData/ArgusAI .env
+    2. Deep directory tree walk up from executable, working directory, and backend file
+    3. User Data AppData/ArgusAI and argus-ai .env
     4. Packaged resources .env
     Never leaks key into logs.
     """
@@ -43,24 +43,43 @@ def load_openrouter_api_key() -> Optional[str]:
 
     # 1. Environment variable
     env_key = os.getenv("OPENROUTER_API_KEY")
-    if env_key and env_key.strip():
+    if env_key and env_key.strip() and env_key.strip() != "your_openrouter_api_key_here":
         _LAST_KEY = env_key.strip()
         return _LAST_KEY
 
     # 2. Candidate .env file locations
     candidates = [
+        # Explicit resource path if passed by Electron
+        os.path.join(os.getenv("ARGUS_RESOURCES_PATH") or "", ".env"),
         # Current working directory
         os.path.join(os.getcwd(), ".env"),
-        # Project root relative to this file
-        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"),
         # User config directory
         os.path.join(app_paths.get_argus_data_dir(), ".env"),
-        # Resources directory in packaged app
+        os.path.join(os.path.expanduser("~"), ".argus", ".env"),
+        os.path.join(os.getenv("APPDATA") or "", "argus-ai", ".env"),
+        os.path.join(os.getenv("APPDATA") or "", "ArgusAI", ".env"),
+        os.path.join(os.getenv("LOCALAPPDATA") or "", "Programs", "Argus AI", "resources", ".env"),
+        os.path.expanduser("~/Library/Application Support/ArgusAI/.env"),
+        os.path.expanduser("~/Library/Application Support/argus-ai/.env"),
+        "/Applications/Argus AI.app/Contents/Resources/.env",
         os.path.join(getattr(sys, "_MEIPASS", ""), ".env") if hasattr(sys, "_MEIPASS") else None,
-        os.path.join(os.path.dirname(sys.executable), ".env"),
-        os.path.join(os.path.dirname(sys.executable), "resources", ".env"),
-        os.path.join(os.path.dirname(sys.executable), "..", "Resources", ".env"),
     ]
+
+    # Walk up from sys.executable up to 6 levels to find resources/.env in packaged app
+    curr_exe = os.path.abspath(sys.executable)
+    for _ in range(6):
+        curr_exe = os.path.dirname(curr_exe)
+        candidates.append(os.path.join(curr_exe, ".env"))
+        candidates.append(os.path.join(curr_exe, "resources", ".env"))
+        candidates.append(os.path.join(curr_exe, "Resources", ".env"))
+
+    # Walk up from this file up to 6 levels
+    curr_file = os.path.abspath(__file__)
+    for _ in range(6):
+        curr_file = os.path.dirname(curr_file)
+        candidates.append(os.path.join(curr_file, ".env"))
+        candidates.append(os.path.join(curr_file, "resources", ".env"))
+        candidates.append(os.path.join(curr_file, "Resources", ".env"))
 
     for cand in candidates:
         if cand and os.path.isfile(cand):
@@ -70,9 +89,17 @@ def load_openrouter_api_key() -> Optional[str]:
                         line = line.strip()
                         if line.startswith("OPENROUTER_API_KEY="):
                             val = line.split("=", 1)[1].strip().strip('"').strip("'")
-                            if val:
+                            if val and val != "your_openrouter_api_key_here" and len(val) > 10:
                                 _LAST_KEY = val
                                 os.environ["OPENROUTER_API_KEY"] = val
+                                # Auto persist to user data directory
+                                try:
+                                    ud_env = os.path.join(app_paths.get_argus_data_dir(), ".env")
+                                    if not os.path.exists(ud_env):
+                                        with open(ud_env, "w", encoding="utf-8") as uf:
+                                            uf.write(f"OPENROUTER_API_KEY={val}\n")
+                                except Exception:
+                                    pass
                                 return _LAST_KEY
             except Exception:
                 pass
@@ -87,7 +114,7 @@ def build_system_prompt(user_name: str, os_name: str, memory_summary: str = "") 
         f"{memory_summary}\n\n"
         "ТВОЯ ЦЕЛЬ:\n"
         "Полноценно помогать пользователю работать со всем компьютером: отвечать на сложные вопросы, писать код, "
-        "анализировать информацию, находить нужные вещи в интернете, запускать и контролировать программы, файлы, окна и звук.\n\n"
+        "решать уравнения и математику, находить нужные вещи в интернете, запускать и контролировать программы, файлы, окна и звук.\n\n"
         "ФОРМАТ ОТВЕТА:\n"
         "Ты ВСЕГДА возвращаешь ответ строго в формате валидного JSON со следующей структурой:\n"
         "{\n"
@@ -97,66 +124,58 @@ def build_system_prompt(user_name: str, os_name: str, memory_summary: str = "") 
         "  ]\n"
         "}\n\n"
         "ПРАВИЛА:\n"
-        "1. Если пользователь просто задает вопрос, просит совета, объяснения, кода или ведет диалог — отвечай развернуто в поле 'reply', а поле 'actions' оставь пустым массивом [].\n"
-        "2. Если пользователь просит выполнить действия на компьютере — сформируй точный массив 'actions', а в 'reply' кратко подтверди выполнение.\n"
-        "3. Если задача составная (например: создать файл, написать туда код и открыть браузер) — сгенерируй несколько шагов в 'actions' в правильном порядке.\n\n"
-        "ДОСТУПНЫЕ ТИПЫ ДЕЙСТВИЙ (actions):\n"
-        "- {\"type\": \"launch_app\", \"app\": \"название приложения\"} — запустить программу (chrome, telegram, discord, vscode, notepad, word, excel, spotify, steam, postman, terminal, etc.)\n"
-        "- {\"type\": \"close_app\", \"app\": \"название программы\"} — закрыть программу (только если пользователь явно попросил закрыть!)\n"
-        "- {\"type\": \"close_all_except\", \"keep\": [\"telegram\", \"chrome\"]} — закрыть все окна кроме указанных\n"
-        "- {\"type\": \"open_url\", \"url\": \"https://...\"} — открыть веб-ссылку\n"
-        "- {\"type\": \"search_web\", \"query\": \"текст запроса\", \"engine\": \"google\" | \"yandex\" | \"youtube\" | \"github\" | \"ozon\" | \"wildberries\"} — поиск в поисковике или сервисе\n"
-        "- {\"type\": \"click_website_button\", \"button\": \"текст кнопки\"} — клик по кнопке на открытом сайте (например: 'войти', 'play', 'подписаться')\n"
-        "- {\"type\": \"browser_tab\", \"action\": \"new\" | \"close\" | \"refresh\" | \"next\" | \"prev\"} — управление вкладками браузера\n"
-        "- {\"type\": \"scroll_page\", \"direction\": \"down\" | \"up\"} — прокрутка открытой веб-страницы\n"
-        "- {\"type\": \"type_text\", \"text\": \"текст\", \"target_app\": \"целевая программа\", \"press_enter\": true | false} — напечатать текст в активное поле или окно\n"
-        "- {\"type\": \"press_key\", \"key\": \"enter\" | \"tab\" | \"esc\" | \"space\"} — нажать клавишу\n"
-        "- {\"type\": \"hotkey\", \"keys\": [\"ctrl\", \"v\"]} — нажать сочетание клавиш (для macOS используются 'cmd')\n"
-        "- {\"type\": \"create_file\", \"target\": \"desktop/notes.txt\", \"content\": \"текст файла\"} — создать файл с указанным содержимым\n"
-        "- {\"type\": \"create_folder\", \"target\": \"desktop/папка\"} — создать папку\n"
-        "- {\"type\": \"delete_file\", \"target\": \"путь к файлу\"} — удалить файл или папку\n"
-        "- {\"type\": \"analyze_file\", \"target\": \"путь к файлу\"} — проанализировать содержимое файла\n"
-        "- {\"type\": \"list_files\", \"folder\": \"desktop\" | \"downloads\" | \"путь\"} — посмотреть список файлов в папке\n"
-        "- {\"type\": \"screenshot\", \"folder\": \"desktop\" | \"downloads\" | \"documents\"} — сделать скриншот экрана\n"
-        "- {\"type\": \"volume\", \"action\": \"set\" | \"up\" | \"down\" | \"mute\" | \"unmute\", \"level\": 50} — настроить громкость звука\n"
-        "- {\"type\": \"brightness\", \"action\": \"set\" | \"up\" | \"down\", \"level\": 80} — настроить яркость экрана\n"
-        "- {\"type\": \"play_music\", \"service\": \"yandex\" | \"spotify\" | \"youtube\" | \"soundcloud\", \"query\": \"песня или артист\", \"playlist\": \"название\", \"action\": \"play\" | \"pause\" | \"next\" | \"prev\"} — воспроизведение музыки\n"
-        "- {\"type\": \"empty_recycle\"} — очистить корзину\n"
-        "- {\"type\": \"lock_pc\"} — заблокировать компьютер\n"
-        "- {\"type\": \"system_stats\"} — получить нагрузку на процессор, память и диск\n"
-        "- {\"type\": \"terminal_command\", \"command\": \"команда терминала\"} — выполнить команду в терминале (PowerShell / Bash)\n"
-        "- {\"type\": \"messenger_send\", \"messenger\": \"telegram\" | \"discord\" | \"whatsapp\" | \"auto\", \"contact\": \"имя контакта\", \"message\": \"текст\"} — найти контакт и отправить сообщение\n"
-        "- {\"type\": \"wait\", \"seconds\": 1.5} — пауза между шагами\n\n"
-        "Строго возвращай ТОЛЬКО чистый JSON без разметки markdown в начале и конце."
+        "1. Если пользователь просто задает вопрос, просит совета, объяснения, кода, решения задачи/уравнения или ведет диалог — отвечай развернуто, умно и по делу в поле 'reply', а поле 'actions' оставь пустым массивом [].\n"
+        "2. Если требуется действие с компьютером, добавь одно или несколько действий в массив 'actions'.\n"
+        "3. Доступные типы действий:\n"
+        "   - launch_app: {\"type\": \"launch_app\", \"app\": \"название_программы\"}\n"
+        "   - close_app: {\"type\": \"close_app\", \"app\": \"название_программы\"}\n"
+        "   - close_all_except: {\"type\": \"close_all_except\", \"keep\": [\"код\", \"браузер\"]}\n"
+        "   - open_url: {\"type\": \"open_url\", \"url\": \"https://...\"}\n"
+        "   - search_web: {\"type\": \"search_web\", \"query\": \"...\", \"engine\": \"google\" | \"yandex\" | \"youtube\"}\n"
+        "   - click_website_button: {\"type\": \"click_website_button\", \"button\": \"текст кнопки\"}\n"
+        "   - browser_tab: {\"type\": \"browser_tab\", \"action\": \"new\" | \"close\" | \"next\" | \"prev\" | \"refresh\"}\n"
+        "   - scroll_page: {\"type\": \"scroll_page\", \"direction\": \"down\" | \"up\"}\n"
+        "   - type_text: {\"type\": \"type_text\", \"text\": \"текст для ввода\", \"press_enter\": true/false}\n"
+        "   - press_key: {\"type\": \"press_key\", \"key\": \"enter\" | \"esc\" | \"tab\" | \"space\"}\n"
+        "   - hotkey: {\"type\": \"hotkey\", \"keys\": [\"ctrl\", \"c\"]}\n"
+        "   - create_file: {\"type\": \"create_file\", \"path\": \"имя_файла.txt\", \"content\": \"содержимое\"}\n"
+        "   - create_folder: {\"type\": \"create_folder\", \"path\": \"имя_папки\"}\n"
+        "   - delete_file: {\"type\": \"delete_file\", \"path\": \"имя_файла\"}\n"
+        "   - analyze_file: {\"type\": \"analyze_file\", \"path\": \"имя_файла\"}\n"
+        "   - list_files: {\"type\": \"list_files\", \"folder\": \"desktop\" | \"downloads\" | \"documents\"}\n"
+        "   - screenshot: {\"type\": \"screenshot\", \"folder\": \"desktop\"}\n"
+        "   - volume: {\"type\": \"volume\", \"action\": \"up\" | \"down\" | \"mute\" | \"unmute\" | \"set\", \"level\": 50}\n"
+        "   - brightness: {\"type\": \"brightness\", \"action\": \"up\" | \"down\" | \"set\", \"level\": 80}\n"
+        "   - play_music: {\"type\": \"play_music\", \"action\": \"play\" | \"pause\" | \"next\" | \"prev\", \"query\": \"трек\"}\n"
+        "   - empty_recycle: {\"type\": \"empty_recycle\"}\n"
+        "   - lock_pc: {\"type\": \"lock_pc\"}\n"
+        "   - system_stats: {\"type\": \"system_stats\"}\n"
+        "   - terminal_command: {\"type\": \"terminal_command\", \"command\": \"...\", \"shell\": \"powershell\" | \"bash\"}\n"
+        "   - messenger_send: {\"type\": \"messenger_send\", \"messenger\": \"telegram\" | \"discord\" | \"whatsapp\" | \"auto\", \"contact\": \"имя\", \"message\": \"текст\"}\n\n"
+        "4. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО добавлять 'close_app', если пользователь не просил явно закрыть приложение!\n"
+        "5. Отвечай кратко, емко, интеллектуально и дружелюбно. Никаких шаблонных отписок вроде 'Принято, я слушаю'."
     )
 
 def query_openrouter(
     prompt: str,
     user_name: str = "Пользователь",
     history: Optional[List[Dict[str, Any]]] = None,
-    system_context: Optional[str] = None
+    system_override: Optional[str] = None
 ) -> Tuple[Optional[str], List[Dict[str, Any]]]:
     """
-    Main call to OpenRouter Free AI.
-    Returns: (reply_text, actions_list)
+    Executes a high-intelligence query against OpenRouter's free catalog.
+    Returns: (ai_reply_text, list_of_actions)
     """
     key = load_openrouter_api_key()
     if not key:
         return None, []
 
-    cache_key = prompt.strip().lower()
+    cache_key = f"{prompt.strip().lower()}_{user_name}"
     if not history and cache_key in _OPENROUTER_CACHE:
         return _OPENROUTER_CACHE[cache_key]
 
-    is_mac = sys.platform == "darwin"
-    os_name = "macOS" if is_mac else "Windows"
-
-    import backend.user_memory as user_memory
-    mem_summary = user_memory.get_memory_summary()
-
-    sys_prompt = build_system_prompt(user_name, os_name, mem_summary)
-    if system_context:
-        sys_prompt += f"\nДополнительный контекст системы:\n{system_context}"
+    os_name = "macOS" if sys.platform == "darwin" else "Windows"
+    sys_prompt = system_override or build_system_prompt(user_name, os_name)
 
     messages = [{"role": "system", "content": sys_prompt}]
     if history:
@@ -175,6 +194,7 @@ def query_openrouter(
         "Content-Type": "application/json"
     }
 
+    # Attempt 1: using fallback array
     body = {
         "model": FREE_PRIMARY_MODEL,
         "models": FREE_FALLBACK_MODELS,
@@ -183,28 +203,48 @@ def query_openrouter(
         "max_tokens": 1200
     }
 
+    raw_content = None
     try:
         req = urllib.request.Request(
             url,
             data=json.dumps(body).encode("utf-8"),
             headers=headers
         )
-        with urllib.request.urlopen(req, timeout=14.0) as resp:
+        with urllib.request.urlopen(req, timeout=12.0) as resp:
             data = json.loads(resp.read().decode("utf-8"))
-            raw_content = data["choices"][0]["message"]["content"].strip()
-            reply, actions = parse_model_response(raw_content)
-
-            # Strip emojis
-            if reply:
-                reply = re.sub(r'[\U00010000-\U0010ffff]', '', reply).strip()
-
-            if reply or actions:
-                if len(_OPENROUTER_CACHE) > 300:
-                    _OPENROUTER_CACHE.clear()
-                _OPENROUTER_CACHE[cache_key] = (reply, actions)
-                return reply, actions
+            if data.get("choices") and data["choices"][0].get("message"):
+                raw_content = data["choices"][0]["message"].get("content", "").strip()
     except Exception as e:
-        print(f"[Argus OpenRouter Notice]: Free model request failed or timed out: {e}")
+        # Attempt 2: direct single free model fallback
+        try:
+            body_fallback = {
+                "model": "openrouter/free",
+                "messages": messages,
+                "temperature": 0.35,
+                "max_tokens": 1000
+            }
+            req_fb = urllib.request.Request(
+                url,
+                data=json.dumps(body_fallback).encode("utf-8"),
+                headers=headers
+            )
+            with urllib.request.urlopen(req_fb, timeout=10.0) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                if data.get("choices") and data["choices"][0].get("message"):
+                    raw_content = data["choices"][0]["message"].get("content", "").strip()
+        except Exception:
+            pass
+
+    if raw_content:
+        reply, actions = parse_model_response(raw_content)
+        if reply:
+            reply = re.sub(r'[\U00010000-\U0010ffff]', '', reply).strip()
+
+        if reply or actions:
+            if len(_OPENROUTER_CACHE) > 300:
+                _OPENROUTER_CACHE.clear()
+            _OPENROUTER_CACHE[cache_key] = (reply, actions)
+            return reply, actions
 
     return None, []
 
@@ -278,28 +318,10 @@ def normalize_actions(raw_actions: Any) -> List[Dict[str, Any]]:
             new_act["type"] = "close_app"
         elif raw_type in ["volume"]:
             v_action = act.get("action", "set")
-            if v_action in ["mute", "unmute"]:
-                new_act["type"] = "volume_mute"
-            elif v_action in ["up", "increase", "higher"]:
-                new_act["type"] = "volume_change"
-                new_act["delta"] = act.get("delta", 15)
-            elif v_action in ["down", "decrease", "lower"]:
-                new_act["type"] = "volume_change"
-                new_act["delta"] = -abs(int(act.get("delta", 15)))
-            else:
-                new_act["type"] = "volume_set"
-                new_act["level"] = act.get("level", 50)
+            new_act["type"] = f"volume_{v_action}" if v_action in ["up", "down", "mute", "unmute"] else "volume_set"
         elif raw_type in ["brightness"]:
             b_action = act.get("action", "set")
-            if b_action in ["up", "increase", "higher"]:
-                new_act["type"] = "brightness_change"
-                new_act["delta"] = act.get("delta", 15)
-            elif b_action in ["down", "decrease", "lower"]:
-                new_act["type"] = "brightness_change"
-                new_act["delta"] = -abs(int(act.get("delta", 15)))
-            else:
-                new_act["type"] = "brightness_set"
-                new_act["level"] = act.get("level", 80)
+            new_act["type"] = f"brightness_{b_action}" if b_action in ["up", "down"] else "brightness_set"
         elif raw_type in ["empty_recycle_bin", "clear_trash", "clean_trash"]:
             new_act["type"] = "empty_recycle"
         elif raw_type in ["lock_workstation", "lock_screen", "lock_computer"]:
@@ -318,9 +340,11 @@ def normalize_actions(raw_actions: Any) -> List[Dict[str, Any]]:
             else:
                 new_act["type"] = "new_browser_tab"
 
-        # Normalize target / path fields for file operations
+        # Standardize target / path aliases
         if "target" in new_act and "path" not in new_act:
             new_act["path"] = new_act["target"]
+        if "file" in new_act and "path" not in new_act:
+            new_act["path"] = new_act["file"]
 
         normalized.append(new_act)
 

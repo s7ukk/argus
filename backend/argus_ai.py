@@ -31,7 +31,14 @@ def is_english(text: str) -> bool:
     return latin_chars > cyrillic_chars
 
 def safe_math_eval(expr: str) -> Optional[float]:
-    cleaned = expr.replace('^', '**').replace('x', '*').replace('×', '*').replace('÷', '/')
+    # If expression contains '=' or variable symbols (e.g. 'x', 'y'), it's an equation or complex math
+    # Leave it to OpenRouter Free Engine for step-by-step solution
+    if '=' in expr:
+        return None
+    if re.search(r'\b[a-zA-Z]\b|\d+[a-zA-Z]', expr):
+        return None
+
+    cleaned = expr.replace('^', '**').replace('×', '*').replace('÷', '/')
     cleaned = re.sub(r'[^0-9+\-*/().,** ]', '', cleaned).replace(',', '.')
     if not cleaned or not any(c in cleaned for c in '+-*/'):
         return None
@@ -559,6 +566,7 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
     btn_m = re.match(r'^(?:нажми\s+(?:на\s+кнопку|кнопку|на\s+ссылку|ссылку|на|по)?|кликни\s+(?:на\s+кнопку|кнопку|по\s+кнопке|на\s+ссылку|по\s+ссылке|ссылку|на|по)?|click\s+(?:on\s+button|button|on\s+link|link|on)?)\s*(.+)$', c)
     if btn_m:
         target = btn_m.group(1).strip().strip('"\'')
+        target = re.sub(r'^(?:там|тут|здесь|пожалуйста)\s+', '', target, flags=re.IGNORECASE).strip()
         target = re.sub(r'\s+(?:на\s+сайте|в\s+браузере|на\s+странице)$', '', target).strip()
         target_lower = target.lower()
         if "+" in target_lower and all(len(p.strip()) <= 8 for p in target_lower.split("+")):
@@ -870,7 +878,7 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
 
     # General URL in text
     m_url = re.search(r'(https?://[^\s"\'«»]+|(?:www\.)?[a-zA-Z0-9-]+\.(?:ru|com|org|net|io|me|ai|app|dev|by|kz|xyz|top|online|site|tech)(?:/[^\s"\'«»]*)?)', c)
-    if m_url and any(verb in c for verb in ["открой", "перейди", "зайди", "open", "сайт", "ссылк", "http", "www", "браузер"]):
+    if m_url and (c.strip() == m_url.group(1).lower() or any(verb in c for verb in ["открой", "перейди", "зайди", "open", "сайт", "ссылк", "http", "www", "браузер"])):
         url_dest = m_url.group(1).strip('"\'«»“”<> ')
         if not url_dest.startswith("http://") and not url_dest.startswith("https://"):
             url_dest = "https://" + url_dest
@@ -1124,25 +1132,26 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         m_msg = extract_case_match(orig_c, m_msg)
         return {"type": "messenger_send", "messenger": m_app, "contact": m_target, "message": m_msg}
 
-    # Pattern 3: 'найди/открой чат/контакт <contact> [и напиши/отправь <message>]'
+    # Pattern 3: 'найди/открой [чат/контакт] <contact> [и напиши/отправь <message>]'
     m3 = re.match(
-        r'^(?:найди|открой|выбери)\s+(?:чат|диалог|беседу|группу|канал|контакт|переписку)\s+(?:с\s+|для\s+)?([a-zA-Zа-яА-ЯёЁ0-9_\-\.]+)(?:\s+(?:и\s+)?(?:напиши|напечатай|отправь|скинь)\s+(?:сообщение\s+|текст\s+|слово\s+)?(.*))?$',
+        r'^(?:найди|открой|выбери|поищи)\s+(?:(?:чат|диалог|беседу|группу|канал|контакт|переписку)\s+)?(?:с\s+|для\s+)?([a-zA-Zа-яА-ЯёЁ0-9_\-\.]+)(?:\s+(?:и\s+)?(?:напиши|напечатай|отправь|скинь)\s+(?:сообщение\s+|текст\s+|слово\s+)?(.*))?$',
         c, re.IGNORECASE
     )
     if m3:
         raw_target = extract_case_match(orig_c, m3.group(1).strip())
         target_name = normalize_contact_name(raw_target)
         raw_msg = m3.group(2)
-        msg_text = ""
-        if raw_msg:
-            msg_text = re.sub(r'^["«\']|["»\']$', '', raw_msg.strip()).strip()
-            msg_text = extract_case_match(orig_c, msg_text)
-        dest_m = "auto"
-        for kw in MESSENGER_KEYWORDS:
-            if kw in c:
-                dest_m = normalize_messenger(kw)
-                break
-        return {"type": "messenger_send", "messenger": dest_m, "contact": target_name, "message": msg_text}
+        if target_name.lower() not in ["приложение", "программу", "файл", "папку", "вкладку", "окно", "видео", "музыку"]:
+            msg_text = ""
+            if raw_msg:
+                msg_text = re.sub(r'^["«\']|["»\']$', '', raw_msg.strip()).strip()
+                msg_text = extract_case_match(orig_c, msg_text)
+            dest_m = "auto"
+            for kw in MESSENGER_KEYWORDS:
+                if kw in c:
+                    dest_m = normalize_messenger(kw)
+                    break
+            return {"type": "messenger_send", "messenger": dest_m, "contact": target_name, "message": msg_text}
 
     # Pattern 4A: Explicit contact prefix: "напиши/отправь [сообщение] пользователю/контакту/для/в чат/в диалог <contact> <message>"
     m4_prefix = re.match(
@@ -1573,20 +1582,29 @@ def query_encyclopedia_knowledge(query: str, en: bool) -> Optional[str]:
 
 def get_conversational_reply(raw_text: str, en: bool, user_name: str = "Пользователь", history: Optional[List[Dict[str, Any]]] = None) -> str:
     """Provides high-quality, crisp, intelligent answers without default emojis."""
-    t = raw_text.lower().strip()
-    for k, reply in CONVERSATIONAL_KNOWLEDGE.items():
-        if k in t:
-            return reply
+    # 1. Primary: Query OpenRouter Free High-Intelligence Engine
+    try:
+        or_reply, _ = openrouter_engine.query_openrouter(raw_text, user_name=user_name, history=history)
+        if or_reply and len(or_reply.strip()) > 1:
+            return or_reply.strip()
+    except Exception as e:
+        print(f"[Argus OpenRouter Brain Notice]: {e}")
 
-    # 1. Check instant factual encyclopedia (0.2s response time)
+    # 2. Online neural reasoning fallback (Pollinations)
+    ai_resp = query_free_ai(raw_text, user_name, history=history)
+    if ai_resp:
+        return ai_resp
+
+    # 3. Factual encyclopedia fallback
     wiki_resp = query_encyclopedia_knowledge(raw_text, en)
     if wiki_resp:
         return wiki_resp
 
-    # 2. Try free online neural reasoning model (Pollinations) with history
-    ai_resp = query_free_ai(raw_text, user_name, history=history)
-    if ai_resp:
-        return ai_resp
+    # 4. Local conversational phrases
+    t = raw_text.lower().strip()
+    for k, reply in CONVERSATIONAL_KNOWLEDGE.items():
+        if k in t:
+            return reply
 
     # 3. Smart local conversational fallback
     mem = user_memory.load_memory()

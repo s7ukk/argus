@@ -159,7 +159,39 @@ async function checkBackendRunning() {
   return await checkLocalBackendRunning();
 }
 
+function loadDotEnvFiles() {
+  const envCandidates = [
+    process.resourcesPath ? path.join(process.resourcesPath, '.env') : null,
+    path.join(__dirname, '..', '.env'),
+    path.join(__dirname, '..', '..', '.env'),
+    app.isPackaged ? path.join(app.getPath('userData'), '.env') : null,
+  ].filter(Boolean);
+
+  const loadedVars = {};
+  for (const envFile of envCandidates) {
+    if (fs.existsSync(envFile)) {
+      try {
+        const content = fs.readFileSync(envFile, 'utf-8');
+        for (const line of content.split('\n')) {
+          const trimmed = line.trim();
+          if (trimmed && !trimmed.startsWith('#') && trimmed.includes('=')) {
+            const idx = trimmed.indexOf('=');
+            const k = trimmed.substring(0, idx).trim();
+            const v = trimmed.substring(idx + 1).trim().replace(/^['"]|['"]$/g, '');
+            if (k && v && v !== 'your_openrouter_api_key_here') {
+              process.env[k] = v;
+              loadedVars[k] = v;
+            }
+          }
+        }
+      } catch {}
+    }
+  }
+  return loadedVars;
+}
+
 async function startPythonBackend() {
+  const dotEnvVars = loadDotEnvFiles();
   const isLocalOk = await checkLocalBackendRunning();
   if (isLocalOk) {
     logApp('[Argus]: Python backend already running and healthy on port 18274.');
@@ -191,10 +223,11 @@ async function startPythonBackend() {
     const macPaths = '/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin';
     const envPath = isWin ? (process.env.PATH || '') : `${macPaths}:${process.env.PATH || ''}`;
 
-    const spawnEnv = Object.assign({}, process.env, {
+    const spawnEnv = Object.assign({}, process.env, dotEnvVars, {
       PYTHONUNBUFFERED: '1',
       PYTHONPATH: pyPath,
-      PATH: envPath
+      PATH: envPath,
+      ARGUS_RESOURCES_PATH: process.resourcesPath || ''
     });
 
     if (process.platform === 'darwin') {

@@ -20,6 +20,12 @@ try:
 except Exception:
     _HAS_PYAUTOGUI = False
 
+try:
+    import win32gui
+    _HAS_WIN32GUI = True
+except Exception:
+    _HAS_WIN32GUI = False
+
 IS_MAC = sys.platform == "darwin"
 IS_WIN = sys.platform == "win32"
 
