@@ -2210,7 +2210,7 @@ def resolve_file_path(path_str: str) -> str:
         base = desktop
 
     # Clean location words from filename
-    clean_name = re.sub(r'^(?:на\s+рабочем\s+столе|на\s+рабочий\s+стол|в\s+загрузках|в\s+загрузки|в\s+документах|в\s+папке|в\s+папку)\s+', '', s, flags=re.IGNORECASE).strip()
+    clean_name = re.sub(r'^(?:desktop/|desktop\\|downloads/|downloads\\|documents/|documents\\|на\s+рабочем\s+столе|на\s+рабочий\s+стол|в\s+загрузках|в\s+загрузки|в\s+документах|в\s+папке|в\s+папку)\s*', '', s, flags=re.IGNORECASE).strip()
     clean_name = re.sub(r'\s+(?:на\s+рабочем\s+столе|на\s+рабочий\s+стол|в\s+загрузках|в\s+загрузки|в\s+документах)$', '', clean_name, flags=re.IGNORECASE).strip()
 
     if os.path.isabs(clean_name):

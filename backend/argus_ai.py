@@ -17,6 +17,10 @@ import backend.system_control as sc
 import backend.plugins_manager as pm
 import backend.scenarios_manager as sc_mgr
 import backend.gui_agent as gui_agent
+try:
+    import backend.openrouter_engine as openrouter_engine
+except ImportError:
+    import openrouter_engine
 
 _AI_QUERY_CACHE: Dict[str, str] = {}
 _AI_PLAN_CACHE: Dict[str, Any] = {}
@@ -355,7 +359,7 @@ def execute_single_action(act: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]
         return f"Локальные плагины на ПК: {summary}", "plugin_list", {"plugins": plugins}
 
     elif act_type == "create_file":
-        path = act.get("path", "file.txt")
+        path = act.get("path") or act.get("target") or "file.txt"
         content = act.get("content", "")
         res = sc.create_file(path, content)
         if res.get("success"):
@@ -363,21 +367,21 @@ def execute_single_action(act: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]
         return f"Не удалось создать файл: {res.get('error')}", "create_file", res
 
     elif act_type == "create_folder":
-        path = act.get("path", "Новая папка")
+        path = act.get("path") or act.get("target") or "Новая папка"
         res = sc.create_folder(path)
         if res.get("success"):
             return f"Папка создана: {res.get('path')}", "create_folder", res
         return f"Не удалось создать папку: {res.get('error')}", "create_folder", res
 
     elif act_type == "delete_file":
-        path = act.get("path", "")
+        path = act.get("path") or act.get("target") or ""
         res = sc.delete_file_or_folder(path)
         if res.get("success"):
             return f"Удалено: {res.get('path')}", "delete_file", res
         return f"Не удалось удалить: {res.get('error')}", "delete_file", res
 
     elif act_type == "analyze_file":
-        path = act.get("path", "")
+        path = act.get("path") or act.get("target") or ""
         res = sc.analyze_file(path)
         if res.get("success"):
             prev = f"\n```\n{res.get('preview')[:250]}\n```" if res.get('preview') else ""
@@ -385,13 +389,17 @@ def execute_single_action(act: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]
         return f"Не удалось проанализировать файл: {res.get('error')}", "analyze_file", res
 
     elif act_type == "list_files":
-        folder = act.get("folder", "desktop")
+        folder = act.get("folder") or act.get("target") or "desktop"
         res = sc.list_folder_files(folder)
         if res.get("success"):
             files_list = ", ".join(res.get("files", [])[:12]) or "нет файлов"
             dirs_list = ", ".join(res.get("folders", [])[:6]) or "нет папок"
             return f"Содержимое папки {res.get('folder_name')} (всего {res.get('total')}):\n• Файлы: {files_list}\n• Папки: {dirs_list}", "list_files", res
         return f"Не удалось получить список файлов: {res.get('error')}", "list_files", res
+
+    elif act_type == "math":
+        res = act.get("res")
+        return f"Результат вычисления: {res}", "math", act
 
     return "", "noop", {}
 
@@ -1361,8 +1369,27 @@ def local_multi_action_planner(user_text: str) -> List[Dict[str, Any]]:
 def neural_action_planner(user_text: str) -> Optional[List[Dict[str, Any]]]:
     """
     Uses neural reasoning to decompose intricate, multi-step instructions into concrete JSON actions.
-    Uses single user message to bypass paywalls.
+    First utilizes high-intelligence OpenRouter free engine, with local fallback.
     """
+    cache_key = user_text.lower().strip()
+    if cache_key in _AI_PLAN_CACHE:
+        return _AI_PLAN_CACHE[cache_key]
+
+    # 1. Primary high-intelligence OpenRouter Free Engine
+    try:
+        _, acts = openrouter_engine.query_openrouter(user_text)
+        if acts and len(acts) > 0:
+            wants_close = any(k in user_text.lower() for k in ["закрой", "выйди", "выруби", "close", "kill", "exit", "quit"])
+            if not wants_close:
+                acts = [a for a in acts if a.get("type") != "close_app"]
+            if acts:
+                if len(_AI_PLAN_CACHE) > 200:
+                    _AI_PLAN_CACHE.clear()
+                _AI_PLAN_CACHE[cache_key] = acts
+                return acts
+    except Exception as e:
+        print(f"[Argus Planner Notice]: OpenRouter planner: {e}")
+
     instruction = (
         "You are an expert Windows & macOS Desktop Automation Planner. "
         "Decompose user instruction into an array of concrete JSON action objects. "
@@ -1395,10 +1422,6 @@ def neural_action_planner(user_text: str) -> Optional[List[Dict[str, Any]]]:
         "- Instruction: открой блокнот и напиши Привет мир\n"
         "  JSON: [{\"type\":\"launch_app\",\"app\":\"notepad\"},{\"type\":\"wait\",\"seconds\":1.2},{\"type\":\"type_text\",\"text\":\"Привет мир\",\"target_app\":\"notepad\"}]"
     )
-    # Fast cache lookup (<1ms)
-    cache_key = user_text.lower().strip()
-    if cache_key in _AI_PLAN_CACHE:
-        return _AI_PLAN_CACHE[cache_key]
 
     combined = f"[{instruction}]\n\nInstruction: {user_text}"
     payload = {
@@ -1421,7 +1444,6 @@ def neural_action_planner(user_text: str) -> Optional[List[Dict[str, Any]]]:
                 clean_json = m_arr.group(0)
             parsed = json.loads(clean_json)
             if isinstance(parsed, list) and len(parsed) > 0:
-                # Prevent hallucinated close_app if user didn't ask to close
                 wants_close = any(k in user_text.lower() for k in ["закрой", "выйди", "выруби", "close", "kill", "exit", "quit"])
                 if not wants_close:
                     parsed = [a for a in parsed if a.get("type") != "close_app"]
@@ -1436,13 +1458,23 @@ def neural_action_planner(user_text: str) -> Optional[List[Dict[str, Any]]]:
 # ─── FREE NEURAL REASONING ENGINE ───────────────────────────────
 def query_free_ai(prompt: str, user_name: str = "Пользователь", history: Optional[List[Dict[str, Any]]] = None) -> Optional[str]:
     """
-    Queries free online neural reasoning model with full multi-turn conversation memory.
-    Sends user context and history to maintain deep conversational awareness.
+    Queries OpenRouter free neural reasoning model with full multi-turn conversation memory.
     Provides deep, smart, accurate responses strictly without emojis.
     """
     cache_key = prompt.lower().strip()
     if not history and cache_key in _AI_QUERY_CACHE:
         return _AI_QUERY_CACHE[cache_key]
+
+    # 1. Primary high-intelligence OpenRouter Free Assistant
+    try:
+        reply, _ = openrouter_engine.query_openrouter(prompt, user_name=user_name, history=history)
+        if reply and len(reply.strip()) > 1:
+            if len(_AI_QUERY_CACHE) > 200:
+                _AI_QUERY_CACHE.clear()
+            _AI_QUERY_CACHE[cache_key] = reply.strip()
+            return reply.strip()
+    except Exception as e:
+        print(f"[Argus OpenRouter Query Notice]: {e}")
 
     mem_summary = user_memory.get_memory_summary()
     instruction = (
@@ -1470,7 +1502,6 @@ def query_free_ai(prompt: str, user_name: str = "Пользователь", hist
         )
         with urllib.request.urlopen(req, timeout=3.5) as resp:
             text = resp.read().decode("utf-8").strip()
-            # Clean emojis
             cleaned = re.sub(r'[\U00010000-\U0010ffff]', '', text).strip()
             cleaned = re.sub(r'^\[.*?\]\s*', '', cleaned).strip()
             if cleaned and len(cleaned) > 2:
@@ -1620,26 +1651,17 @@ def process_command(user_text: str, user_name: str = "Пользователь",
         res = sc_mgr.execute_scenario(matched_sc)
         return res["summary"], "scenario", {"scenario_id": matched_sc.get("id"), "scenario_name": matched_sc.get("name")}
 
-    # 1. First, check if input contains any system actions (single or compound)
+    # 1. First, check if input contains any system actions (single or compound) locally (<1ms)
     actions_to_run = local_multi_action_planner(resolved_text)
+    ai_confirmed_reply = None
 
-    # 2. If no actions found locally and multiple action verbs exist, consult neural reasoning planner
-    if not actions_to_run:
-        action_verb_count = len(re.findall(r'\b(открой|запусти|скриншот|скрин|закрой|сохрани|напиши|отправь|перейди|найди|search|close|open)\b', resolved_text, re.IGNORECASE))
-        if action_verb_count >= 2:
-            ai_plan = neural_action_planner(resolved_text)
-            if ai_plan:
-                actions_to_run = ai_plan
-
-    # 3. If no system actions found, check math
+    # 2. If no actions found locally, check math & time
     if not actions_to_run:
         m_calc = safe_math_eval(resolved_text)
         if m_calc is not None:
             reply = f"Result: {m_calc}" if en else f"Результат вычисления: {m_calc}"
             return reply, "math", {"result": m_calc}
 
-    # 3. Check time / date queries
-    if not actions_to_run:
         if any(k in resolved_text.lower() for k in ["время", "time", "который час", "сколько времени"]):
             t_str = datetime.datetime.now().strftime("%H:%M")
             return f"Current time is {t_str}." if en else f"Текущее время: {t_str}.", "time", {"time": t_str}
@@ -1649,12 +1671,37 @@ def process_command(user_text: str, user_name: str = "Пользователь",
             d_str = now.strftime("%d.%m.%Y")
             return f"Today is {d_str}." if en else f"Сегодня: {d_str}.", "date", {"date": d_str}
 
-    # 4. If still no action found, handle conversational query via free AI reasoning engine with history
+    # 3. If no local action, consult OpenRouter Free Engine for smart desktop assistance / action planning
+    if not actions_to_run:
+        try:
+            or_reply, or_acts = openrouter_engine.query_openrouter(resolved_text, user_name=user_name, history=history)
+            if or_acts and len(or_acts) > 0:
+                wants_close = any(k in resolved_text.lower() for k in ["закрой", "выйди", "выруби", "close", "kill", "exit", "quit"])
+                if not wants_close:
+                    or_acts = [a for a in or_acts if a.get("type") != "close_app"]
+                if or_acts:
+                    actions_to_run = or_acts
+                    if or_reply and len(or_reply.strip()) > 2:
+                        ai_confirmed_reply = or_reply.strip()
+            elif or_reply and len(or_reply.strip()) > 1:
+                return or_reply.strip(), "general", {}
+        except Exception as e:
+            print(f"[Argus OpenRouter Brain Notice]: {e}")
+
+    # 4. If OpenRouter returned no action and no reply, consult neural action planner / conversational fallback
+    if not actions_to_run:
+        action_verb_count = len(re.findall(r'\b(открой|запусти|скриншот|скрин|закрой|сохрани|напиши|отправь|перейди|найди|search|close|open)\b', resolved_text, re.IGNORECASE))
+        if action_verb_count >= 2:
+            ai_plan = neural_action_planner(resolved_text)
+            if ai_plan:
+                actions_to_run = ai_plan
+
+    # 5. If still no action found, handle conversational query via free AI reasoning engine with history
     if not actions_to_run:
         reply = get_conversational_reply(resolved_text, en, user_name, history=history)
         return reply, "general", {}
 
-    # 5. Sequentially execute all planned actions
+    # 6. Sequentially execute all planned actions
     executed_results = []
     primary_action_type = "multi_action" if len(actions_to_run) > 1 else actions_to_run[0].get("type", "general")
     primary_data = {}
@@ -1670,8 +1717,10 @@ def process_command(user_text: str, user_name: str = "Пользователь",
             if msg:
                 executed_results.append(msg)
 
-    # 6. Formulate clear Russian/English confirmation
-    if executed_results:
+    # 7. Formulate clear Russian/English confirmation
+    if ai_confirmed_reply:
+        final_reply = ai_confirmed_reply
+    elif executed_results:
         final_reply = ". ".join(executed_results)
         if not final_reply.endswith(('.', '!', '?', '»')):
             final_reply += "."

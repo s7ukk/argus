@@ -77,6 +77,9 @@ jobs:
           else
             touch .env
           fi
+          if [ -n "${{ secrets.OPENROUTER_API_KEY }}" ]; then
+            sed -i.bak 's|OPENROUTER_API_KEY=.*|OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}|' .env || true
+          fi
 
       - name: Package macOS DMG & ZIP (${{ matrix.arch }})
         run: npx electron-builder --mac ${{ matrix.target_flag }} --publish never
