@@ -185,15 +185,18 @@ def clean_text_for_speech(text: str) -> str:
     t = re.sub(r'\s*([.,!?])\s*', r'\1 ', t)
     t = re.sub(r'\s+', ' ', t).strip()
 
-    if len(t) > 350:
-        sentences = re.split(r'(?<=[.!?])\s+', t)
-        shortened = ""
-        for s in sentences:
-            if len(shortened) + len(s) < 320:
-                shortened += (s + " ")
-            else:
-                break
-        t = shortened.strip() if shortened.strip() else t[:320] + "..."
+    # Shorten speech to first 1-2 punchy sentences (~140 chars max) for instantaneous (<0.2s) audio start
+    sentences = re.split(r'(?<=[.!?])\s+', t)
+    shortened = ""
+    for s in sentences:
+        if len(shortened) + len(s) < 140:
+            shortened += (s + " ")
+        else:
+            break
+    if shortened.strip():
+        t = shortened.strip()
+    elif len(t) > 140:
+        t = t[:135] + "..."
     return t
 
 async def generate_speech_base64(
@@ -230,12 +233,15 @@ async def generate_speech_base64(
 
     for v in deduped:
         try:
-            communicate = edge_tts.Communicate(clean_text, v, rate=rate)
-            audio_data = bytearray()
-            async for chunk in communicate.stream():
-                if chunk["type"] == "audio":
-                    audio_data.extend(chunk["data"])
-                    
+            async def _stream_voice(v_name: str):
+                communicate = edge_tts.Communicate(clean_text, v_name, rate=rate)
+                buf = bytearray()
+                async for chunk in communicate.stream():
+                    if chunk["type"] == "audio":
+                        buf.extend(chunk["data"])
+                return buf
+
+            audio_data = await asyncio.wait_for(_stream_voice(v), timeout=4.5)
             if audio_data and len(audio_data) > 100:
                 return base64.b64encode(audio_data).decode("utf-8")
         except Exception as e:

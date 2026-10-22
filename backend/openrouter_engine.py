@@ -20,10 +20,13 @@ _OPENROUTER_CACHE: Dict[str, Tuple[str, List[Dict[str, Any]]]] = {}
 _LAST_KEY: Optional[str] = None
 
 # Free models router and top-tier free fallback models
-FREE_PRIMARY_MODEL = "cohere/north-mini-code:free"
+FREE_PRIMARY_MODEL = "google/gemma-4-31b-it:free"
 FREE_FALLBACK_MODELS = [
-    "cohere/north-mini-code:free",
-    "dots-studio/dots-3-note-preview:free",
+    "google/gemma-4-31b-it:free",
+    "google/gemma-4-26b-a4b-it:free",
+    "nvidia/nemotron-3.5-lightning:free",
+    "nvidia/nemotron-3-super-120b-a12b:free",
+    "liquid/lfm-2.5-2.6b:free",
     "openrouter/free"
 ]
 

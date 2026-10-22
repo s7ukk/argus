@@ -30,6 +30,176 @@ def is_english(text: str) -> bool:
     cyrillic_chars = len(re.findall(r'[а-яА-ЯёЁ]', text))
     return latin_chars > cyrillic_chars
 
+def solve_algebraic_equation(query: str) -> Optional[str]:
+    """
+    Directly solves biquadratic, quadratic, and linear equations with full steps in 0ms.
+    Examples:
+      'x4 - 5x2 + 4 = 0 реши'
+      'x^4 - 5x^2 + 4 = 0'
+      'x^2 - 3x + 2 = 0'
+      'x^2 - 3x + 5 = 0'
+      '2x + 10 = 0'
+    """
+    q = query.lower().strip()
+    if not any(k in q for k in ['x', 'y', '=']) or not re.search(r'[xy]\^?\d?|[xy]\b', q):
+        return None
+
+    q = re.sub(r'^(?:пожалуйста\s+|плиз\s+|аргус\s+|эй\s+аргус\s+)*', '', q).strip()
+    q = re.sub(r'(?:реши|решить|найди\s+корни|найди\s+корень|уравнение|пожалуйст[а-я]*|найди|корни|\?|!)+', '', q).strip()
+    q = q.replace(' ', '')
+    if not q:
+        return None
+
+    if '=' not in q:
+        if re.search(r'x\^?4|x\^?2|x\b', q):
+            q += "=0"
+        else:
+            return None
+
+    sides = q.split('=')
+    if len(sides) != 2:
+        return None
+
+    left, right = sides[0].strip(), sides[1].strip()
+    if not left:
+        return None
+
+    r_val = 0.0
+    if right and right != '0':
+        try:
+            r_val = float(right)
+        except ValueError:
+            return None
+
+    norm_left = re.sub(r'x4\b', 'x^4', left)
+    norm_left = re.sub(r'x2\b', 'x^2', norm_left)
+    norm_left = norm_left.replace('*', '')
+
+    # 1. Biquadratic: a*x^4 + b*x^2 + c = 0
+    bi_pattern = r'^([+-]?(?:\d+(?:\.\d+)?)?)x\^4([+-](?:\d+(?:\.\d+)?)?)x\^2([+-]\d+(?:\.\d+)?)?$'
+    m_bi = re.match(bi_pattern, norm_left)
+    if m_bi:
+        a_str, b_str, c_str = m_bi.group(1), m_bi.group(2), m_bi.group(3)
+        a = 1.0 if not a_str or a_str == '+' else (-1.0 if a_str == '-' else float(a_str))
+        b = 1.0 if b_str == '+' else (-1.0 if b_str == '-' else float(b_str))
+        c = float(c_str) if c_str else 0.0
+        c -= r_val
+
+        if a != 0:
+            D = b*b - 4*a*c
+            steps = [
+                f"Дано биквадратное уравнение: {norm_left} = {int(r_val) if r_val.is_integer() else r_val}",
+                f"Сделаем замену переменной: t = x^2, где t >= 0.",
+                f"Получаем квадратное уравнение относительно t: {int(a) if a.is_integer() else a}t^2 + ({int(b) if b.is_integer() else b})t + ({int(c) if c.is_integer() else c}) = 0.",
+                f"Дискриминант: D = b^2 - 4ac = ({int(b) if b.is_integer() else b})^2 - 4 * ({int(a) if a.is_integer() else a}) * ({int(c) if c.is_integer() else c}) = {int(D) if D.is_integer() else D}."
+            ]
+
+            if D < 0:
+                steps.append("Так как дискриминант D < 0, действительных корней нет.")
+                return "\n".join(steps)
+
+            sqrt_D = math.isqrt(int(D)) if D.is_integer() and math.isqrt(int(D))**2 == int(D) else math.sqrt(D)
+            t1 = (-b + sqrt_D) / (2*a)
+            t2 = (-b - sqrt_D) / (2*a)
+
+            t1_fmt = int(t1) if isinstance(t1, float) and t1.is_integer() else round(t1, 4)
+            t2_fmt = int(t2) if isinstance(t2, float) and t2.is_integer() else round(t2, 4)
+
+            steps.append(f"Корни уравнения относительно t: t1 = {t1_fmt}, t2 = {t2_fmt}.")
+            steps.append("Выполняем обратную замену x^2 = t:")
+
+            roots = []
+            for idx, t_val in enumerate([t1, t2], 1):
+                if t_val > 0:
+                    sq = math.isqrt(int(t_val)) if isinstance(t_val, (int, float)) and float(t_val).is_integer() and math.isqrt(int(t_val))**2 == int(t_val) else math.sqrt(t_val)
+                    sq_fmt = int(sq) if isinstance(sq, float) and sq.is_integer() else round(sq, 4)
+                    steps.append(f"• При t{idx} = {int(t_val) if float(t_val).is_integer() else t_val}: x^2 = {int(t_val) if float(t_val).is_integer() else t_val} => x = ±{sq_fmt}")
+                    roots.extend([sq_fmt, -sq_fmt])
+                elif t_val == 0:
+                    steps.append(f"• При t{idx} = 0: x^2 = 0 => x = 0")
+                    roots.append(0)
+                else:
+                    steps.append(f"• При t{idx} = {int(t_val) if float(t_val).is_integer() else t_val}: решений в действительных числах нет (t должно быть >= 0).")
+
+            if roots:
+                unique_roots = sorted(list(set(roots)))
+                ans_str = ", ".join(f"x = {r}" for r in unique_roots)
+                steps.append(f"\nОтвет: {ans_str}.")
+            else:
+                steps.append("\nОтвет: действительных корней нет.")
+
+            return "\n".join(steps)
+
+    # 2. Quadratic Equation: a*x^2 + b*x + c = 0
+    quad_pattern = r'^([+-]?(?:\d+(?:\.\d+)?)?)x\^2([+-](?:\d+(?:\.\d+)?)?)x([+-]\d+(?:\.\d+)?)?$'
+    m_quad = re.match(quad_pattern, norm_left)
+    if m_quad:
+        a_str, b_str, c_str = m_quad.group(1), m_quad.group(2), m_quad.group(3)
+        a = 1.0 if not a_str or a_str == '+' else (-1.0 if a_str == '-' else float(a_str))
+        b = 1.0 if b_str == '+' else (-1.0 if b_str == '-' else float(b_str))
+        c = float(c_str) if c_str else 0.0
+        c -= r_val
+
+        if a != 0:
+            D = b*b - 4*a*c
+            steps = [
+                f"Квадратное уравнение: {norm_left} = {int(r_val) if r_val.is_integer() else r_val}",
+                f"Коэффициенты: a = {int(a) if a.is_integer() else a}, b = {int(b) if b.is_integer() else b}, c = {int(c) if c.is_integer() else c}.",
+                f"Дискриминант: D = b^2 - 4ac = ({int(b) if b.is_integer() else b})^2 - 4 * ({int(a) if a.is_integer() else a}) * ({int(c) if c.is_integer() else c}) = {int(D) if D.is_integer() else D}."
+            ]
+            if D > 0:
+                sq = math.isqrt(int(D)) if D.is_integer() and math.isqrt(int(D))**2 == int(D) else math.sqrt(D)
+                x1 = (-b + sq) / (2*a)
+                x2 = (-b - sq) / (2*a)
+                x1_fmt = int(x1) if x1.is_integer() else round(x1, 4)
+                x2_fmt = int(x2) if x2.is_integer() else round(x2, 4)
+                steps.append(f"Так как D > 0, уравнение имеет два различных действительных корня:")
+                steps.append(f"x1 = (-b + √D) / (2a) = {x1_fmt}")
+                steps.append(f"x2 = (-b - √D) / (2a) = {x2_fmt}")
+                steps.append(f"\nОтвет: x1 = {x1_fmt}, x2 = {x2_fmt}.")
+            elif D == 0:
+                x = -b / (2*a)
+                x_fmt = int(x) if x.is_integer() else round(x, 4)
+                steps.append(f"Так как D = 0, уравнение имеет один корень:")
+                steps.append(f"x = -b / (2a) = {x_fmt}")
+                steps.append(f"\nОтвет: x = {x_fmt}.")
+            else:
+                steps.append("Так как D < 0, уравнение не имеет действительных корней.")
+                sq_neg = math.sqrt(-D)
+                sq_neg_fmt = f"√{-int(D)}" if not sq_neg.is_integer() else f"{int(sq_neg)}"
+                steps.append(f"Комплексные корни: x1 = ({int(-b)} + {sq_neg_fmt}i) / {int(2*a)}, x2 = ({int(-b)} - {sq_neg_fmt}i) / {int(2*a)}.")
+            return "\n".join(steps)
+
+    # 3. Incomplete Quadratic: a*x^2 + c = 0 (e.g. x^2 = 9, x^2 - 16 = 0)
+    m_quad_simple = re.match(r'^([+-]?(?:\d+(?:\.\d+)?)?)x\^2([+-]\d+(?:\.\d+)?)?$', norm_left)
+    if m_quad_simple:
+        a_str, c_str = m_quad_simple.group(1), m_quad_simple.group(2)
+        a = 1.0 if not a_str or a_str == '+' else (-1.0 if a_str == '-' else float(a_str))
+        c = float(c_str) if c_str else 0.0
+        c -= r_val
+        val = -c / a
+        if val > 0:
+            sq = math.isqrt(int(val)) if val.is_integer() and math.isqrt(int(val))**2 == int(val) else math.sqrt(val)
+            sq_fmt = int(sq) if isinstance(sq, float) and sq.is_integer() else round(sq, 4)
+            return f"Квадратное уравнение: {norm_left} = {int(r_val) if r_val.is_integer() else r_val}\nx^2 = {int(val) if val.is_integer() else val}\nx = ±{sq_fmt}\nОтвет: x1 = {sq_fmt}, x2 = -{sq_fmt}."
+        elif val == 0:
+            return f"Квадратное уравнение: {norm_left} = 0\nОтвет: x = 0."
+        else:
+            return f"Квадратное уравнение: {norm_left} = {int(r_val) if r_val.is_integer() else r_val}\nx^2 = {val}\nОтвет: действительных корней нет."
+
+    # 4. Simple Linear: a*x + b = c
+    m_lin = re.match(r'^([+-]?(?:\d+(?:\.\d+)?)?)x([+-]\d+(?:\.\d+)?)?$', norm_left)
+    if m_lin:
+        a_str, b_str = m_lin.group(1), m_lin.group(2)
+        a = 1.0 if not a_str or a_str == '+' else (-1.0 if a_str == '-' else float(a_str))
+        b = float(b_str) if b_str else 0.0
+        if a != 0:
+            x = (r_val - b) / a
+            x_fmt = int(x) if x.is_integer() else round(x, 4)
+            return f"Линейное уравнение: {norm_left} = {int(r_val) if r_val.is_integer() else r_val}\n{int(a) if a.is_integer() else a}x = {int(r_val - b) if (r_val - b).is_integer() else (r_val - b)}\nx = {x_fmt}\nОтвет: x = {x_fmt}."
+
+    return None
+
 def safe_math_eval(expr: str) -> Optional[float]:
     # If expression contains '=' or variable symbols (e.g. 'x', 'y'), it's an equation or complex math
     # Leave it to OpenRouter Free Engine for step-by-step solution
@@ -1607,8 +1777,8 @@ def query_encyclopedia_knowledge(query: str, en: bool) -> Optional[str]:
             extract = data.get("extract")
             title = data.get("title")
             if extract and len(extract) > 20:
-                clean_extract = re.sub(r'[\u0300-\u036f]', '', extract).strip()
-                clean_title = re.sub(r'[\u0300-\u036f]', '', title).strip()
+                clean_extract = re.sub(r'[\u0300-\u036f]', '', extract).replace('\xa0', ' ').strip()
+                clean_title = re.sub(r'[\u0300-\u036f]', '', title).replace('\xa0', ' ').strip()
                 return f"{clean_title}: {clean_extract}"
     except Exception:
         pass
@@ -1624,15 +1794,20 @@ def get_conversational_reply(raw_text: str, en: bool, user_name: str = "Поль
     except Exception as e:
         print(f"[Argus OpenRouter Brain Notice]: {e}")
 
-    # 2. Online neural reasoning fallback (Pollinations)
-    ai_resp = query_free_ai(raw_text, user_name, history=history)
-    if ai_resp:
-        return ai_resp
+    # 1.5 Math / Equation Solver check
+    eq = solve_algebraic_equation(raw_text)
+    if eq:
+        return eq
 
-    # 3. Factual encyclopedia fallback
+    # 2. Factual encyclopedia fallback (Wikipedia definition)
     wiki_resp = query_encyclopedia_knowledge(raw_text, en)
     if wiki_resp:
         return wiki_resp
+
+    # 3. Online neural reasoning fallback (Pollinations)
+    ai_resp = query_free_ai(raw_text, user_name, history=history)
+    if ai_resp:
+        return ai_resp
 
     # 4. Local conversational phrases
     t = raw_text.lower().strip()
@@ -1640,7 +1815,7 @@ def get_conversational_reply(raw_text: str, en: bool, user_name: str = "Поль
         if k in t:
             return reply
 
-    # 3. Smart local conversational fallback
+    # 5. Smart local conversational fallback
     mem = user_memory.load_memory()
     u_name = mem.get("name") or user_name
     if en:
@@ -1653,6 +1828,8 @@ def get_conversational_reply(raw_text: str, en: bool, user_name: str = "Поль
             return "Рад помочь. Готов к выполнению следующих задач."
         if any(g in low_t for g in ["пока", "до свидания", "до встречи"]):
             return "До связи. Все системы Argus остаются активными и ждут ваших указаний."
+        if any(q in low_t for q in ["что", "как", "почему", "зачем", "когда", "где", "кто", "реши", "посчитай", "?"]):
+            return f"Для ответа на этот вопрос требуется нейросеть, но дневной бесплатный лимит OpenRouter (50 запросов) временно исчерпан. Он обновится в 00:00 UTC. Доступны все функции управления компьютером: запуск приложений, работа с файлами, сценарии и системные команды."
         return f"Принято, {u_name}. Я внимательно слушаю и готов выполнить команду или продолжить диалог."
 
 # ─── MAIN MASTER ENTRY POINT ────────────────────────────────────
@@ -1707,8 +1884,12 @@ def process_command(user_text: str, user_name: str = "Пользователь",
     actions_to_run = local_multi_action_planner(resolved_text)
     ai_confirmed_reply = None
 
-    # 2. If no actions found locally, check math & time
+    # 2. If no actions found locally, check equations, math & time
     if not actions_to_run:
+        eq_sol = solve_algebraic_equation(resolved_text)
+        if eq_sol:
+            return eq_sol, "math", {"solution": eq_sol}
+
         m_calc = safe_math_eval(resolved_text)
         if m_calc is not None:
             reply = f"Result: {m_calc}" if en else f"Результат вычисления: {m_calc}"

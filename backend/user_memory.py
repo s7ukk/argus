@@ -73,38 +73,31 @@ def get_memory_summary() -> str:
 def extract_and_learn(user_text: str) -> Optional[str]:
     """
     Analyzes user text to extract personal facts (age, name, city, occupation, notes).
-    If a fact is learned, saves it persistently and returns a friendly conversational response.
+    Can extract MULTIPLE facts in a single utterance (e.g. 'меня зовут Игорь мне 25').
+    If facts are learned, saves them persistently and returns a friendly conversational response.
     """
     t = user_text.strip()
     low = t.lower()
     mem = load_memory()
+    learned_items = []
 
-    # 1. Age extraction: "мне 18 лет", "мне 18", "мой возраст 18", "мне исполнилось 18"
+    # 1. Name extraction: "меня зовут <Имя>", "моё имя <Имя>", "зови меня <Имя>", "my name is <Name>"
+    m_name = re.search(r'\b(?:меня\s+зовут|мо[её]\s+имя|зови\s+меня|my\s+name\s+is)\s+([a-zA-Zа-яА-ЯёЁ]+)\b', t, re.IGNORECASE)
+    if m_name:
+        name_val = m_name.group(1).capitalize()
+        if name_val.lower() not in ["аргус", "argus", "пользователь", "друг", "мне", "я"]:
+            mem["name"] = name_val
+            learned_items.append(f"вас зовут {name_val}")
+
+    # 2. Age extraction: "мне 18 лет", "мне 18", "мой возраст 18", "мне исполнилось 18"
     m_age = re.search(r'\b(?:мне\s+(?:уже\s+)?(?:исполнилось\s+)?|мой\s+возраст\s+|i\s+am\s+|i\'m\s+)(\d{1,3})(?:\s+(?:лет|года|год|years\s+old))?\b', low)
+    if not m_age:
+        m_age = re.search(r'(?:^|\s)(\d{1,3})\s+(?:лет|года|год)\b', low)
     if m_age:
         age_val = int(m_age.group(1))
         if 1 <= age_val <= 120:
             mem["age"] = age_val
-            save_memory()
-            return f"Запомнил. Вам {age_val} лет. Буду учитывать ваш возраст в нашей дальнейшей работе."
-
-    # Direct short statement: "18 лет"
-    m_age_short = re.match(r'^(\d{1,3})\s+(?:лет|года|год)$', low)
-    if m_age_short:
-        age_val = int(m_age_short.group(1))
-        if 1 <= age_val <= 120:
-            mem["age"] = age_val
-            save_memory()
-            return f"Запомнил ваш возраст: {age_val} лет."
-
-    # 2. Name extraction: "меня зовут <Имя>", "моё имя <Имя>", "зови меня <Имя>", "my name is <Name>"
-    m_name = re.search(r'\b(?:меня\s+зовут|мо[её]\s+имя|зови\s+меня|my\s+name\s+is)\s+([a-zA-Zа-яА-ЯёЁ]+)\b', t, re.IGNORECASE)
-    if m_name:
-        name_val = m_name.group(1).capitalize()
-        if name_val.lower() not in ["аргус", "argus", "пользователь", "друг"]:
-            mem["name"] = name_val
-            save_memory()
-            return f"Приятно познакомиться, {name_val}. Я запомнил ваше имя и буду обращаться к вам так."
+            learned_items.append(f"вам {age_val} лет")
 
     # 3. City extraction: "я живу в <Городе>", "я из <Города>"
     m_city = re.search(r'\b(?:я\s+живу\s+в|я\s+из)\s+([a-zA-Zа-яА-ЯёЁ\s\-]+?)(?:\.|$|,)', t, re.IGNORECASE)
@@ -112,8 +105,7 @@ def extract_and_learn(user_text: str) -> Optional[str]:
         city_val = m_city.group(1).strip().capitalize()
         if len(city_val) >= 2 and city_val.lower() not in ["доме", "квартире", "интернете", "сети"]:
             mem["city"] = city_val
-            save_memory()
-            return f"Запомнил ваш город: {city_val}."
+            learned_items.append(f"город: {city_val}")
 
     # 4. Occupation: "я работаю <профессия>", "я программист/дизайнер/студент"
     m_occ = re.search(r'\b(?:я\s+работаю\s+|я\s+по\s+профессии\s+|я\s+учусь\s+на\s+)([a-zA-Zа-яА-ЯёЁ\s]+?)(?:\.|$|,)', t, re.IGNORECASE)
@@ -121,20 +113,22 @@ def extract_and_learn(user_text: str) -> Optional[str]:
         occ_val = m_occ.group(1).strip()
         if len(occ_val) >= 3:
             mem["occupation"] = occ_val
-            save_memory()
-            return f"Отлично, запомнил вашу деятельность: {occ_val}."
+            learned_items.append(f"деятельность: {occ_val}")
 
     # 5. Explicit memo: "запомни, что ...", "запомни: ...", "remember that ..."
     m_memo = re.search(r'\b(?:запомни(?:,\s*что|\s*:|\s+что)?|remember\s+that)\s+(.+)$', t, re.IGNORECASE)
     if m_memo:
         note_val = m_memo.group(1).strip()
         if len(note_val) >= 3:
-            if "notes" not in mem:
+            if "notes" not in mem or not isinstance(mem["notes"], list):
                 mem["notes"] = []
             if note_val not in mem["notes"]:
                 mem["notes"].append(note_val)
-                save_memory()
-            return f"Запомнил: «{note_val}»."
+            learned_items.append(f"заметка «{note_val}»")
+
+    if learned_items:
+        save_memory()
+        return f"Запомнил: {', '.join(learned_items)}. Буду учитывать это в нашей дальнейшей работе."
 
     return None
 
@@ -175,11 +169,13 @@ def query_memory_question(user_text: str, has_history: bool = False) -> Optional
         elif not has_history:
             return "Вы еще не рассказывали о своей профессии."
 
-    # 5. General memory summary: "что ты обо мне знаешь", "что ты помнишь обо мне", "что ты знаешь про меня"
+    # 5. General memory summary: "что ты обо мне знаешь", "какую информацию обо мне знаешь", "что знаешь обо мне"
     if any(q in low for q in [
         "что ты обо мне знаешь", "что ты знаешь обо мне", "что ты знаешь про меня",
         "что ты помнишь обо мне", "что ты помнишь про меня", "какая у тебя информация обо мне",
-        "мои данные", "моя инфа", "моя информация"
+        "какую информацию обо мне знаешь", "какую инфу обо мне знаешь", "какие данные обо мне",
+        "какую информацию ты обо мне знаешь", "что обо мне знаешь", "что помнишь обо мне",
+        "что знаешь обо мне", "что знаешь про меня", "мои данные", "моя инфа", "моя информация"
     ]):
         return get_memory_summary()
 
