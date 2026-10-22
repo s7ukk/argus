@@ -20,43 +20,38 @@ _OPENROUTER_CACHE: Dict[str, Tuple[str, List[Dict[str, Any]]]] = {}
 _LAST_KEY: Optional[str] = None
 
 # Free models router and top-tier free fallback models
-FREE_PRIMARY_MODEL = "google/gemma-4-31b-it:free"
+FREE_PRIMARY_MODEL = "openrouter/free"
 FREE_FALLBACK_MODELS = [
+    "openrouter/free",
     "google/gemma-4-31b-it:free",
     "google/gemma-4-26b-a4b-it:free",
     "nvidia/nemotron-3.5-lightning:free",
     "nvidia/nemotron-3-super-120b-a12b:free",
+    "nvidia/nemotron-3-ultra-550b-a55b:free",
     "liquid/lfm-2.5-2.6b:free",
-    "openrouter/free"
+    "cohere/north-mini-code:free"
 ]
 
-def load_openrouter_api_key() -> Optional[str]:
+def load_openrouter_api_keys() -> List[str]:
     """
-    Safely retrieves OPENROUTER_API_KEY from environment or .env files.
-    Checks:
-    1. os.environ['OPENROUTER_API_KEY']
-    2. Deep directory tree walk up from executable, working directory, and backend file
-    3. User Data AppData/ArgusAI and argus-ai .env
-    4. Packaged resources .env
-    Never leaks key into logs.
+    Safely retrieves all OPENROUTER_API_KEYs from environment or .env files.
+    Supports comma-separated keys and multiple env variables.
     """
-    global _LAST_KEY
-    if _LAST_KEY:
-        return _LAST_KEY
-
-    # 1. Environment variable
-    env_key = os.getenv("OPENROUTER_API_KEY")
-    if env_key and env_key.strip() and env_key.strip() != "your_openrouter_api_key_here":
-        _LAST_KEY = env_key.strip()
-        return _LAST_KEY
+    found_keys = []
+    
+    # 1. Environment variables
+    for env_var in ["OPENROUTER_API_KEY", "OPENROUTER_API_KEYS", "OPENROUTER_KEY"]:
+        val = os.getenv(env_var)
+        if val and val.strip() and val.strip() != "your_openrouter_api_key_here":
+            for part in val.replace("\n", ",").split(","):
+                part = part.strip().strip('"').strip("'")
+                if part and len(part) > 15 and part not in found_keys:
+                    found_keys.append(part)
 
     # 2. Candidate .env file locations
     candidates = [
-        # Explicit resource path if passed by Electron
         os.path.join(os.getenv("ARGUS_RESOURCES_PATH") or "", ".env"),
-        # Current working directory
         os.path.join(os.getcwd(), ".env"),
-        # User config directory
         os.path.join(app_paths.get_argus_data_dir(), ".env"),
         os.path.join(os.path.expanduser("~"), ".argus", ".env"),
         os.path.join(os.getenv("APPDATA") or "", "argus-ai", ".env"),
@@ -68,7 +63,6 @@ def load_openrouter_api_key() -> Optional[str]:
         os.path.join(getattr(sys, "_MEIPASS", ""), ".env") if hasattr(sys, "_MEIPASS") else None,
     ]
 
-    # Walk up from sys.executable up to 6 levels to find resources/.env in packaged app
     curr_exe = os.path.abspath(sys.executable)
     for _ in range(6):
         curr_exe = os.path.dirname(curr_exe)
@@ -76,7 +70,6 @@ def load_openrouter_api_key() -> Optional[str]:
         candidates.append(os.path.join(curr_exe, "resources", ".env"))
         candidates.append(os.path.join(curr_exe, "Resources", ".env"))
 
-    # Walk up from this file up to 6 levels
     curr_file = os.path.abspath(__file__)
     for _ in range(6):
         curr_file = os.path.dirname(curr_file)
@@ -90,23 +83,23 @@ def load_openrouter_api_key() -> Optional[str]:
                 with open(cand, "r", encoding="utf-8") as f:
                     for line in f:
                         line = line.strip()
-                        if line.startswith("OPENROUTER_API_KEY="):
-                            val = line.split("=", 1)[1].strip().strip('"').strip("'")
-                            if val and val != "your_openrouter_api_key_here" and len(val) > 10:
-                                _LAST_KEY = val
-                                os.environ["OPENROUTER_API_KEY"] = val
-                                # Auto persist to user data directory
-                                try:
-                                    ud_env = os.path.join(app_paths.get_argus_data_dir(), ".env")
-                                    if not os.path.exists(ud_env):
-                                        with open(ud_env, "w", encoding="utf-8") as uf:
-                                            uf.write(f"OPENROUTER_API_KEY={val}\n")
-                                except Exception:
-                                    pass
-                                return _LAST_KEY
+                        if line.startswith("OPENROUTER_API_KEY") or line.startswith("OPENROUTER_KEY"):
+                            raw_val = line.split("=", 1)[1].strip().strip('"').strip("'")
+                            for part in raw_val.replace("\n", ",").split(","):
+                                part = part.strip().strip('"').strip("'")
+                                if part and len(part) > 15 and part != "your_openrouter_api_key_here" and part not in found_keys:
+                                    found_keys.append(part)
             except Exception:
                 pass
 
+    return found_keys
+
+def load_openrouter_api_key() -> Optional[str]:
+    """Safely retrieves the primary active OPENROUTER_API_KEY."""
+    keys = load_openrouter_api_keys()
+    if keys:
+        os.environ["OPENROUTER_API_KEY"] = keys[0]
+        return keys[0]
     return None
 
 def build_system_prompt(user_name: str, os_name: str, memory_summary: str = "") -> str:
@@ -116,8 +109,8 @@ def build_system_prompt(user_name: str, os_name: str, memory_summary: str = "") 
         f"Пользователь: {user_name}.\n"
         f"{memory_summary}\n\n"
         "ТВОЯ ЦЕЛЬ:\n"
-        "Полноценно помогать пользователю работать со всем компьютером: отвечать на сложные вопросы, писать код, "
-        "решать уравнения и математику, находить нужные вещи в интернете, запускать и контролировать программы, файлы, окна и звук.\n\n"
+        "Полноценно помогать пользователю работать со всем компьютером: отвечать на любые вопросы, писать код, "
+        "решать математику, находить информацию, запускать и контролировать программы, окна, браузер, файлы и звук.\n\n"
         "ФОРМАТ ОТВЕТА:\n"
         "Ты ВСЕГДА возвращаешь ответ строго в формате валидного JSON со следующей структурой:\n"
         "{\n"
@@ -127,8 +120,8 @@ def build_system_prompt(user_name: str, os_name: str, memory_summary: str = "") 
         "  ]\n"
         "}\n\n"
         "ПРАВИЛА:\n"
-        "1. Если пользователь просто задает вопрос, просит совета, объяснения, кода, решения задачи/уравнения или ведет диалог — отвечай развернуто, умно и по делу в поле 'reply', а поле 'actions' оставь пустым массивом [].\n"
-        "2. Если требуется действие с компьютером, добавь одно или несколько действий в массив 'actions'.\n"
+        "1. Если пользователь задает вопрос, просит совета, кода, объяснения или ведет диалог — отвечай развернуто, умно и по делу в поле 'reply', а поле 'actions' оставь пустым массивом [].\n"
+        "2. Если требуется действие с компьютером, добавь действия в массив 'actions'.\n"
         "3. Доступные типы действий:\n"
         "   - launch_app: {\"type\": \"launch_app\", \"app\": \"название_программы\"}\n"
         "   - close_app: {\"type\": \"close_app\", \"app\": \"название_программы\"}\n"
@@ -137,6 +130,7 @@ def build_system_prompt(user_name: str, os_name: str, memory_summary: str = "") 
         "   - search_web: {\"type\": \"search_web\", \"query\": \"...\", \"engine\": \"google\" | \"yandex\" | \"youtube\"}\n"
         "   - click_website_button: {\"type\": \"click_website_button\", \"button\": \"текст кнопки\"}\n"
         "   - browser_tab: {\"type\": \"browser_tab\", \"action\": \"new\" | \"close\" | \"next\" | \"prev\" | \"refresh\"}\n"
+        "   - close_all_browser_tabs: {\"type\": \"close_all_browser_tabs\"}\n"
         "   - scroll_page: {\"type\": \"scroll_page\", \"direction\": \"down\" | \"up\"}\n"
         "   - type_text: {\"type\": \"type_text\", \"text\": \"текст для ввода\", \"press_enter\": true/false}\n"
         "   - press_key: {\"type\": \"press_key\", \"key\": \"enter\" | \"esc\" | \"tab\" | \"space\"}\n"
@@ -155,15 +149,15 @@ def build_system_prompt(user_name: str, os_name: str, memory_summary: str = "") 
         "   - system_stats: {\"type\": \"system_stats\"}\n"
         "   - terminal_command: {\"type\": \"terminal_command\", \"command\": \"...\", \"shell\": \"powershell\" | \"bash\"}\n"
         "   - messenger_send: {\"type\": \"messenger_send\", \"messenger\": \"telegram\" | \"discord\" | \"whatsapp\" | \"auto\", \"contact\": \"имя\", \"message\": \"текст\"}\n\n"
-        "4. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО добавлять 'close_app', если пользователь не просил явно закрыть приложение!\n"
-        "5. Отвечай кратко, емко, интеллектуально и дружелюбно. Никаких шаблонных отписок вроде 'Принято, я слушаю'.\n"
-        "6. ФОРМАТИРОВАНИЕ МАТЕМАТИКИ И ТЕКСТА:\n"
-        "   - КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО использовать сырой LaTeX синтаксис (теги вроде \\[, \\], \\(, \\), \\Delta, \\cdot, \\frac, \\sqrt, \\pm, \\times).\n"
-        "   - Все формулы, вычисления и уравнения пиши понятным, красивым и читаемым человеческим текстом (например: x^2 - 3x + 5 = 0; Дискриминант D = b^2 - 4ac = 9 - 20 = -11; D < 0, действительных корней нет; x1,2 = (3 ± i*sqrt(11)) / 2).\n"
-        "7. НАПИСАНИЕ КОДА И СКРИПТОВ:\n"
-        "   - Если пользователь просит написать код, скрипт, программу, функцию, эссе, стих (например: 'напиши код на python', 'напиши скрипт на python') — ЭТО ЗАПРОС К ИНТЕЛЛЕКТУ!\n"
-        "   - Напиши качественный, понятный код внутри блока ```python ... ``` с краткими пояснениями прямо в поле 'reply', а поле 'actions' оставь пустым массивом [].\n"
-        "   - КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО генерировать действие 'type_text' на запросы написать код/скрипт/программу!"
+        "4. ДЕЙСТВИЯ С ВКЛАДКАМИ И ОКНАМИ:\n"
+        "   - Для закрытия одной вкладки используй action: 'close_browser_tab' (или browser_tab с action: 'close').\n"
+        "   - Для закрытия всех вкладок используй action: 'close_all_browser_tabs'.\n"
+        "   - Для закрытия конкретной программы используй action: 'close_app'.\n"
+        "5. ФОРМАТ И СТИЛЬ:\n"
+        "   - Возвращай ТОЛЬКО чистый JSON строго формата {\"reply\": \"...\", \"actions\": [...]}.\n"
+        "   - КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО выводить рассуждения, шаги анализа или черновики (Analyze the Request, Thinking, Constraints и т.д.). Сразу готовый результат!\n"
+        "   - ФОРМАТИРОВАНИЕ МАТЕМАТИКИ: Не используй сырой LaTeX (теги \\[, \\], \\frac и т.д.), пиши понятным читаемым текстом.\n"
+        "   - НАПИСАНИЕ КОДА: Если пользователь просит код или скрипт — пиши качественный код внутри блока ```python ... ``` в поле 'reply', поле 'actions' оставляй пустым []."
     )
 
 def query_openrouter(
@@ -211,54 +205,71 @@ def query_openrouter(
 
     messages.append({"role": "user", "content": prompt})
 
+    keys = load_openrouter_api_keys()
+    if not keys:
+        return None, []
+
     url = "https://openrouter.ai/api/v1/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {key}",
-        "HTTP-Referer": "https://argus.ai",
-        "X-Title": "Argus AI Desktop Assistant",
-        "Content-Type": "application/json"
-    }
-
-    # Attempt 1: using fallback array
-    body = {
-        "model": FREE_PRIMARY_MODEL,
-        "models": FREE_FALLBACK_MODELS,
-        "messages": messages,
-        "temperature": 0.35,
-        "max_tokens": 1200
-    }
-
     raw_content = None
-    try:
-        req = urllib.request.Request(
-            url,
-            data=json.dumps(body).encode("utf-8"),
-            headers=headers
-        )
-        with urllib.request.urlopen(req, timeout=12.0) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            if data.get("choices") and data["choices"][0].get("message"):
-                raw_content = data["choices"][0]["message"].get("content", "").strip()
-    except Exception as e:
-        # Attempt 2: direct single free model fallback
+
+    for candidate_key in keys:
+        headers = {
+            "Authorization": f"Bearer {candidate_key}",
+            "HTTP-Referer": "https://argus.ai",
+            "X-Title": "Argus AI Desktop Assistant",
+            "Content-Type": "application/json"
+        }
+
+        # Attempt 1: primary model with fallback routing list and reasoning excluded
+        body = {
+            "model": FREE_PRIMARY_MODEL,
+            "models": FREE_FALLBACK_MODELS,
+            "messages": messages,
+            "temperature": 0.3,
+            "max_tokens": 1200,
+            "reasoning": {"exclude": True}
+        }
+
         try:
-            body_fallback = {
-                "model": "openrouter/free",
-                "messages": messages,
-                "temperature": 0.35,
-                "max_tokens": 1000
-            }
-            req_fb = urllib.request.Request(
+            req = urllib.request.Request(
                 url,
-                data=json.dumps(body_fallback).encode("utf-8"),
+                data=json.dumps(body).encode("utf-8"),
                 headers=headers
             )
-            with urllib.request.urlopen(req_fb, timeout=10.0) as resp:
+            with urllib.request.urlopen(req, timeout=10.0) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
                 if data.get("choices") and data["choices"][0].get("message"):
                     raw_content = data["choices"][0]["message"].get("content", "").strip()
-        except Exception:
+                    if raw_content:
+                        break
+        except urllib.error.HTTPError as e:
+            if e.code == 429:
+                # Key rate limit exceeded, rotate to next candidate key
+                continue
             pass
+        except Exception:
+            # Fallback to direct model request
+            try:
+                body_fallback = {
+                    "model": "openrouter/free",
+                    "messages": messages,
+                    "temperature": 0.3,
+                    "max_tokens": 1000,
+                    "reasoning": {"exclude": True}
+                }
+                req_fb = urllib.request.Request(
+                    url,
+                    data=json.dumps(body_fallback).encode("utf-8"),
+                    headers=headers
+                )
+                with urllib.request.urlopen(req_fb, timeout=9.0) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+                    if data.get("choices") and data["choices"][0].get("message"):
+                        raw_content = data["choices"][0]["message"].get("content", "").strip()
+                        if raw_content:
+                            break
+            except Exception:
+                pass
 
     if raw_content:
         reply, actions = parse_model_response(raw_content)
@@ -282,54 +293,99 @@ def query_openrouter(
 
     return None, []
 
+def is_reasoning_leak(text: str) -> bool:
+    """Detects whether text contains internal model chain-of-thought scratchpad notes."""
+    if not text or len(text.strip()) < 5:
+        return False
+    low = text.lower()
+    leak_markers = [
+        "analyze the request",
+        "thinking process",
+        "user asks:",
+        "constraints:",
+        "rule 4:",
+        "strictly valid json",
+        "forbidden to add",
+        "i am argus ai, an autonomous",
+        "let me re-read rule",
+        "the user asked to close",
+        "chain of thought",
+        "thought process"
+    ]
+    return any(marker in low for marker in leak_markers)
+
+def clean_reasoning_leak(text: str) -> str:
+    """Removes reasoning analysis sections from text."""
+    text = re.sub(r'<think>[\s\S]*?</think>', '', text, flags=re.IGNORECASE).strip()
+    text = re.sub(r'(?:\d+\.\s*)?\*\*(?:Analyze the Request|Thinking|Reasoning|Chain of Thought|Thought Process|Constraints|Goal)[\s\S]*?(?=(?:\{\s*"reply"|\{\s*"actions"|```json|\n\n[А-ЯA-Z]|\Z))', '', text, flags=re.IGNORECASE).strip()
+    return text
+
 def parse_model_response(raw_text: str) -> Tuple[Optional[str], List[Dict[str, Any]]]:
-    """Robust parser that extracts reply string and actions list from various model outputs."""
+    """Robust parser that strips any model reasoning/thinking tokens and extracts reply string and actions list."""
     cleaned = raw_text.strip()
-    if "User Safety:" in cleaned:
-        cleaned = re.sub(r'User Safety:\s*\w+', '', cleaned).strip()
     if not cleaned or len(cleaned) < 2:
         return None, []
 
-    # Strip markdown codeblocks
+    # 1. Aggressively strip thinking tags
+    cleaned = re.sub(r'<think>[\s\S]*?</think>', '', cleaned, flags=re.IGNORECASE).strip()
+    cleaned = re.sub(r'\[THINK\][\s\S]*?\[/THINK\]', '', cleaned, flags=re.IGNORECASE).strip()
+
+    # 2. Extract JSON object directly first (even if preceded by thinking / analysis)
+    m_obj = re.search(r'\{\s*"reply"\s*:[\s\S]*?"actions"\s*:[\s\S]*?\}', cleaned, re.DOTALL)
+    if not m_obj:
+        m_obj = re.search(r'\{\s*"actions"\s*:[\s\S]*?"reply"\s*:[\s\S]*?\}', cleaned, re.DOTALL)
+
+    if m_obj:
+        try:
+            obj = json.loads(m_obj.group(0))
+            if isinstance(obj, dict):
+                reply = obj.get("reply", "")
+                if is_reasoning_leak(reply):
+                    reply = clean_reasoning_leak(reply)
+                    if is_reasoning_leak(reply):
+                        reply = ""
+                return reply, normalize_actions(obj.get("actions", []))
+        except Exception:
+            pass
+
+    # 3. Strip markdown reasoning / analysis blocks
+    cleaned = re.sub(r'(?:\d+\.\s*)?\*\*(?:Analyze the Request|Thinking|Reasoning|Chain of Thought|Thought Process|Constraints|Goal)[\s\S]*?(?=(?:\{\s*"reply"|\{\s*"actions"|```json|\n\n[А-ЯA-Z]|\Z))', '', cleaned, flags=re.IGNORECASE).strip()
+    if "User Safety:" in cleaned:
+        cleaned = re.sub(r'User Safety:\s*\w+', '', cleaned).strip()
     cleaned = re.sub(r'^```(?:json)?\s*', '', cleaned)
     cleaned = re.sub(r'\s*```$', '', cleaned).strip()
 
-    # 1. Try direct JSON parse
+    # 4. Direct JSON parse
     try:
         obj = json.loads(cleaned)
         if isinstance(obj, dict):
             reply = obj.get("reply", "")
-            raw_acts = obj.get("actions", [])
-            actions = normalize_actions(raw_acts)
-            return reply, actions
+            if is_reasoning_leak(reply):
+                reply = ""
+            return reply, normalize_actions(obj.get("actions", []))
         elif isinstance(obj, list):
-            actions = normalize_actions(obj)
-            return "Задачи приняты и выполняются.", actions
+            return "Задачи приняты и выполняются.", normalize_actions(obj)
     except Exception:
         pass
 
-    # 2. Extract JSON object via regex
-    m_obj = re.search(r'\{\s*"reply"\s*:.*?"actions"\s*:\s*\[.*?\]\s*\}', cleaned, re.DOTALL)
-    if m_obj:
-        try:
-            obj = json.loads(m_obj.group(0))
-            return obj.get("reply", ""), normalize_actions(obj.get("actions", []))
-        except Exception:
-            pass
-
-    # 3. Extract JSON array if model returned only actions
+    # 5. Extract JSON array if model returned only actions
     m_arr = re.search(r'\[\s*\{.*\}\s*\]', cleaned, re.DOTALL)
     if m_arr:
         try:
             arr = json.loads(m_arr.group(0))
             if isinstance(arr, list):
                 actions = normalize_actions(arr)
-                text_part = cleaned[:m_arr.start()].strip() or "Задачи приняты."
-                return text_part, actions
+                text_part = cleaned[:m_arr.start()].strip()
+                if is_reasoning_leak(text_part):
+                    text_part = "Задачи приняты."
+                return text_part or "Задачи приняты.", actions
         except Exception:
             pass
 
-    # 4. Fallback: Entire text is a conversational response without actions
+    # 6. Check if text is a reasoning leak
+    if is_reasoning_leak(cleaned):
+        return None, []
+
     return cleaned, []
 
 def normalize_actions(raw_actions: Any) -> List[Dict[str, Any]]:
@@ -362,9 +418,11 @@ def normalize_actions(raw_actions: Any) -> List[Dict[str, Any]]:
             new_act["type"] = "lock_pc"
         elif raw_type in ["list_folder", "list_directory"]:
             new_act["type"] = "list_files"
-        elif raw_type in ["browser_tab"]:
+        elif raw_type in ["browser_tab", "close_all_browser_tabs", "close_all_tabs"]:
             tab_act = act.get("action", "new")
-            if tab_act == "close":
+            if raw_type in ["close_all_browser_tabs", "close_all_tabs"] or tab_act in ["close_all", "all"]:
+                new_act["type"] = "close_all_browser_tabs"
+            elif tab_act == "close":
                 new_act["type"] = "close_browser_tab"
             elif tab_act == "refresh":
                 new_act["type"] = "refresh_page"

@@ -1980,6 +1980,23 @@ def close_browser_tab() -> bool:
             print("close_browser_tab error:", e)
     return False
 
+def close_all_browser_tabs() -> bool:
+    """Closes all browser tabs / browser window (Cmd+Shift+W on macOS, Ctrl+Shift+W on Windows/Linux)."""
+    if sys.platform == "darwin":
+        try:
+            script = 'tell application "System Events" to keystroke "w" using {command down, shift down}'
+            subprocess.run(["osascript", "-e", script], capture_output=True, timeout=2)
+            return True
+        except Exception:
+            pass
+    if _HAS_PYAUTOGUI:
+        try:
+            pyautogui.hotkey('ctrl', 'shift', 'w')
+            return True
+        except Exception as e:
+            print("close_all_browser_tabs error:", e)
+    return False
+
 def new_browser_tab() -> bool:
     """Opens a new browser tab (Cmd+T on macOS, Ctrl+T on Windows/Linux)."""
     if sys.platform == "darwin":

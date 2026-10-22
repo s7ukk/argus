@@ -291,6 +291,10 @@ def execute_single_action(act: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]
         ok = sc.close_browser_tab()
         return "Вкладка браузера закрыта", "close_tab", {"success": ok}
 
+    elif act_type in ["close_all_browser_tabs", "close_all_tabs"]:
+        ok = sc.close_all_browser_tabs()
+        return "Все вкладки браузера закрыты", "close_all_tabs", {"success": ok}
+
     elif act_type == "new_browser_tab":
         ok = sc.new_browser_tab()
         return "Открыта новая вкладка в браузере", "new_tab", {"success": ok}
@@ -718,8 +722,16 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
 
     # 1.2 Browser Tabs & Page Navigation
     if any(k in c for k in [
-        "закрой вкладку", "закрыть вкладку", "закрой эту вкладку", "закрыть эту вкладку",
-        "смахни вкладку", "смахни эту вкладку", "смахнуть вкладку", "смахни страницу",
+        "махни все вкладки", "смахни все вкладки", "закрой все вкладки", "закрыть все вкладки",
+        "убери все вкладки", "убрать все вкладки", "прикрой все вкладки", "закрыть все вкладки браузера",
+        "закрой все вкладки браузера", "смахни вкладки", "махни вкладки", "закрой вкладки", "закрыть вкладки",
+        "убери вкладки", "убрать вкладки", "close all tabs", "close tabs", "закрой все окна", "смахни окна", "махни окна"
+    ]):
+        return {"type": "close_all_browser_tabs"}
+
+    if any(k in c for k in [
+        "махни вкладку", "махни эту вкладку", "закрой вкладку", "закрыть вкладку", "закрой эту вкладку", "закрыть эту вкладку",
+        "смахни вкладку", "смахни эту вкладку", "смахнуть вкладку", "смахни страницу", "махни страницу",
         "убери вкладку", "убрать вкладку", "прикрой вкладку",
         "закрой страницу", "закрыть страницу", "close tab", "закрой ютуб", "закрыть ютуб",
         "закрой youtube", "закрыть youtube", "закрой саундклауд", "закрыть саундклауд",
@@ -1748,28 +1760,163 @@ CONVERSATIONAL_KNOWLEDGE = {
     "почему небо голубое": "Небо голубое благодаря рэлеевскому рассеянию: солнечный свет рассеивается молекулами воздуха, при этом коротковолновые синие и голубые лучи рассеиваются сильнее всего.",
 }
 
+def generate_smart_code_reply(prompt: str) -> Optional[str]:
+    """Generates clean, well-commented, working scripts for code requests."""
+    low = prompt.lower().strip()
+    is_code_req = any(k in low for k in [
+        "напиши код", "напиши скрипт", "напиши программу", "напиши функцию",
+        "создай скрипт", "создай код", "write code", "write a script", "python script",
+        "код на python", "скрипт на python", "код на питоне", "скрипт на питоне"
+    ])
+    if not is_code_req:
+        return None
+
+    if any(k in low for k in ["парсер", "парсинг", "скачай сайт", "scraping", "scraper"]):
+        return (
+            "Вот готовый скрипт для веб-скрейпинга и парсинга на Python:\n\n"
+            "```python\n"
+            "import requests\n"
+            "from bs4 import BeautifulSoup\n\n"
+            "def scrape_website(url: str):\n"
+            "    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}\n"
+            "    try:\n"
+            "        response = requests.get(url, headers=headers, timeout=10)\n"
+            "        response.raise_for_status()\n"
+            "        soup = BeautifulSoup(response.text, 'html.parser')\n"
+            "        \n"
+            "        title = soup.title.string if soup.title else 'Без заголовка'\n"
+            "        print(f'Заголовок: {title}')\n"
+            "        \n"
+            "        links = [a.get('href') for a in soup.find_all('a', href=True)]\n"
+            "        print(f'Найдено ссылок: {len(links)}')\n"
+            "        return links\n"
+            "    except Exception as e:\n"
+            "        print(f'Ошибка запроса: {e}')\n"
+            "        return []\n\n"
+            "if __name__ == '__main__':\n"
+            "    scrape_website('https://example.com')\n"
+            "```\n\n"
+            "Скрипт использует библиотеки `requests` и `beautifulsoup4`. Установка: `pip install requests beautifulsoup4`."
+        )
+
+    if any(k in low for k in ["сортировк", "быстрая сортировка", "пузырек", "quicksort", "сортируй"]):
+        return (
+            "Вот реализация алгоритма быстрой сортировки (QuickSort) на Python:\n\n"
+            "```python\n"
+            "def quicksort(arr: list) -> list:\n"
+            "    if len(arr) <= 1:\n"
+            "        return arr\n"
+            "    pivot = arr[len(arr) // 2]\n"
+            "    left = [x for x in arr if x < pivot]\n"
+            "    middle = [x for x in arr if x == pivot]\n"
+            "    right = [x for x in arr if x > pivot]\n"
+            "    return quicksort(left) + middle + quicksort(right)\n\n"
+            "if __name__ == '__main__':\n"
+            "    data = [64, 34, 25, 12, 22, 11, 90]\n"
+            "    print('Исходный массив:', data)\n"
+            "    print('Отсортированный:', quicksort(data))\n"
+            "```\n\n"
+            "Средняя сложность алгоритма — O(n log n)."
+        )
+
+    if any(k in low for k in ["бот", "telegram bot", "тг бот"]):
+        return (
+            "Вот базовый шаблон асинхронного Telegram-бота на Python:\n\n"
+            "```python\n"
+            "import asyncio\n"
+            "from aiogram import Bot, Dispatcher, types\n"
+            "from aiogram.filters import Command\n\n"
+            "BOT_TOKEN = 'ВАШ_ТОКЕН_БОТА'\n\n"
+            "bot = Bot(token=BOT_TOKEN)\n"
+            "dp = Dispatcher()\n\n"
+            "@dp.message(Command('start'))\n"
+            "async def send_welcome(message: types.Message):\n"
+            "    await message.reply('Привет! Я бот, запущенный на Python.')\n\n"
+            "@dp.message()\n"
+            "async def echo(message: types.Message):\n"
+            "    await message.answer(f'Вы написали: {message.text}')\n\n"
+            "async def main():\n"
+            "    await dp.start_polling(bot)\n\n"
+            "if __name__ == '__main__':\n"
+            "    asyncio.run(main())\n"
+            "```\n\n"
+            "Для запуска установите aiogram: `pip install aiogram`."
+        )
+
+    # General elegant Python script template
+    return (
+        "Вот готовый, чистый и расширяемый скрипт на Python с обработкой ошибок и логированием:\n\n"
+        "```python\n"
+        "import os\n"
+        "import sys\n"
+        "import logging\n"
+        "from pathlib import Path\n\n"
+        "# Настройка логирования\n"
+        "logging.basicConfig(\n"
+        "    level=logging.INFO,\n"
+        "    format='%(asctime)s [%(levelname)s] %(message)s',\n"
+        "    datefmt='%H:%M:%S'\n"
+        ")\n\n"
+        "def main_task(target_dir: str = '.'):\n"
+        "    path = Path(target_dir).resolve()\n"
+        "    logging.info(f'Запуск скрипта в директории: {path}')\n"
+        "    \n"
+        "    if not path.exists():\n"
+        "        logging.error(f'Директория {path} не найдена!')\n"
+        "        return False\n"
+        "        \n"
+        "    files = list(path.glob('*'))\n"
+        "    logging.info(f'Найдено объектов: {len(files)}')\n"
+        "    for item in files[:10]:\n"
+        "        item_type = 'Папка' if item.is_dir() else 'Файл'\n"
+        "        logging.info(f' - [{item_type}] {item.name}')\n"
+        "    \n"
+        "    logging.info('Задача успешно завершена.')\n"
+        "    return True\n\n"
+        "if __name__ == '__main__':\n"
+        "    main_task()\n"
+        "```\n\n"
+        "Скрипт готов к запуску в терминале: `python script.py`. Если вам требуется конкретная функциональность — напишите детали задачи."
+    )
+
 def query_encyclopedia_knowledge(query: str, en: bool) -> Optional[str]:
     """
     Instantly fetches factual definitions and summaries (0.2s latency)
-    for questions like 'что такое...', 'кто такой...', 'what is...', 'who is...'.
-    Supports multi-concept queries (e.g. 'что такое Политика и Депортамент') and typo auto-correction.
+    for knowledge questions across science, technology, hardware, and concepts.
+    Supports multi-concept queries, interrogative questions, and typo auto-correction.
     """
     clean_q = query.strip().rstrip('?.!').strip()
+    low_q = clean_q.lower()
+    
+    # Exclude conversational greetings and smalltalk
+    if any(s in low_q for s in ["как дела", "как жизнь", "как ты", "как поживаешь", "как успехи", "как настроение", "кто ты", "что ты умеешь", "привет", "здравствуй"]):
+        return None
+    
     prefixes = [
         "что такое ", "кто такой ", "кто такая ", "кто такие ", "что значит ",
-        "что это такое ", "что это ", "расскажи про ", "расскажи о ",
-        "what is ", "who is ", "what are ", "tell me about "
+        "что это такое ", "что это ", "расскажи про ", "расскажи о ", "расскажи об ",
+        "объясни что такое ", "объясни ", "для чего нужен ", "для чего нужна ", "для чего нужно ",
+        "для чего нужны ", "зачем нужен ", "зачем нужна ", "зачем нужно ", "зачем нужны ",
+        "как работает ", "как устроен ", "как устроена ", "как устроены ", "что делает ",
+        "what is ", "who is ", "what are ", "tell me about ", "how does ", "why is "
     ]
     target_topic = None
     for p in prefixes:
-        if clean_q.lower().startswith(p):
+        if low_q.startswith(p):
             target_topic = clean_q[len(p):].strip()
             break
             
     if not target_topic:
-        words = clean_q.split()
-        if len(words) <= 4 and query.strip().endswith('?'):
-            target_topic = clean_q
+        question_triggers = ["что", "кто", "как", "для чего", "зачем", "почему", "где", "когда", "какой", "what", "how", "why"]
+        if any(tr in low_q for tr in question_triggers) or query.strip().endswith('?'):
+            stop_words = {
+                'для', 'чего', 'нужен', 'нужна', 'нужно', 'нужны', 'что', 'такое', 'такой', 'такая', 'такие',
+                'как', 'работает', 'устроен', 'устроена', 'почему', 'где', 'когда', 'кто', 'расскажи', 'про',
+                'объясни', 'вкратце', 'это', 'бывает', 'ли', 'же', 'мне', 'назови', 'опиши'
+            }
+            words = [w for w in re.findall(r'[a-zA-Zа-яА-ЯёЁ0-9\-]+', clean_q) if w.lower() not in stop_words]
+            if words:
+                target_topic = ' '.join(words)
             
     if not target_topic or len(target_topic) < 2:
         return None
@@ -1844,33 +1991,33 @@ def get_conversational_reply(raw_text: str, en: bool, user_name: str = "Поль
     # 1. Primary: Query OpenRouter Free High-Intelligence Engine
     try:
         or_reply, _ = openrouter_engine.query_openrouter(raw_text, user_name=user_name, history=history)
-        if or_reply and len(or_reply.strip()) > 1:
+        if or_reply and len(or_reply.strip()) > 1 and not openrouter_engine.is_reasoning_leak(or_reply):
             return or_reply.strip()
     except Exception as e:
         print(f"[Argus OpenRouter Brain Notice]: {e}")
+
+    # 1.1 Local conversational phrases & greetings
+    t = raw_text.lower().strip()
+    for k, reply in CONVERSATIONAL_KNOWLEDGE.items():
+        if k in t:
+            return reply
+
+    # 1.2 Code Generation check
+    code_reply = generate_smart_code_reply(raw_text)
+    if code_reply:
+        return code_reply
 
     # 1.5 Math / Equation Solver check
     eq = solve_algebraic_equation(raw_text)
     if eq:
         return eq
 
-    # 2. Factual encyclopedia fallback (Wikipedia definition)
+    # 2. Factual encyclopedia fallback (Wikipedia definition & typo search)
     wiki_resp = query_encyclopedia_knowledge(raw_text, en)
     if wiki_resp:
         return wiki_resp
 
-    # 3. Online neural reasoning fallback (Pollinations)
-    ai_resp = query_free_ai(raw_text, user_name, history=history)
-    if ai_resp:
-        return ai_resp
-
-    # 4. Local conversational phrases
-    t = raw_text.lower().strip()
-    for k, reply in CONVERSATIONAL_KNOWLEDGE.items():
-        if k in t:
-            return reply
-
-    # 5. Smart local conversational fallback
+    # 4. Smart local conversational fallback
     mem = user_memory.load_memory()
     u_name = mem.get("name") or user_name
     if en:
@@ -1883,8 +2030,8 @@ def get_conversational_reply(raw_text: str, en: bool, user_name: str = "Поль
             return "Рад помочь. Готов к выполнению следующих задач."
         if any(g in low_t for g in ["пока", "до свидания", "до встречи"]):
             return "До связи. Все системы Argus остаются активными и ждут ваших указаний."
-        if any(q in low_t for q in ["что", "как", "почему", "зачем", "когда", "где", "кто", "реши", "посчитай", "?"]):
-            return f"Для ответа на этот вопрос требуется нейросеть, но дневной бесплатный лимит OpenRouter (50 запросов) временно исчерпан. Он обновится в 00:00 UTC. Доступны все функции управления компьютером: запуск приложений, работа с файлами, сценарии и системные команды."
+        if any(h in low_t for h in ["привет", "здравствуй", "добрый день", "добрый вечер", "доброе утро"]):
+            return f"Здравствуйте, {u_name}! Чем могу помочь вам сегодня за компьютером?"
         return f"Принято, {u_name}. Я внимательно слушаю и готов выполнить команду или продолжить диалог."
 
 # ─── MAIN MASTER ENTRY POINT ────────────────────────────────────
@@ -1981,9 +2128,9 @@ def process_command(user_text: str, user_name: str = "Пользователь",
                     or_acts = [a for a in or_acts if a.get("type") != "close_app"]
                 if or_acts:
                     actions_to_run = or_acts
-                    if or_reply and len(or_reply.strip()) > 2:
+                    if or_reply and len(or_reply.strip()) > 2 and not openrouter_engine.is_reasoning_leak(or_reply):
                         ai_confirmed_reply = or_reply.strip()
-            elif or_reply and len(or_reply.strip()) > 1:
+            elif or_reply and len(or_reply.strip()) > 1 and not openrouter_engine.is_reasoning_leak(or_reply):
                 return or_reply.strip(), "general", {}
         except Exception as e:
             print(f"[Argus OpenRouter Brain Notice]: {e}")
