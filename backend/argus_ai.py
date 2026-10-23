@@ -313,6 +313,83 @@ def execute_single_action(act: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]
         ok = sc.close_browser_tab()
         return "Вкладка браузера закрыта", "close_tab", {"success": ok}
 
+    elif act_type == "close_specific_browser_tab":
+        target = act.get("target", "")
+        ok = sc.close_specific_browser_tab(target)
+        target_disp = target.capitalize()
+        if target.lower() in ["youtube", "ютуб", "ютубе", "ютуби"]:
+            target_disp = "YouTube"
+        elif target.lower() in ["vk", "вк", "вконтакте"]:
+            target_disp = "VK"
+        elif target.lower() in ["yandex", "яндекс"]:
+            target_disp = "Яндекс"
+        elif target.lower() in ["telegram", "телеграм", "тг"]:
+            target_disp = "Telegram"
+        elif target.lower() in ["github", "гитхаб"]:
+            target_disp = "GitHub"
+        elif target.lower() in ["mail", "gmail", "почта", "почту"]:
+            target_disp = "Почта"
+        return f"Вкладка {target_disp} закрыта в браузере", "close_specific_tab", {"target": target, "success": ok}
+
+    elif act_type == "youtube_control":
+        yt_act = act.get("action", "play_pause")
+        ok = sc.youtube_control(yt_act)
+        messages = {
+            "play_pause": "Воспроизведение/пауза переключены в YouTube",
+            "pause": "Видео в YouTube поставлено на паузу",
+            "play": "Видео в YouTube запущено",
+            "mute": "Звук в YouTube переключён",
+            "fullscreen": "Полноэкранный режим переключён в YouTube",
+            "next": "Включено следующее видео в YouTube",
+            "prev": "Включено предыдущее видео в YouTube",
+            "seek_forward": "Видео перемотано вперёд на 10 секунд",
+            "seek_backward": "Видео перемотано назад на 10 секунд",
+            "speed_up": "Скорость воспроизведения в YouTube увеличена",
+            "speed_down": "Скорость воспроизведения в YouTube уменьшена",
+            "subtitles": "Субтитры в YouTube переключены"
+        }
+        msg = messages.get(yt_act, "Команда YouTube выполнена")
+        return msg, "youtube_control", {"action": yt_act, "success": ok}
+
+    elif act_type == "reopen_browser_tab":
+        ok = sc.reopen_browser_tab()
+        return "Закрытая вкладка восстановлена в браузере", "reopen_tab", {"success": ok}
+
+    elif act_type == "find_in_browser_page":
+        query = act.get("query", "")
+        ok = sc.find_in_browser_page(query)
+        msg = f"Открыт поиск по странице: «{query}»" if query else "Открыта строка поиска по странице"
+        return msg, "find_in_page", {"query": query, "success": ok}
+
+    elif act_type == "zoom_browser_page":
+        direction = act.get("direction", "in")
+        ok = sc.zoom_browser_page(direction)
+        desc = "увеличен" if direction == "in" else ("уменьшен" if direction == "out" else "сброшен к 100%")
+        return f"Масштаб страницы {desc}", "zoom_page", {"direction": direction, "success": ok}
+
+    elif act_type == "navigate_browser_history":
+        direction = act.get("direction", "back")
+        ok = sc.navigate_browser_history(direction)
+        desc = "назад" if direction == "back" else "вперёд"
+        return f"Переход по истории {desc}", "navigate_history", {"direction": direction, "success": ok}
+
+    elif act_type == "open_browser_feature":
+        feat = act.get("feature", "history")
+        ok = sc.open_browser_feature(feat)
+        feat_names = {
+            "history": "История браузера открыта",
+            "downloads": "Загрузки браузера открыты",
+            "bookmarks": "Страница добавлена в закладки",
+            "incognito": "Открыто окно в режиме инкогнито"
+        }
+        return feat_names.get(feat, "Функция браузера активирована"), "browser_feature", {"feature": feat, "success": ok}
+
+    elif act_type == "scroll_browser_to":
+        position = act.get("position", "top")
+        ok = sc.scroll_browser_to(position)
+        desc = "в самый верх" if position == "top" else "в самый низ"
+        return f"Страница прокручена {desc}", "scroll_to", {"position": position, "success": ok}
+
     elif act_type in ["close_all_browser_tabs", "close_all_tabs"]:
         ok = sc.close_all_browser_tabs()
         return "Все вкладки браузера закрыты", "close_all_tabs", {"success": ok}
@@ -418,7 +495,10 @@ def execute_single_action(act: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]
             eng_name = "в Яндекс"
         elif "youtube" in engine or "ютуб" in engine:
             url = f"https://www.youtube.com/results?search_query={urllib.parse.quote_plus(q)}"
-            eng_name = "в YouTube"
+            is_play = act.get("is_play", False)
+            sc.open_url(url)
+            verb = "Включаю на YouTube" if is_play else "Выполнен поиск в YouTube"
+            return f"{verb}: «{q}»", "open_url", {"url": url, "query": q, "engine": "youtube"}
         elif "wildberries" in engine or "вайлдберриз" in engine or "вб" in engine:
             url = f"https://www.wildberries.ru/catalog/0/search.aspx?search={urllib.parse.quote_plus(q)}"
             eng_name = "на Wildberries"
@@ -660,12 +740,35 @@ KNOWN_KEYBOARD_KEYS = {
     "ctrl", "alt", "shift", "win", "windows"
 }
 
+def extract_youtube_query(text: str) -> str:
+    """
+    Cleans spoken YouTube commands to extract pure song/artist/topic query,
+    preserving case while stripping preambles, action verbs, platform words, and generic descriptors.
+    e.g. 'А включи на ютубе музыку Rock' -> 'Rock'
+         'включи в ютубе рамштайн' -> 'рамштайн'
+         'поставь на ютубе песню bohemian rhapsody' -> 'bohemian rhapsody'
+         'найди на ютубе видео как настроить роутер' -> 'как настроить роутер'
+    """
+    q = text.strip()
+    q = re.sub(r'^\s*(?:а\s+ну|а\s+ну-ка|а|ну-ка|ну|так|слушай|слушай-ка|эй|давай|пожалуйста|пж)[,\s:]+', '', q, flags=re.IGNORECASE).strip()
+    q = re.sub(r'^\s*(?:аргус|argus)[,\s:]+', '', q, flags=re.IGNORECASE).strip()
+    q = re.sub(r'^(?:включи|включить|поставь|поставить|запусти|запустить|вруби|врубить|сыграй|сыграть|найди|найти|поищи|поискать|покажи|показать|открой|открыть|послушай|послушать|play|search)\s+', '', q, flags=re.IGNORECASE).strip()
+    q = re.sub(r'\b(?:в|на|через|по)?\s*(?:ютуб[еауи]?|youtube|в\s+ютубе|на\s+ютубе|на\s+youtube|в\s+youtube)\b', '', q, flags=re.IGNORECASE).strip()
+    q = re.sub(r'^(?:включи|включить|поставь|поставить|запусти|запустить|вруби|врубить|сыграй|сыграть|найди|найти|поищи|поискать|покажи|показать|открой|открыть|послушай|послушать|play|search)\s+', '', q, flags=re.IGNORECASE).strip()
+    q = re.sub(r'^(?:музыку|музыка|песню|песня|трек|композицию|клип|видео|ролик|плейлист|фильм|сериал)\s+', '', q, flags=re.IGNORECASE).strip()
+    q = re.sub(r'\s+(?:на\s+ютубе|в\s+ютубе|на\s+youtube|в\s+youtube)$', '', q, flags=re.IGNORECASE).strip()
+    q = q.strip('"\'«» .,:;!?')
+    return q
+
 def clean_clause_text(text: str) -> str:
-    """Removes polite filler words, Russian/English profanity, and normalizes brand names."""
+    """Removes polite filler words, Russian/English profanity, introductory particles, and normalizes brand names."""
     t = text.lower().strip()
     
     # Strip leading bot address
     t = re.sub(r'^\s*(?:аргус|argus|эй\s+аргус|эй|слушай|слушай\s+аргус|бот|ассистент)[,\s:]+', '', t, flags=re.IGNORECASE)
+
+    # Strip introductory conversational prefixes e.g. "а ", "а ну ", "ну-ка ", "так ", "слушай "
+    t = re.sub(r'^\s*(?:а\s+ну\s+|а\s+ну-ка\s+|а\s+|ну-ка\s+|ну\s+|так\s+|слушай\s+|слушай-ка\s+|эй\s+|давай\s+)', '', t, flags=re.IGNORECASE)
 
     # Profanity and fillers removal (never let swearing break command intent or become an app name)
     fillers = [
@@ -701,7 +804,8 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
     infinitives, imperatives, colloquial words, negative filters, and slang.
     """
     orig_c = clause.strip()
-    raw_c = orig_c.lower()
+    clean_orig_c = re.sub(r'^\s*(?:а\s+ну\s+|а\s+ну-ка\s+|а\s+|ну-ка\s+|ну\s+|так\s+|слушай\s+|слушай-ка\s+|эй\s+|давай\s+)', '', orig_c, flags=re.IGNORECASE).strip()
+    raw_c = clean_orig_c.lower()
     c = clean_clause_text(raw_c)
     if not c:
         return None
@@ -773,6 +877,48 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
     ]):
         return {"type": "minimize_window"}
 
+    # 1.25 YouTube in-browser playback controls
+    if any(k in c for k in ["ютуб", "youtube", "видео", "ролик"]):
+        # Pause / Play
+        if any(k in c for k in ["пауза", "паузу", "останови видео", "останови ролик", "стоп видео", "видео на паузу"]):
+            return {"type": "youtube_control", "action": "play_pause"}
+        if any(k in c for k in ["продолжи", "возобнови", "сними с паузы", "воспроизведение", "плей"]) and any(k in c for k in ["видео", "ролик", "ютуб", "youtube"]):
+            return {"type": "youtube_control", "action": "play_pause"}
+        # Mute
+        if any(k in c for k in ["без звука", "выключи звук", "заглуши", "включи звук", "верни звук"]) and any(k in c for k in ["ютуб", "youtube", "видео", "ролик"]):
+            return {"type": "youtube_control", "action": "mute"}
+        # Fullscreen
+        if any(k in c for k in ["на весь экран", "полный экран", "разверни видео", "во весь экран", "полноэкранный"]):
+            return {"type": "youtube_control", "action": "fullscreen"}
+        # Next / Prev
+        if any(k in c for k in ["следующее видео", "следующий ролик", "включи следующее", "next video"]):
+            return {"type": "youtube_control", "action": "next"}
+        if any(k in c for k in ["предыдущее видео", "предыдущий ролик", "прошлое видео", "prev video"]):
+            return {"type": "youtube_control", "action": "prev"}
+        # Rewind / Fast-forward
+        if any(k in c for k in ["перемотай вперед", "перемотай вперёд", "на 10 секунд вперед", "на 10 секунд вперёд", "перемотай ролик вперед", "перемотай видео вперед"]):
+            return {"type": "youtube_control", "action": "seek_forward"}
+        if any(k in c for k in ["перемотай назад", "на 10 секунд назад", "перемотай ролик назад", "перемотай видео назад"]):
+            return {"type": "youtube_control", "action": "seek_backward"}
+        # Subtitles
+        if any(k in c for k in ["субтитры", "субтитров", "включи субтитры", "выключи субтитры"]):
+            return {"type": "youtube_control", "action": "subtitles"}
+        # Speed
+        if any(k in c for k in ["ускорь", "быстрее видео", "увеличь скорость", "ускорить видео"]):
+            return {"type": "youtube_control", "action": "speed_up"}
+        if any(k in c for k in ["замедли", "медленнее видео", "уменьши скорость", "замедлить видео"]):
+            return {"type": "youtube_control", "action": "speed_down"}
+
+    # 1.28 Specific Browser Tab Close ("закрой вкладку ютуб", "закрой ютуб в браузере", "закрой вкладку с вк")
+    m_close_tab = re.search(
+        r'(?:закрой|закрыть|прикрой|прикрыть)\s+(?:вкладку\s+(?:с\s+|в\s+)?|страницу\s+(?:с\s+|в\s+)?|сайт\s+)?([a-zA-Zа-яА-ЯёЁ0-9_\-\.]+)(?:\s+в\s+браузере)?',
+        c, re.IGNORECASE
+    )
+    if m_close_tab and any(k in c for k in ["вкладк", "страниц", "браузер", "ютуб", "youtube", "вк", "vk", "яндекс", "yandex", "гитхаб", "github", "почт"]):
+        matched_target = m_close_tab.group(1).lower().strip()
+        if matched_target not in ["все", "всё", "браузер", "вкладку", "страницу", "окно", "это", "эту"]:
+            return {"type": "close_specific_browser_tab", "target": matched_target}
+
     # 1.3 Browser Tab Close (только "закрой" = close, НЕ "смахни")
     if any(k in c for k in [
         "закрой все вкладки", "закрыть все вкладки", "закрой все вкладки браузера",
@@ -781,16 +927,19 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         return {"type": "close_all_browser_tabs"}
     if any(k in c for k in [
         "закрой вкладку", "закрыть вкладку", "закрой эту вкладку", "закрыть эту вкладку",
-        "прикрой вкладку",
+        "прикрой вкладку", "закрой текущую вкладку",
         "закрой страницу", "закрыть страницу", "close tab",
-        "закрой вкладку браузера", "закрыть вкладку браузера",
-        "закрой ютуб", "закрыть ютуб",
-        "закрой youtube", "закрыть youtube", "закрой саундклауд", "закрыть саундклауд",
-        "закрой soundcloud", "закрой вк", "закрыть вк"
+        "закрой вкладку браузера", "закрыть вкладку браузера"
     ]):
         return {"type": "close_browser_tab"}
     if any(k in c for k in ["новая вкладка", "новую вкладку", "открой вкладку", "открыть новую вкладку", "new tab"]):
         return {"type": "new_browser_tab"}
+    if any(k in c for k in [
+        "верни вкладку", "вернуть вкладку", "восстанови вкладку", "восстановить вкладку",
+        "открой закрытую вкладку", "открыть закрытую вкладку", "открой последнюю вкладку",
+        "reopen tab", "restore tab"
+    ]):
+        return {"type": "reopen_browser_tab"}
     if any(k in c for k in ["обнови страницу", "обновить страницу", "перезагрузи страницу", "обнови вкладку", "refresh page", "reload page"]):
         return {"type": "refresh_page"}
     if any(k in c for k in ["следующая вкладка", "следующую вкладку", "переключи вкладку", "переключить вкладку", "next tab"]):
@@ -800,6 +949,41 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
     if any(k in c for k in ["скролл вниз", "прокрути вниз", "прокрутить вниз", "листай вниз", "scroll down"]):
         return {"type": "scroll_page", "direction": "down"}
     if any(k in c for k in ["скролл вверх", "прокрути вверх", "прокрутить вверх", "листай вверх", "scroll up"]):
+        return {"type": "scroll_page", "direction": "up"}
+    if any(k in c for k in ["в самый верх", "вверх страницы", "в начало страницы", "скролл в начало"]):
+        return {"type": "scroll_browser_to", "position": "top"}
+    if any(k in c for k in ["в самый низ", "вниз страницы", "в конец страницы", "скролл в конец"]):
+        return {"type": "scroll_browser_to", "position": "bottom"}
+
+    # Browser search in page
+    if any(k in c for k in ["найди на странице", "поиск на странице", "найди в браузере", "поиск по странице", "найди на сайте", "find on page"]):
+        m_find = re.search(r'(?:найди\s+на\s+странице|поиск\s+на\s+странице|найди\s+в\s+браузере|поиск\s+по\s+странице|найди\s+на\s+сайте|find\s+on\s+page)\s*(.+)?', orig_c, re.IGNORECASE)
+        q_find = m_find.group(1).strip() if m_find and m_find.group(1) else ""
+        return {"type": "find_in_browser_page", "query": q_find}
+
+    # Browser zoom
+    if any(k in c for k in ["увеличь масштаб", "приблизь страницу", "крупнее текст в браузере", "zoom in"]):
+        return {"type": "zoom_browser_page", "direction": "in"}
+    if any(k in c for k in ["уменьши масштаб", "отдали страницу", "мельче текст в браузере", "zoom out"]):
+        return {"type": "zoom_browser_page", "direction": "out"}
+    if any(k in c for k in ["сбрось масштаб", "сбросить масштаб", "стандартный масштаб", "масштаб 100", "reset zoom"]):
+        return {"type": "zoom_browser_page", "direction": "reset"}
+
+    # Browser features (history, downloads, bookmarks, incognito)
+    if any(k in c for k in ["история браузера", "открой историю в браузере", "покажи историю браузера", "browser history"]):
+        return {"type": "open_browser_feature", "feature": "history"}
+    if any(k in c for k in ["загрузки в браузере", "открой загрузки браузера", "покажи загрузки в браузере", "browser downloads"]):
+        return {"type": "open_browser_feature", "feature": "downloads"}
+    if any(k in c for k in ["добавь в закладки", "добавить в закладки", "сохрани страницу в закладки", "сохрани в закладки", "bookmark page"]):
+        return {"type": "open_browser_feature", "feature": "bookmarks"}
+    if any(k in c for k in ["режим инкогнито", "открой инкогнито", "приватное окно", "приватный режим", "incognito"]):
+        return {"type": "open_browser_feature", "feature": "incognito"}
+
+    # Browser navigation back / forward
+    if any(k in c for k in ["страница назад", "назад в браузере", "вернись назад в браузере", "go back"]):
+        return {"type": "navigate_browser_history", "direction": "back"}
+    if any(k in c for k in ["страница вперед", "страница вперёд", "вперед в браузере", "вперёд в браузере", "go forward"]):
+        return {"type": "navigate_browser_history", "direction": "forward"}
         return {"type": "scroll_page", "direction": "up"}
 
     # 1.3 Click button / link / element on website or app, or press key
@@ -1034,8 +1218,15 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         music_service = "soundcloud"
     elif any(k in c for k in ["вк музык", "vk music", "музык вк", "музыку вк"]):
         music_service = "vk"
-    elif any(k in c for k in ["ютуб музык", "youtube music"]):
+    elif any(k in c for k in ["ютуб", "ютубе", "ютуби", "youtube"]):
         music_service = "youtube"
+
+    # If YouTube was explicitly requested for music / video, use extract_youtube_query directly
+    if music_service == "youtube":
+        yt_q = extract_youtube_query(orig_c)
+        if yt_q:
+            return {"type": "search_web", "query": yt_q, "engine": "youtube", "is_play": True}
+        return {"type": "open_url", "url": "https://www.youtube.com"}
 
     # Playlists: "включи плейлист рок", "выбери плейлист для тренировок в спотифай"
     if any(k in c for k in ["плейлист", "playlist"]):
@@ -1045,6 +1236,8 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
             pl_name = m_pl.group(1).strip()
             pl_name = re.sub(r'\b(?:в|на)\s+(?:спотифа[еяй]|spotify|яндекс[е]?\s*(?:музык[еау])?|саундклауд[е]?|soundcloud|вк|vk|ютуб[е]?|youtube)\b', '', pl_name, flags=re.IGNORECASE).strip()
             pl_name = pl_name.strip('"\'«»')
+        if music_service == "youtube":
+            return {"type": "search_web", "query": pl_name or "плейлист", "engine": "youtube", "is_play": True}
         return {"type": "play_music", "service": music_service, "playlist": pl_name, "action": "play"}
 
     # Specific track / song request: "включи песню ...", "включи трек ...", "поставь песню ..."
@@ -1054,6 +1247,8 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         track_query = re.sub(r'\b(?:в|на)\s+(?:спотифа[еяй]|spotify|яндекс[е]?\s*(?:музык[еау])?|саундклауд[е]?|soundcloud|вк|vk|ютуб[е]?|youtube)\b', '', track_query, flags=re.IGNORECASE).strip()
         track_query = track_query.strip('"\'«»')
         if track_query and track_query not in ["спотифай", "spotify", "яндекс музыка", "саундклауд", "soundcloud"]:
+            if music_service == "youtube":
+                return {"type": "search_web", "query": track_query, "engine": "youtube", "is_play": True}
             return {"type": "play_music", "service": music_service, "query": track_query, "action": "play"}
 
     # Explicit service search: e.g. "включи рамштайн в спотифай" or "поставь фонк в саундклауд"
@@ -1062,8 +1257,12 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         clean_q = re.sub(r'\b(?:в|на)?\s*(?:спотифа[еяй]|spotify|яндекс[е]?\s*(?:музык[еау])?|саундклауд[е]?|soundcloud|вк|vk|ютуб[е]?|youtube)\b', '', clean_q, flags=re.IGNORECASE).strip()
         clean_q = clean_q.strip('"\'«»')
         if clean_q and len(clean_q) > 1:
+            if music_service == "youtube":
+                return {"type": "search_web", "query": clean_q, "engine": "youtube", "is_play": True}
             return {"type": "play_music", "service": music_service, "query": clean_q, "action": "play"}
         else:
+            if music_service == "youtube":
+                return {"type": "open_url", "url": "https://www.youtube.com"}
             return {"type": "play_music", "service": music_service, "action": "play"}
 
     # Direct service open / launch: "открой спотифай", "включи спотифай", "открой яндекс музыку"
@@ -1144,11 +1343,13 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         return {"type": "open_url", "url": "https://reddit.com"}
 
     # 12. Web Searches across Popular Platforms (YouTube, Google, Yandex, Wildberries, Ozon, Avito, GitHub)
-    if any(k in c for k in ["ютуб", "youtube"]) and not any(k in c for k in ["закрой", "закрыть", "close", "выключи", "заверши", "адресн", "строк", "ссылк", "вставить", "напечатай в"]):
-        q = re.sub(r'\b(ютубе|ютуб|youtube)\b', '', c, flags=re.IGNORECASE)
-        q = re.sub(r'^(?:открой|открыть|перейди|зайди|включи|включить|найди|найти|поищи|поискать|покажи|показать|напиши|напечатай|введи|вбей|продиктуй|поиск|в\s+поиске|и\s+найди|и\s+поищи|и|в|на|\s+)+', '', q, flags=re.IGNORECASE).strip()
-        if q and len(q) > 1:
-            return {"type": "search_web", "query": q, "engine": "youtube"}
+    if any(k in c for k in ["ютуб", "youtube", "ютубе", "ютуби"]) and not any(k in c for k in ["закрой", "закрыть", "close", "выключи", "заверши", "адресн", "строк", "ссылк", "вставить", "напечатай в"]):
+        q = extract_youtube_query(orig_c)
+        if q:
+            is_play = any(verb in c for verb in ["включи", "поставь", "запусти", "вруби", "сыграй", "послушай", "play"])
+            if any(k in c for k in ["ютуб музык", "youtube music"]):
+                return {"type": "play_music", "service": "youtube", "query": q, "action": "play"}
+            return {"type": "search_web", "query": q, "engine": "youtube", "is_play": is_play}
         return {"type": "open_url", "url": "https://www.youtube.com"}
 
     if any(k in c for k in ["яндекс", "yandex"]):

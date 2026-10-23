@@ -2172,9 +2172,326 @@ def minimize_all_windows() -> bool:
 
     return False
 
-# ─── BROWSER TAB & WEBSITE INTERACTION ────────────────────────────
+# ─── BROWSER & YOUTUBE DEEP INTERACTION ────────────────────────────
+def activate_browser(browser_preference: Optional[str] = None) -> bool:
+    """Brings any running browser (Chrome, Edge, Yandex, Brave, Safari, Firefox, Opera) to the foreground."""
+    browsers = ["chrome", "edge", "yandex", "brave", "safari", "firefox", "opera", "browser"]
+    if browser_preference:
+        browsers.insert(0, browser_preference.lower())
+
+    if sys.platform == "darwin":
+        script = '''
+        tell application "System Events"
+            set runningApps to (every application process whose name is in {"Google Chrome", "Safari", "Brave Browser", "Microsoft Edge", "Firefox", "Opera", "Yandex"})
+            if (count of runningApps) > 0 then
+                set frontmost of (item 1 of runningApps) to true
+                return true
+            end if
+        end tell
+        '''
+        try:
+            res = subprocess.run(["osascript", "-e", script], capture_output=True, timeout=2, text=True)
+            if "true" in res.stdout.lower():
+                return True
+        except Exception:
+            pass
+
+    for b in browsers:
+        if activate_running_window(b):
+            time.sleep(0.12)
+            return True
+    return False
+
+def activate_youtube_window() -> bool:
+    """Finds and brings any window or tab with 'YouTube' in title to the foreground, or active browser."""
+    if sys.platform == "darwin":
+        script = '''
+        tell application "System Events"
+            set isChrome to (count of (every process whose name is "Google Chrome")) > 0
+            set isSafari to (count of (every process whose name is "Safari")) > 0
+            set isBrave to (count of (every process whose name is "Brave Browser")) > 0
+            set isEdge to (count of (every process whose name is "Microsoft Edge")) > 0
+        end tell
+        if isChrome then
+            tell application "Google Chrome"
+                repeat with w in windows
+                    set idx to 1
+                    repeat with t in tabs of w
+                        if URL of t contains "youtube.com" then
+                            set active tab index of w to idx
+                            set index of w to 1
+                            activate
+                            return true
+                        end if
+                        set idx to idx + 1
+                    end repeat
+                end repeat
+            end tell
+        end if
+        if isSafari then
+            tell application "Safari"
+                repeat with w in windows
+                    repeat with t in tabs of w
+                        if URL of t contains "youtube.com" then
+                            set current tab of w to t
+                            set index of w to 1
+                            activate
+                            return true
+                        end if
+                    end repeat
+                end repeat
+            end tell
+        end if
+        return false
+        '''
+        try:
+            res = subprocess.run(["osascript", "-e", script], capture_output=True, timeout=3, text=True)
+            if "true" in res.stdout.lower():
+                return True
+        except Exception:
+            pass
+        return activate_browser()
+
+    # Windows implementation
+    try:
+        hDesk = ctypes.windll.user32.OpenInputDesktop(0, False, 0x01FF)
+        if hDesk:
+            ctypes.windll.user32.SetThreadDesktop(hDesk)
+    except Exception:
+        pass
+
+    try:
+        import win32gui
+        found_yt = []
+        found_browsers = []
+        def cb(hwnd, _):
+            if win32gui.IsWindowVisible(hwnd):
+                title = win32gui.GetWindowText(hwnd).lower()
+                if "youtube" in title:
+                    found_yt.append(hwnd)
+                elif any(b in title for b in ["chrome", "edge", "yandex", "brave", "firefox", "opera"]):
+                    found_browsers.append(hwnd)
+        win32gui.EnumWindows(cb, None)
+        target = found_yt[0] if found_yt else (found_browsers[0] if found_browsers else None)
+        if target:
+            ctypes.windll.user32.ShowWindow(target, 9)
+            ctypes.windll.user32.SetForegroundWindow(target)
+            time.sleep(0.12)
+            return True
+    except Exception:
+        pass
+    return activate_browser()
+
+def youtube_control(action: str) -> bool:
+    """
+    Direct in-browser YouTube control on Windows and macOS:
+    - play_pause (k / Space)
+    - mute (m)
+    - fullscreen (f)
+    - next (Shift+N)
+    - prev (Shift+P)
+    - seek_forward (l / Right)
+    - seek_backward (j / Left)
+    - speed_up (Shift+>)
+    - speed_down (Shift+<)
+    - subtitles (c)
+    """
+    act = action.lower().strip()
+    
+    if sys.platform == "darwin":
+        key_char = "k"
+        use_shift = False
+        if act in ["play_pause", "pause", "play", "toggle"]:
+            key_char = "k"
+        elif act in ["mute", "unmute", "sound"]:
+            key_char = "m"
+        elif act in ["fullscreen", "screen"]:
+            key_char = "f"
+        elif act in ["next"]:
+            key_char = "N"
+            use_shift = True
+        elif act in ["prev", "previous"]:
+            key_char = "P"
+            use_shift = True
+        elif act in ["seek_forward", "forward"]:
+            key_char = "l"
+        elif act in ["seek_backward", "backward", "rewind"]:
+            key_char = "j"
+        elif act in ["subtitles", "captions"]:
+            key_char = "c"
+        elif act in ["speed_up"]:
+            key_char = ">"
+            use_shift = True
+        elif act in ["speed_down"]:
+            key_char = "<"
+            use_shift = True
+
+        shift_str = "using {shift down}" if use_shift else ""
+        script = f'''
+        tell application "Google Chrome"
+            repeat with w in windows
+                set idx to 1
+                repeat with t in tabs of w
+                    if URL of t contains "youtube.com" then
+                        set active tab index of w to idx
+                        set index of w to 1
+                        activate
+                        tell application "System Events" to keystroke "{key_char.lower()}" {shift_str}
+                        return true
+                    end if
+                    set idx to idx + 1
+                end repeat
+            end repeat
+        end tell
+        tell application "Safari"
+            repeat with w in windows
+                repeat with t in tabs of w
+                    if URL of t contains "youtube.com" then
+                        set current tab of w to t
+                        set index of w to 1
+                        activate
+                        tell application "System Events" to keystroke "{key_char.lower()}" {shift_str}
+                        return true
+                    end if
+                end repeat
+            end repeat
+        end tell
+        tell application "System Events"
+            keystroke "{key_char.lower()}" {shift_str}
+        end tell
+        '''
+        try:
+            subprocess.run(["osascript", "-e", script], capture_output=True, timeout=3)
+            return True
+        except Exception as e:
+            print("macOS youtube_control error:", e)
+
+    # Windows implementation:
+    activate_youtube_window()
+    time.sleep(0.1)
+
+    try:
+        if act in ["play_pause", "pause", "play", "toggle"]:
+            press_key("k")
+        elif act in ["mute", "unmute", "sound"]:
+            press_key("m")
+        elif act in ["fullscreen", "screen"]:
+            press_key("f")
+        elif act in ["next"]:
+            send_hotkey("shift", "n")
+        elif act in ["prev", "previous"]:
+            send_hotkey("shift", "p")
+        elif act in ["seek_forward", "forward"]:
+            press_key("l")
+        elif act in ["seek_backward", "backward", "rewind"]:
+            press_key("j")
+        elif act in ["subtitles", "captions"]:
+            press_key("c")
+        elif act in ["speed_up"]:
+            send_hotkey("shift", ">")
+        elif act in ["speed_down"]:
+            send_hotkey("shift", "<")
+        return True
+    except Exception as e:
+        print("Windows youtube_control error:", e)
+        return False
+
+def close_specific_browser_tab(target_query: str) -> bool:
+    """
+    Finds and closes browser tab matching a website name or URL (e.g. 'youtube', 'vk', 'yandex').
+    Works across Google Chrome, Safari, Brave, Edge on Windows and macOS.
+    """
+    if not target_query:
+        activate_browser()
+        return close_browser_tab()
+    q = target_query.lower().strip()
+    
+    target_domains = {
+        "ютуб": "youtube", "ютубе": "youtube", "ютуби": "youtube", "youtube": "youtube",
+        "вк": "vk", "вконтакте": "vk", "vk": "vk",
+        "яндекс": "yandex", "yandex": "yandex",
+        "телеграм": "telegram", "телега": "telegram", "тг": "telegram",
+        "гитхаб": "github", "github": "github",
+        "почта": "mail", "почту": "mail", "mail": "mail", "gmail": "gmail",
+        "озон": "ozon", "ozon": "ozon",
+        "вайлдберриз": "wildberries", "вб": "wildberries", "wildberries": "wildberries",
+        "дискорд": "discord", "discord": "discord"
+    }
+    match_term = target_domains.get(q, q)
+
+    if sys.platform == "darwin":
+        script = f'''
+        set foundTab to false
+        tell application "System Events"
+            set isChromeRunning to (count of (every process whose name is "Google Chrome")) > 0
+            set isSafariRunning to (count of (every process whose name is "Safari")) > 0
+            set isBraveRunning to (count of (every process whose name is "Brave Browser")) > 0
+            set isEdgeRunning to (count of (every process whose name is "Microsoft Edge")) > 0
+        end tell
+        if isChromeRunning then
+            tell application "Google Chrome"
+                repeat with w in windows
+                    repeat with t in (tabs of w as list)
+                        if (URL of t contains "{match_term}") or (title of t contains "{q}") or (title of t contains "{match_term}") then
+                            close t
+                            set foundTab to true
+                        end if
+                    end repeat
+                end repeat
+            end tell
+        end if
+        if isSafariRunning then
+            tell application "Safari"
+                repeat with w in windows
+                    repeat with t in (tabs of w as list)
+                        if (URL of t contains "{match_term}") or (name of t contains "{q}") or (name of t contains "{match_term}") then
+                            close t
+                            set foundTab to true
+                        end if
+                    end repeat
+                end repeat
+            end tell
+        end if
+        return foundTab
+        '''
+        try:
+            res = subprocess.run(["osascript", "-e", script], capture_output=True, timeout=3, text=True)
+            if "true" in res.stdout.lower():
+                return True
+        except Exception as e:
+            print("macOS close_specific_browser_tab error:", e)
+
+    # Windows:
+    try:
+        hDesk = ctypes.windll.user32.OpenInputDesktop(0, False, 0x01FF)
+        if hDesk:
+            ctypes.windll.user32.SetThreadDesktop(hDesk)
+        import win32gui
+        matched_hwnds = []
+        def cb(hwnd, _):
+            if win32gui.IsWindowVisible(hwnd):
+                title = win32gui.GetWindowText(hwnd).lower()
+                if match_term in title or q in title:
+                    matched_hwnds.append(hwnd)
+        win32gui.EnumWindows(cb, None)
+        if matched_hwnds:
+            for h in matched_hwnds:
+                ctypes.windll.user32.ShowWindow(h, 9)
+                ctypes.windll.user32.SetForegroundWindow(h)
+                time.sleep(0.12)
+                send_hotkey("ctrl", "w")
+            return True
+    except Exception as e:
+        print("Windows close_specific_browser_tab error:", e)
+
+    activate_browser()
+    time.sleep(0.1)
+    return close_browser_tab()
+
 def close_browser_tab() -> bool:
     """Closes active browser tab (Cmd+W on macOS, Ctrl+W on Windows/Linux)."""
+    activate_browser()
+    time.sleep(0.1)
     if sys.platform == "darwin":
         try:
             script = 'tell application "System Events" to keystroke "w" using {command down}'
@@ -2192,6 +2509,8 @@ def close_browser_tab() -> bool:
 
 def close_all_browser_tabs() -> bool:
     """Closes all browser tabs / browser window (Cmd+Shift+W on macOS, Ctrl+Shift+W on Windows/Linux)."""
+    activate_browser()
+    time.sleep(0.1)
     if sys.platform == "darwin":
         try:
             script = 'tell application "System Events" to keystroke "w" using {command down, shift down}'
@@ -2209,6 +2528,8 @@ def close_all_browser_tabs() -> bool:
 
 def new_browser_tab() -> bool:
     """Opens a new browser tab (Cmd+T on macOS, Ctrl+T on Windows/Linux)."""
+    activate_browser()
+    time.sleep(0.1)
     if sys.platform == "darwin":
         try:
             script = 'tell application "System Events" to keystroke "t" using {command down}'
@@ -2224,8 +2545,16 @@ def new_browser_tab() -> bool:
             pass
     return False
 
+def reopen_browser_tab() -> bool:
+    """Reopens last closed tab (Cmd+Shift+T on macOS, Ctrl+Shift+T on Windows/Linux)."""
+    activate_browser()
+    time.sleep(0.1)
+    return send_hotkey("ctrl", "shift", "t")
+
 def refresh_browser_page() -> bool:
     """Refreshes the current web page (Cmd+R on macOS, F5 / Ctrl+R on Windows/Linux)."""
+    activate_browser()
+    time.sleep(0.1)
     if sys.platform == "darwin":
         try:
             script = 'tell application "System Events" to keystroke "r" using {command down}'
@@ -2243,9 +2572,10 @@ def refresh_browser_page() -> bool:
 
 def switch_browser_tab(direction: str = "next") -> bool:
     """Switches to next or previous browser tab."""
+    activate_browser()
+    time.sleep(0.1)
     if sys.platform == "darwin":
         try:
-            # Safari / Chrome tab switching: Cmd+Shift+[ and Cmd+Shift+]
             key_char = "{" if direction == "prev" else "}"
             script = f'tell application "System Events" to keystroke "{key_char}" using {{command down, shift down}}'
             subprocess.run(["osascript", "-e", script], capture_output=True, timeout=2)
@@ -2265,9 +2595,10 @@ def switch_browser_tab(direction: str = "next") -> bool:
 
 def scroll_browser_page(direction: str = "down") -> bool:
     """Scrolls active page up or down."""
+    activate_browser()
+    time.sleep(0.1)
     if sys.platform == "darwin":
         try:
-            # AppleScript Page Down (code 121) / Page Up (code 116) or Down/Up keys
             code = 121 if direction == "down" else 116
             subprocess.run(["osascript", "-e", f'tell application "System Events" to key code {code}'], capture_output=True, timeout=2)
             return True
@@ -2280,6 +2611,65 @@ def scroll_browser_page(direction: str = "down") -> bool:
             return True
         except Exception:
             pass
+    return False
+
+def scroll_browser_to(position: str = "top") -> bool:
+    """Scrolls active page to top (Home / Cmd+Up) or bottom (End / Cmd+Down)."""
+    activate_browser()
+    time.sleep(0.1)
+    if sys.platform == "darwin":
+        return send_hotkey("cmd", "up") if position == "top" else send_hotkey("cmd", "down")
+    else:
+        return press_key("home") if position == "top" else press_key("end")
+
+def find_in_browser_page(query: str = "") -> bool:
+    """Opens browser search bar (Ctrl+F / Cmd+F) and optionally searches for text."""
+    activate_browser()
+    time.sleep(0.1)
+    ok = send_hotkey("ctrl", "f")
+    if query and ok:
+        time.sleep(0.15)
+        type_text(query)
+        time.sleep(0.1)
+        press_key("enter")
+    return ok
+
+def zoom_browser_page(direction: str = "in") -> bool:
+    """Zooms page in (Ctrl++), out (Ctrl+-), or resets (Ctrl+0)."""
+    activate_browser()
+    time.sleep(0.1)
+    if direction == "in":
+        return send_hotkey("ctrl", "=") or send_hotkey("ctrl", "+")
+    elif direction == "out":
+        return send_hotkey("ctrl", "-")
+    elif direction in ["reset", "normal"]:
+        return send_hotkey("ctrl", "0")
+    return False
+
+def navigate_browser_history(direction: str = "back") -> bool:
+    """Goes back or forward in browser history (Alt+Left / Alt+Right or Cmd+[ / Cmd+])."""
+    activate_browser()
+    time.sleep(0.1)
+    if sys.platform == "darwin":
+        key = "[" if direction == "back" else "]"
+        return send_hotkey("cmd", key)
+    else:
+        arrow = "left" if direction == "back" else "right"
+        return send_hotkey("alt", arrow)
+
+def open_browser_feature(feature: str) -> bool:
+    """Opens browser history, downloads, bookmarks, or incognito mode."""
+    activate_browser()
+    time.sleep(0.1)
+    feat = feature.lower().strip()
+    if feat == "history":
+        return send_hotkey("ctrl", "h")
+    elif feat == "downloads":
+        return send_hotkey("ctrl", "j")
+    elif feat == "bookmarks":
+        return send_hotkey("ctrl", "d")
+    elif feat == "incognito":
+        return send_hotkey("ctrl", "shift", "n")
     return False
 
 def click_website_button(button_name: str) -> bool:
