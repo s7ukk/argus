@@ -601,7 +601,22 @@ def execute_single_action(act: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]
         res = sc.play_music(service=service, query=query, playlist=playlist, action=m_act)
         return res["message"], "play_music", res
 
-    elif act_type in ["create_timer", "create_task", "create_note"]:
+    elif act_type in [
+        "create_timer", "delete_timer", "create_task", "delete_task",
+        "complete_task", "create_note", "delete_note", "list_tasks",
+        "list_notes", "list_timers", "search_notes"
+    ]:
+        try:
+            if act_type == "delete_task":
+                extras_mgr.delete_task(act.get("title", ""))
+            elif act_type == "complete_task":
+                extras_mgr.complete_task(act.get("title", ""))
+            elif act_type == "delete_note":
+                extras_mgr.delete_note(act.get("title", ""))
+            elif act_type == "delete_timer":
+                extras_mgr.delete_timer(act.get("title", "all"))
+        except Exception:
+            pass
         msg = act.get("message", "Действие успешно выполнено, сэр.")
         return msg, act_type, act
 
@@ -889,7 +904,6 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         clean_label = re.sub(r'^(?:на|чтобы|для|сделать|выполнить)\s+', '', task_label, flags=re.IGNORECASE).strip()
         title_disp = clean_label.capitalize() if clean_label else "Таймер"
         try:
-            import backend.extras_manager as extras_mgr
             extras_mgr.add_timer(title_disp, secs)
         except Exception:
             pass
@@ -914,7 +928,6 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         clean_label = re.sub(r'^(?:на|чтобы|для|сделать|выполнить)\s+', '', task_label, flags=re.IGNORECASE).strip()
         title_disp = clean_label.capitalize() if clean_label else "Напоминание"
         try:
-            import backend.extras_manager as extras_mgr
             extras_mgr.add_timer(title_disp, secs)
         except Exception:
             pass
@@ -933,8 +946,7 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         if clean_t:
             title_disp = clean_t.capitalize()
             try:
-                import backend.extras_manager as extras_mgr
-                extras_mgr.add_task(title_disp)
+                    extras_mgr.add_task(title_disp)
             except Exception:
                 pass
             msg = f"Задача «{title_disp}» успешно добавлена в меню Дополнительно, сэр."
@@ -950,12 +962,119 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         if raw_note:
             title_disp = raw_note.capitalize()
             try:
-                import backend.extras_manager as extras_mgr
-                extras_mgr.add_note(title_disp, raw_note)
+                    extras_mgr.add_note(title_disp, raw_note)
             except Exception:
                 pass
             msg = f"Заметка «{title_disp}» успешно сохранена в меню Дополнительно, сэр."
             return {"type": "create_note", "title": title_disp, "content": raw_note, "message": msg}
+
+    # Task completion e.g. "выполнил задачу сделать дз", "заверши задачу сделать дз", "отметь задачу сделать дз выполненной", "сделал задачу ..."
+    m_comp_task = re.match(
+        r'^(?:выполнил|выполнена|заверши|завершил|отметь(?:\s+как)?(?:\s+выполненн\w*)?|сделал)\s+(?:задачу|задание)\s+(.*)$',
+        c, re.IGNORECASE
+    )
+    if m_comp_task:
+        target_t = m_comp_task.group(1).strip()
+        target_t = re.sub(r'^(?:как\s+)?(?:выполненн\w*|сделанн\w*)\s*', '', target_t, flags=re.IGNORECASE).strip()
+        target_t = re.sub(r'\s+(?:как\s+)?(?:выполненн\w*|сделанн\w*)$', '', target_t, flags=re.IGNORECASE).strip()
+        ok, found = extras_mgr.complete_task(target_t)
+        t_name = found.get("title") if found else target_t.capitalize()
+        msg = f"Задача «{t_name}» успешно отмечена как выполненная, сэр." if ok else f"Задача «{target_t}» не найдена в списке, сэр."
+        return {"type": "complete_task", "title": target_t, "message": msg}
+
+    # Task deletion e.g. "удали задачу сделать дз", "удали из задач сделать дз", "стереть задачу ..."
+    m_del_task = re.match(
+        r'^(?:удали|удалить|сотри|стереть|убери|убрать)\s+(?:из\s+задач\s+|задачу\s+)(.*)$',
+        c, re.IGNORECASE
+    )
+    if m_del_task:
+        target_t = m_del_task.group(1).strip()
+        ok, found = extras_mgr.delete_task(target_t)
+        t_name = found.get("title") if found else target_t.capitalize()
+        msg = f"Задача «{t_name}» успешно удалена из вашего списка задач, сэр." if ok else f"Задача «{target_t}» не найдена в вашем списке задач, сэр."
+        return {"type": "delete_task", "title": target_t, "message": msg}
+
+    # Note deletion e.g. "удали заметку про роутер", "удали из заметок пароль", "сотри заметку ..."
+    m_del_note = re.match(
+        r'^(?:удали|удалить|сотри|стереть|убери|убрать)\s+(?:из\s+заметок\s+|заметку\s+)(.*)$',
+        c, re.IGNORECASE
+    )
+    if m_del_note:
+        target_n = m_del_note.group(1).strip()
+        ok, found = extras_mgr.delete_note(target_n)
+        n_name = found.get("title") if found else target_n.capitalize()
+        msg = f"Заметка «{n_name}» успешно удалена, сэр." if ok else f"Заметка «{target_n}» не найдена, сэр."
+        return {"type": "delete_note", "title": target_n, "message": msg}
+
+    # Timer deletion e.g. "удали таймер", "останови таймер", "отмени таймер", "выключи таймер", "сбрось таймер"
+    m_del_timer = re.match(
+        r'^(?:удали|удалить|останови|остановить|отмени|отменить|выключи|выключить|сбрось|сбросить)\s+(?:все\s+)?таймер\w*(?:\s+(.*))?$',
+        c, re.IGNORECASE
+    )
+    if m_del_timer:
+        target_tm = (m_del_timer.group(1) or "all").strip()
+        ok, found = extras_mgr.delete_timer(target_tm)
+        msg = "Таймер успешно остановлен и удалён, сэр." if ok else "Активный таймер не найден, сэр."
+        return {"type": "delete_timer", "title": target_tm, "message": msg}
+
+    # List tasks e.g. "покажи задачи", "какие задачи", "список задач", "что по задачам"
+    if any(k == c or c.startswith(k) for k in [
+        "покажи задачи", "какие задачи", "какие у меня задачи", "список задач",
+        "мои задачи", "что по задачам", "посмотреть задачи"
+    ]):
+        data = extras_mgr.load_extras_data()
+        tasks = data.get("tasks", [])
+        if not tasks:
+            msg = "У вас пока нет сохранённых задач, сэр."
+        else:
+            lines = [f"• {'[✓]' if t.get('completed') else '[ ]'} {t.get('title')}" for t in tasks[:8]]
+            msg = "Ваши текущие задачи, сэр:\n" + "\n".join(lines)
+        return {"type": "list_tasks", "message": msg}
+
+    # Smart Search / Questions about personal notes (checked before generic listing):
+    # e.g. "что в заметках про проект", "найди в заметках пароль", "какой пароль от роутера", "где мои ключи", "что я записал про..."
+    m_search_note = re.match(
+        r'^(?:найди|поищи|что|подскажи|скажи)?\s*(?:у\s+меня\s+)?(?:в\s+заметках\s+|в\s+моих\s+заметках\s+)(?:про\s+|о\s+|по\s+поводу\s+)?(.+)$',
+        c, re.IGNORECASE
+    )
+    is_personal_q = bool(m_search_note and m_search_note.group(1).strip()) or any(c.startswith(k) for k in ["какой пароль", "где мои", "где мой", "когда др", "когда день рождения", "что я записал"])
+    if is_personal_q:
+        q_target = m_search_note.group(1).strip() if (m_search_note and m_search_note.group(1).strip()) else c
+        matches = extras_mgr.search_notes(q_target)
+        if matches:
+            best = matches[0]
+            msg = f"Судя по вашей заметке «{best.get('title')}», сэр:\n{best.get('content')}"
+            return {"type": "search_notes", "query": q_target, "message": msg}
+        elif m_search_note:
+            msg = f"В ваших заметках не найдено информации по запросу «{q_target}», сэр."
+            return {"type": "search_notes", "query": q_target, "message": msg}
+
+    # List notes e.g. "покажи заметки", "какие заметки", "список заметок"
+    if any(k == c or c.startswith(k + " ") for k in [
+        "покажи заметки", "какие заметки", "какие у меня заметки", "список заметок",
+        "мои заметки", "что в заметках", "посмотреть заметки", "все заметки"
+    ]) and not is_personal_q:
+        data = extras_mgr.load_extras_data()
+        notes = data.get("notes", [])
+        if not notes:
+            msg = "В ваших заметках пока пусто, сэр."
+        else:
+            lines = [f"• «{n.get('title')}»: {n.get('content')[:60]}" for n in notes[:8]]
+            msg = "Ваши сохранённые заметки, сэр:\n" + "\n".join(lines)
+        return {"type": "list_notes", "message": msg}
+
+    # List timers e.g. "покажи таймеры", "активные таймеры"
+    if any(k == c or c.startswith(k + " ") for k in [
+        "покажи таймеры", "какие таймеры", "активные таймеры", "список таймеров"
+    ]):
+        data = extras_mgr.load_extras_data()
+        timers = [t for t in data.get("timers", []) if t.get("is_running") and t.get("remaining_seconds", 0) > 0]
+        if not timers:
+            msg = "Сейчас нет активных таймеров, сэр."
+        else:
+            lines = [f"• «{t.get('title')}»: осталось {t.get('remaining_seconds')} сек." for t in timers]
+            msg = "Активные таймеры, сэр:\n" + "\n".join(lines)
+        return {"type": "list_timers", "message": msg}
 
     # 1. Screenshot / Screen capture with folder detection
     if any(k in c for k in [
@@ -2148,7 +2267,7 @@ def local_multi_action_planner(user_text: str) -> List[Dict[str, Any]]:
     """
     # 0. If user_text directly maps to a unified action (e.g. messenger_send), execute directly without splitting
     single_act = parse_single_clause(user_text)
-    if single_act and single_act.get("type") in ["messenger_send", "type_text", "search_web", "clarify", "browser_choice", "terminal_command", "play_music", "create_timer", "create_task", "create_note"]:
+    if single_act and single_act.get("type") in ["messenger_send", "type_text", "search_web", "clarify", "browser_choice", "terminal_command", "play_music", "create_timer", "delete_timer", "create_task", "delete_task", "complete_task", "create_note", "delete_note", "list_tasks", "list_notes", "list_timers", "search_notes"]:
         return [single_act]
 
     # 1. Normalize verb boundaries to avoid missing clauses without punctuation

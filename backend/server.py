@@ -841,6 +841,31 @@ async def add_timer_endpoint(payload: Dict[str, Any]):
     timer = extras_mgr.add_timer(title, seconds)
     return {"success": True, "timer": timer}
 
+@app.delete("/api/extras/task/{task_id}")
+async def delete_task_endpoint(task_id: str):
+    ok, task = extras_mgr.delete_task(task_id)
+    return {"success": ok, "task": task}
+
+@app.post("/api/extras/task/{task_id}/complete")
+async def complete_task_endpoint(task_id: str):
+    ok, task = extras_mgr.complete_task(task_id)
+    return {"success": ok, "task": task}
+
+@app.delete("/api/extras/note/{note_id}")
+async def delete_note_endpoint(note_id: str):
+    ok, note = extras_mgr.delete_note(note_id)
+    return {"success": ok, "note": note}
+
+@app.delete("/api/extras/timer/{timer_id}")
+async def delete_timer_endpoint(timer_id: str):
+    ok, timer = extras_mgr.delete_timer(timer_id)
+    return {"success": ok, "timer": timer}
+
+@app.get("/api/extras/search-notes")
+async def search_notes_endpoint(q: str = Query(..., alias="q")):
+    matches = extras_mgr.search_notes(q)
+    return {"success": True, "matches": matches}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("backend.server:app", host="127.0.0.1", port=18274, reload=False)

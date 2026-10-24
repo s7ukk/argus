@@ -147,7 +147,14 @@ def build_system_prompt(user_name: str, os_name: str, memory_summary: str = "") 
         "   - lock_pc: {\"type\": \"lock_pc\"}\n"
         "   - system_stats: {\"type\": \"system_stats\"}\n"
         "   - terminal_command: {\"type\": \"terminal_command\", \"command\": \"...\", \"shell\": \"powershell\" | \"bash\"}\n"
-        "   - messenger_send: {\"type\": \"messenger_send\", \"messenger\": \"telegram\" | \"discord\" | \"whatsapp\" | \"auto\", \"contact\": \"имя\", \"message\": \"текст\"}\n\n"
+        "   - messenger_send: {\"type\": \"messenger_send\", \"messenger\": \"telegram\" | \"discord\" | \"whatsapp\" | \"auto\", \"contact\": \"имя\", \"message\": \"текст\"}\n"
+        "   - create_timer: {\"type\": \"create_timer\", \"title\": \"название\", \"seconds\": 420}\n"
+        "   - delete_timer: {\"type\": \"delete_timer\", \"title\": \"название\" | \"all\"}\n"
+        "   - create_task: {\"type\": \"create_task\", \"title\": \"название задачи\", \"category\": \"учёба\" | \"работа\" | \"личное\"}\n"
+        "   - delete_task: {\"type\": \"delete_task\", \"title\": \"название задачи\"}\n"
+        "   - complete_task: {\"type\": \"complete_task\", \"title\": \"название задачи\"}\n"
+        "   - create_note: {\"type\": \"create_note\", \"title\": \"заголовок\", \"content\": \"содержимое\"}\n"
+        "   - delete_note: {\"type\": \"delete_note\", \"title\": \"заголовок\"}\n\n"
         "4. ДЕЙСТВИЯ С ВКЛАДКАМИ И ОКНАМИ:\n"
         "   - Для закрытия одной вкладки используй action: 'close_browser_tab' (или browser_tab с action: 'close').\n"
         "   - Для закрытия всех вкладок используй action: 'close_all_browser_tabs'.\n"
@@ -184,6 +191,17 @@ def query_openrouter(
         mem_summary = user_memory.get_memory_summary()
     except Exception:
         mem_summary = ""
+
+    try:
+        try:
+            import backend.extras_manager as em
+        except ImportError:
+            import extras_manager as em
+        extras_ctx = em.format_notes_context_for_ai()
+        if extras_ctx:
+            mem_summary = (mem_summary + "\n\n" + extras_ctx).strip()
+    except Exception:
+        pass
 
     sys_prompt = system_override or build_system_prompt(user_name, os_name, memory_summary=mem_summary)
 

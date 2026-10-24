@@ -414,7 +414,7 @@ export const App: React.FC = () => {
         }
       }
 
-      if (['create_timer', 'create_task', 'create_note'].includes(res.action_type || '')) {
+      if (['create_timer', 'delete_timer', 'create_task', 'delete_task', 'complete_task', 'create_note', 'delete_note'].includes(res.action_type || '')) {
         window.dispatchEvent(new CustomEvent('argus_extras_updated'));
       }
     } catch (err: any) {

@@ -83,9 +83,6 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
   const [timerMinutes, setTimerMinutes] = useState('7');
   const [timerSeconds, setTimerSeconds] = useState('0');
 
-  // Alert Modal state when a timer completes
-  const [alarmModalTimer, setAlarmModalTimer] = useState<string | null>(null);
-
   // Sound chime synthesizer via Web Audio API
   const playAlarmSound = () => {
     try {
@@ -115,30 +112,69 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
     }
   };
 
-  // Immediate Voice Speech Alert
+  // Immediate Voice Speech Alert using user's chosen voice & speed
   const speakVoiceAlert = async (title: string) => {
     const phrase = `Время вышло, сэр! Пора выполнять: ${title}.`;
+    
+    // Read user's chosen voice and speed from settings
+    let selectedVoice = 'ru-RU-DmitryNeural';
+    let speedVal = 1.0;
+    let provider = 'edge-tts';
+    let fishKey = '';
+    let fishModel = '';
+    try {
+      const sStr = localStorage.getItem('argus_settings');
+      if (sStr) {
+        const s = JSON.parse(sStr);
+        if (s.edge_voice) selectedVoice = s.edge_voice;
+        if (s.voice_speed) speedVal = Number(s.voice_speed) || 1.0;
+        if (s.voice_provider) provider = s.voice_provider;
+        if (s.fish_api_key) fishKey = s.fish_api_key;
+        if (s.fish_model_id) fishModel = s.fish_model_id;
+      }
+    } catch {}
+
+    const rateStr = speedVal >= 1.0 ? `+${Math.round((speedVal - 1.0) * 100)}%` : `${Math.round((speedVal - 1.0) * 100)}%`;
+
     try {
       const res = await smartFetch('/api/voice/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: phrase, user_name: 'Пользователь' })
+        body: JSON.stringify({
+          text: phrase,
+          voice: selectedVoice,
+          rate: rateStr,
+          fish_api_key: provider === 'fish-audio' ? fishKey : undefined,
+          fish_model_id: provider === 'fish-audio' ? fishModel : undefined
+        })
       });
-      const data = await res.json();
-      if (data && data.audio_base64) {
-        const cleanB64 = data.audio_base64.replace(/\s+/g, '');
-        const audio = new Audio(`data:audio/mpeg;base64,${cleanB64}`);
-        await audio.play();
-        return;
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.audio_base64) {
+          const cleanB64 = data.audio_base64.replace(/\s+/g, '');
+          const audio = new Audio(`data:audio/mpeg;base64,${cleanB64}`);
+          audio.playbackRate = speedVal;
+          await audio.play();
+          return;
+        }
       }
     } catch (err) {
       console.warn('Backend TTS error, falling back to Web Speech Synthesis:', err);
     }
-    // Fallback speech synthesis
+
+    // Fallback: If Web Speech Synthesis is needed, strictly use a male Russian voice or Dmitry
     if ('speechSynthesis' in window) {
       const utt = new SpeechSynthesisUtterance(phrase);
       utt.lang = 'ru-RU';
-      utt.rate = 1.05;
+      utt.rate = Math.min(1.5, Math.max(0.8, speedVal));
+      try {
+        const voices = window.speechSynthesis.getVoices();
+        const maleRu = voices.find(v => 
+          v.lang.startsWith('ru') && 
+          (v.name.toLowerCase().includes('dmitry') || v.name.toLowerCase().includes('pavel') || v.name.toLowerCase().includes('male'))
+        );
+        if (maleRu) utt.voice = maleRu;
+      } catch {}
       window.speechSynthesis.speak(utt);
     }
   };
@@ -206,7 +242,6 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
               // Timer just finished!
               playAlarmSound();
               speakVoiceAlert(t.title);
-              setAlarmModalTimer(t.title);
               if (onNotifyTimerFinish) {
                 onNotifyTimerFinish(t.title);
               }
@@ -1575,101 +1610,6 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
           </div>
         )}
       </div>
-
-      {/* Timer Finished Alarm Notification Modal */}
-      {alarmModalTimer && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0, 0, 0, 0.75)',
-            backdropFilter: 'blur(10px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 100
-          }}
-        >
-          <div
-            style={{
-              background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(15, 11, 30, 0.95) 100%)',
-              border: '2px solid rgba(239, 68, 68, 0.6)',
-              borderRadius: 24,
-              padding: '36px 40px',
-              maxWidth: 440,
-              width: '90%',
-              textAlign: 'center',
-              boxShadow: '0 0 50px rgba(239, 68, 68, 0.35)',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 16
-            }}
-          >
-            <div
-              style={{
-                width: 64,
-                height: 64,
-                borderRadius: '50%',
-                background: 'rgba(239, 68, 68, 0.2)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 0 30px rgba(239, 68, 68, 0.5)'
-              }}
-            >
-              <Bell size={32} color="#ef4444" />
-            </div>
-
-            <h2 style={{ fontSize: 24, fontWeight: 700, margin: 0, color: '#ffffff' }}>Время вышло!</h2>
-
-            <p style={{ fontSize: 16, color: '#fca5a5', margin: 0, lineHeight: 1.4 }}>
-              Пора выполнять: <strong>«{alarmModalTimer}»</strong>, сэр!
-            </p>
-
-            <div style={{ display: 'flex', gap: 12, marginTop: 8, width: '100%' }}>
-              <button
-                onClick={() => {
-                  // Snooze 5 minutes
-                  handleStartTimer(alarmModalTimer, 5, 0);
-                  setAlarmModalTimer(null);
-                }}
-                style={{
-                  flex: 1,
-                  padding: '12px 16px',
-                  borderRadius: 12,
-                  background: 'rgba(255, 255, 255, 0.08)',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
-                  color: '#fff',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: 'pointer'
-                }}
-              >
-                Отложить на 5 мин
-              </button>
-
-              <button
-                onClick={() => setAlarmModalTimer(null)}
-                style={{
-                  flex: 1,
-                  padding: '12px 16px',
-                  borderRadius: 12,
-                  background: 'linear-gradient(135deg, #ef4444 0%, #f97316 100%)',
-                  border: 'none',
-                  color: '#fff',
-                  fontSize: 13,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  boxShadow: '0 4px 16px rgba(239, 68, 68, 0.4)'
-                }}
-              >
-                Готово, принято!
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

@@ -25,11 +25,13 @@ const LOCAL_EXCLUSIVE_ROUTES = [
 export async function smartFetch(endpointPath: string, options: RequestInit = {}): Promise<Response> {
   const normPath = endpointPath.startsWith('/') ? endpointPath : `/${endpointPath}`;
 
-  // 1. Try local server first (fast 1500ms timeout)
+  // 1. Try local server first (fast 1500ms timeout for telemetry/health, 15000ms for voice/AI)
   try {
     const controller = new AbortController();
     const signal = options.signal || controller.signal;
-    const timer = setTimeout(() => controller.abort(), 1500);
+    const isHeavyEndpoint = normPath.startsWith('/api/voice') || normPath.startsWith('/api/ai') || normPath.startsWith('/api/plugins');
+    const timeoutMs = isHeavyEndpoint ? 15000 : 1500;
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
     const res = await fetch(`${LOCAL_SERVER_URL}${normPath}`, { ...options, signal });
     clearTimeout(timer);
     isLocalAvailable = true;
