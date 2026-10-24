@@ -982,33 +982,48 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         msg = f"Задача «{t_name}» успешно отмечена как выполненная, сэр." if ok else f"Задача «{target_t}» не найдена в списке, сэр."
         return {"type": "complete_task", "title": target_t, "message": msg}
 
-    # Task deletion e.g. "удали задачу сделать дз", "удали из задач сделать дз", "стереть задачу ..."
+    # Task deletion e.g. "удали все задачи", "удали задачу сделать дз", "очисти задачи"
+    if any(k == c for k in ["удали все задачи", "удалить все задачи", "удали задачи", "удалить задачи", "очисти задачи", "очисти все задачи", "сотри все задачи", "стереть все задачи"]):
+        ok, found = extras_mgr.delete_task("all")
+        msg = "Все задачи успешно удалены из списка, сэр."
+        return {"type": "delete_task", "title": "all", "message": msg}
+
     m_del_task = re.match(
-        r'^(?:удали|удалить|сотри|стереть|убери|убрать)\s+(?:из\s+задач\s+|задачу\s+)(.*)$',
+        r'^(?:удали|удалить|сотри|стереть|убери|убрать|очисти|очистить)\s+(?:все\s+|всё\s+)?(?:из\s+задач\s+|задачу\s+|задачи\s+)(.*)$',
         c, re.IGNORECASE
     )
     if m_del_task:
-        target_t = m_del_task.group(1).strip()
+        target_t = (m_del_task.group(1) or "all").strip()
         ok, found = extras_mgr.delete_task(target_t)
         t_name = found.get("title") if found else target_t.capitalize()
         msg = f"Задача «{t_name}» успешно удалена из вашего списка задач, сэр." if ok else f"Задача «{target_t}» не найдена в вашем списке задач, сэр."
         return {"type": "delete_task", "title": target_t, "message": msg}
 
-    # Note deletion e.g. "удали заметку про роутер", "удали из заметок пароль", "сотри заметку ..."
+    # Note deletion e.g. "удали все заметки", "удали заметку про роутер", "очисти заметки", "сотри все заметки"
+    if any(k == c for k in ["удали все заметки", "удалить все заметки", "удали заметки", "удалить заметки", "очисти заметки", "очисти все заметки", "сотри все заметки", "стереть все заметки"]):
+        ok, found = extras_mgr.delete_note("all")
+        msg = "Все сохранённые заметки успешно удалены, сэр."
+        return {"type": "delete_note", "title": "all", "message": msg}
+
     m_del_note = re.match(
-        r'^(?:удали|удалить|сотри|стереть|убери|убрать)\s+(?:из\s+заметок\s+|заметку\s+)(.*)$',
+        r'^(?:удали|удалить|сотри|стереть|убери|убрать|очисти|очистить)\s+(?:все\s+|всё\s+)?(?:из\s+заметок\s+|заметку\s+|заметки\s+)(.*)$',
         c, re.IGNORECASE
     )
     if m_del_note:
-        target_n = m_del_note.group(1).strip()
+        target_n = (m_del_note.group(1) or "all").strip()
         ok, found = extras_mgr.delete_note(target_n)
         n_name = found.get("title") if found else target_n.capitalize()
         msg = f"Заметка «{n_name}» успешно удалена, сэр." if ok else f"Заметка «{target_n}» не найдена, сэр."
         return {"type": "delete_note", "title": target_n, "message": msg}
 
-    # Timer deletion e.g. "удали таймер", "останови таймер", "отмени таймер", "выключи таймер", "сбрось таймер"
+    # Timer deletion e.g. "удали таймер", "останови таймер", "отмени таймер", "удали все таймеры"
+    if any(k == c for k in ["удали все таймеры", "удалить все таймеры", "останови все таймеры", "остановить все таймеры", "сбрось все таймеры", "отмени все таймеры", "выключи все таймеры"]):
+        ok, found = extras_mgr.delete_timer("all")
+        msg = "Все таймеры успешно остановлены и удалены, сэр."
+        return {"type": "delete_timer", "title": "all", "message": msg}
+
     m_del_timer = re.match(
-        r'^(?:удали|удалить|останови|остановить|отмени|отменить|выключи|выключить|сбрось|сбросить)\s+(?:все\s+)?таймер\w*(?:\s+(.*))?$',
+        r'^(?:удали|удалить|останови|остановить|отмени|отменить|выключи|выключить|сбрось|сбросить)\s+(?:все\s+|всё\s+)?таймер\w*(?:\s+(.*))?$',
         c, re.IGNORECASE
     )
     if m_del_timer:
@@ -1041,6 +1056,9 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
     if is_personal_q:
         q_target = m_search_note.group(1).strip() if (m_search_note and m_search_note.group(1).strip()) else c
         matches = extras_mgr.search_notes(q_target)
+        ans = extras_mgr.extract_specific_answer_from_notes(q_target)
+        if ans:
+            return {"type": "search_notes", "query": q_target, "message": ans}
         if matches:
             best = matches[0]
             msg = f"Судя по вашей заметке «{best.get('title')}», сэр:\n{best.get('content')}"
@@ -2838,10 +2856,9 @@ def get_conversational_reply(raw_text: str, en: bool, user_name: str = "Поль
         ])
         if is_q:
             try:
-                matches = extras_mgr.search_notes(raw_text)
-                if matches:
-                    best = matches[0]
-                    return f"Судя по вашей заметке «{best.get('title')}», сэр:\n{best.get('content')}"
+                ans = extras_mgr.extract_specific_answer_from_notes(raw_text)
+                if ans:
+                    return ans
             except Exception:
                 pass
             return "В ваших сохранённых заметках и памяти пока нет информации по этому вопросу, сэр. Вы можете сказать мне нужные данные или добавить заметку, и я обязательно сохраню их."

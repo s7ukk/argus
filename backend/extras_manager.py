@@ -74,30 +74,38 @@ _PATHS_TO_TRY = [
 ]
 
 def load_extras_data() -> Dict[str, Any]:
-    """Loads all tasks, notes, timers and reminders from persistent JSON store."""
+    """Loads all tasks, notes, timers and reminders from the most recently updated persistent JSON store."""
+    best_data = None
+    best_mtime = -1.0
     for p in _PATHS_TO_TRY:
         if os.path.exists(p):
             try:
+                mtime = os.path.getmtime(p)
                 with open(p, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                    res = DEFAULT_EXTRAS_DATA.copy()
-                    res.update(data)
-                    return res
+                    if mtime > best_mtime:
+                        best_mtime = mtime
+                        best_data = data
             except Exception:
                 pass
+    if best_data is not None:
+        res = DEFAULT_EXTRAS_DATA.copy()
+        res.update(best_data)
+        return res
     return DEFAULT_EXTRAS_DATA.copy()
 
 def save_extras_data(data: Dict[str, Any]) -> bool:
-    """Saves all extras data persistently with reliable fallback."""
+    """Saves all extras data persistently across all available writable locations."""
+    saved_any = False
     for p in _PATHS_TO_TRY:
         try:
             os.makedirs(os.path.dirname(p), exist_ok=True)
             with open(p, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
-            return True
+            saved_any = True
         except Exception:
             continue
-    return False
+    return saved_any
 
 def add_task(title: str, description: str = "", priority: str = "medium", category: str = "general", due_date: str = "") -> Dict[str, Any]:
     data = load_extras_data()
@@ -161,16 +169,41 @@ def add_reminder(title: str, remind_at: str) -> Dict[str, Any]:
     return reminder
 
 def delete_task(identifier: str) -> Tuple[bool, Optional[Dict[str, Any]]]:
-    """Deletes task by id or by matching title substring."""
+    """Deletes task by id or by matching title substring, or all tasks if 'all'/'все'."""
     data = load_extras_data()
     tasks = data.get("tasks", [])
     ident_lower = identifier.strip().lower()
+    if ident_lower in ["all", "все", "всё", "все задачи", "список задач", "очисти задачи", "очисти все задачи"]:
+        count = len(tasks)
+        data["tasks"] = []
+        save_extras_data(data)
+        return True, {"title": f"Все задачи ({count} шт.)"}
     for i, t in enumerate(tasks):
         if t.get("id") == identifier or (ident_lower and ident_lower in t.get("title", "").lower()):
             removed = tasks.pop(i)
             data["tasks"] = tasks
             save_extras_data(data)
             return True, removed
+    return False, None
+
+def update_task(task_id: str, title: Optional[str] = None, description: Optional[str] = None, priority: Optional[str] = None, category: Optional[str] = None, completed: Optional[bool] = None) -> Tuple[bool, Optional[Dict[str, Any]]]:
+    """Updates existing task fields by task id or title."""
+    data = load_extras_data()
+    tasks = data.get("tasks", [])
+    for t in tasks:
+        if t.get("id") == task_id or (task_id and task_id.lower() in t.get("title", "").lower()):
+            if title is not None:
+                t["title"] = title.strip()
+            if description is not None:
+                t["description"] = description.strip()
+            if priority is not None:
+                t["priority"] = priority
+            if category is not None:
+                t["category"] = category
+            if completed is not None:
+                t["completed"] = completed
+            save_extras_data(data)
+            return True, t
     return False, None
 
 def complete_task(identifier: str) -> Tuple[bool, Optional[Dict[str, Any]]]:
@@ -186,10 +219,15 @@ def complete_task(identifier: str) -> Tuple[bool, Optional[Dict[str, Any]]]:
     return False, None
 
 def delete_note(identifier: str) -> Tuple[bool, Optional[Dict[str, Any]]]:
-    """Deletes note by id or by matching title or content substring."""
+    """Deletes note by id or by matching title or content substring, or all notes if 'all'/'все'."""
     data = load_extras_data()
     notes = data.get("notes", [])
     ident_lower = identifier.strip().lower()
+    if ident_lower in ["all", "все", "всё", "все заметки", "всё заметки", "каждую заметку", "очисти заметки", "очисти все заметки"]:
+        count = len(notes)
+        data["notes"] = []
+        save_extras_data(data)
+        return True, {"title": f"Все заметки ({count} шт.)"}
     for i, n in enumerate(notes):
         if n.get("id") == identifier or (ident_lower and (ident_lower in n.get("title", "").lower() or ident_lower in n.get("content", "").lower())):
             removed = notes.pop(i)
@@ -197,6 +235,77 @@ def delete_note(identifier: str) -> Tuple[bool, Optional[Dict[str, Any]]]:
             save_extras_data(data)
             return True, removed
     return False, None
+
+def update_note(note_id: str, title: Optional[str] = None, content: Optional[str] = None, color: Optional[str] = None, category: Optional[str] = None, pinned: Optional[bool] = None) -> Tuple[bool, Optional[Dict[str, Any]]]:
+    """Updates existing note fields by note id or title."""
+    data = load_extras_data()
+    notes = data.get("notes", [])
+    for n in notes:
+        if n.get("id") == note_id or (note_id and note_id.lower() in n.get("title", "").lower()):
+            if title is not None:
+                n["title"] = title.strip()
+            if content is not None:
+                n["content"] = content.strip()
+            if color is not None:
+                n["color"] = color
+            if category is not None:
+                n["category"] = category
+            if pinned is not None:
+                n["pinned"] = pinned
+            n["updated_at"] = datetime.datetime.now().isoformat()
+            save_extras_data(data)
+            return True, n
+    return False, None
+
+def extract_specific_answer_from_notes(question: str) -> Optional[str]:
+    """Extracts a precise specific answer (name, age, city, password, code) from notes rather than dumping raw notes."""
+    q = question.lower().strip()
+    notes = search_notes(q)
+    if not notes:
+        # try searching with key nouns
+        for w in re.findall(r'\b[a-zA-Zа-яА-ЯёЁ]{3,}\b', q):
+            found = search_notes(w)
+            if found:
+                notes = found
+                break
+    if not notes:
+        return None
+
+    best = notes[0]
+    title = best.get("title", "Заметка")
+    text = best.get("content", "").strip()
+
+    # 1. Question about Name: "как зовут моего друга", "имя друга", "как зовут девушку", "как зовут маму"
+    if any(k in q for k in ["как зовут", "как звать", "какое имя", "имя"]):
+        m = re.search(r'\b(?:друг|друга|зовут|имя|подруга|девушка|мама|папа)\s+([А-ЯЁ][а-яё]+|[A-Z][a-z0-9_]+)', text)
+        if m:
+            name = m.group(1)
+            target = "друга" if "друг" in q else "девушку" if "девушк" in q else "маму" if "мам" in q else "человека"
+            return f"Вашего {target} зовут {name}, сэр."
+
+    # 2. Question about Age: "сколько лет другу", "возраст друга", "сколько ему лет"
+    if any(k in q for k in ["сколько лет", "возраст", "сколько ему лет", "сколько ей лет"]):
+        m = re.search(r'(\d+)\s+(?:лет|года|год)', text)
+        if m:
+            age = m.group(1)
+            return f"Ему {age} лет, сэр."
+
+    # 3. Question about Location / City: "где живет мой друг", "в каком городе живет", "где живет"
+    if any(k in q for k in ["где живет", "где живёт", "в каком городе", "откуда"]):
+        m = re.search(r'\b(?:живет\s+в|живёт\s+в|в\s+городе|из|в)\s+([А-ЯЁа-яёA-Za-z\-]+)', text, re.IGNORECASE)
+        if m:
+            city = m.group(1).capitalize()
+            return f"Ваш друг живет в городе {city}, сэр."
+
+    # 4. Question about Password / Pin / Code: "какой пароль от роутера", "пароль от вайфая"
+    if any(k in q for k in ["пароль", "пин", "код", "pass", "password", "ключ"]):
+        m = re.search(r'\b(?:пароль|пин|код|pass|password|ключ)(?:\s*(?:от|для|:|=)\s*|\s+)([^\s,;\.]+)', text, re.IGNORECASE)
+        if m:
+            pwd = m.group(1)
+            return f"Пароль: {pwd}, сэр."
+
+    # Concise answer fallback
+    return f"Судя по вашей заметке «{title}», сэр: {text}"
 
 def delete_timer(identifier: str) -> Tuple[bool, Optional[Dict[str, Any]]]:
     """Deletes or stops timer by id or matching title, or clears all if 'all'/'все'."""
@@ -214,6 +323,13 @@ def delete_timer(identifier: str) -> Tuple[bool, Optional[Dict[str, Any]]]:
             save_extras_data(data)
             return True, removed
     return False, None
+
+def _stem_ru(w: str) -> str:
+    w = w.lower().strip()
+    for end in ['ами', 'ями', 'ого', 'его', 'ому', 'ему', 'ыми', 'ими', 'ах', 'ях', 'ов', 'ев', 'ей', 'ом', 'ем', 'ам', 'ям', 'ой', 'ей', 'ий', 'ый', 'а', 'я', 'у', 'ю', 'е', 'и', 'ы', 'о']:
+        if w.endswith(end) and len(w) - len(end) >= 3:
+            return w[:-len(end)]
+    return w
 
 def search_notes(query: str) -> List[Dict[str, Any]]:
     """
@@ -244,16 +360,17 @@ def search_notes(query: str) -> List[Dict[str, Any]]:
         
         # Direct exact phrase match
         if clean_q in title:
-            score += 15
+            score += 20
         if clean_q in content:
-            score += 10
+            score += 15
             
-        # Word matches
+        # Word and stem matches
         for w in q_words:
-            if w in title:
+            st = _stem_ru(w)
+            if w in title or st in title:
+                score += 8
+            if w in content or st in content:
                 score += 6
-            if w in content:
-                score += 4
                 
         if score > 0:
             scored.append((score, n))

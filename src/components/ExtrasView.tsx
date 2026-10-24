@@ -21,7 +21,8 @@ import {
   Flame,
   Search,
   Filter,
-  CheckCircle2
+  CheckCircle2,
+  Edit2
 } from 'lucide-react';
 import { TaskItem, NoteItem, TimerItem, ReminderItem, ExtrasData } from '../types';
 import { smartFetch } from '../api';
@@ -82,6 +83,19 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
   const [timerTitle, setTimerTitle] = useState('Сделать ДЗ');
   const [timerMinutes, setTimerMinutes] = useState('7');
   const [timerSeconds, setTimerSeconds] = useState('0');
+
+  // Task editing state
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [editTaskTitle, setEditTaskTitle] = useState('');
+  const [editTaskDesc, setEditTaskDesc] = useState('');
+  const [editTaskPriority, setEditTaskPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium');
+  const [editTaskCategory, setEditTaskCategory] = useState<'study' | 'work' | 'personal' | 'health' | 'other'>('study');
+
+  // Note editing state
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editNoteTitle, setEditNoteTitle] = useState('');
+  const [editNoteContent, setEditNoteContent] = useState('');
+  const [editNoteColor, setEditNoteColor] = useState<'purple' | 'blue' | 'emerald' | 'amber' | 'rose'>('purple');
 
   // Sound chime synthesizer via Web Audio API
   const playAlarmSound = () => {
@@ -187,9 +201,9 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
         const res = await smartFetch('/api/extras/data');
         if (res.ok) {
           const data: ExtrasData = await res.json();
-          if (data.tasks && data.tasks.length > 0) setTasks(data.tasks);
-          if (data.notes && data.notes.length > 0) setNotes(data.notes);
-          if (data.timers && data.timers.length > 0) setTimers(data.timers);
+          if (data.tasks !== undefined && Array.isArray(data.tasks)) setTasks(data.tasks);
+          if (data.notes !== undefined && Array.isArray(data.notes)) setNotes(data.notes);
+          if (data.timers !== undefined && Array.isArray(data.timers)) setTimers(data.timers);
         }
       } catch (e) {
         console.warn('Failed to sync extras data with backend, using local store:', e);
@@ -287,6 +301,47 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
     const nextTasks = tasks.filter((t) => t.id !== id);
     setTasks(nextTasks);
     syncBackend({ tasks: nextTasks });
+    if (editingTaskId === id) setEditingTaskId(null);
+  };
+
+  const handleStartEditTask = (task: TaskItem) => {
+    setEditingTaskId(task.id);
+    setEditTaskTitle(task.title);
+    setEditTaskDesc(task.description || '');
+    setEditTaskPriority(task.priority);
+    setEditTaskCategory(task.category);
+  };
+
+  const handleSaveEditTask = (taskId: string) => {
+    if (!editTaskTitle.trim()) return;
+    const nextTasks = tasks.map((t) =>
+      t.id === taskId
+        ? {
+            ...t,
+            title: editTaskTitle.trim(),
+            description: editTaskDesc.trim(),
+            priority: editTaskPriority,
+            category: editTaskCategory
+          }
+        : t
+    );
+    setTasks(nextTasks);
+    syncBackend({ tasks: nextTasks });
+    smartFetch(`/api/extras/task/${taskId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: editTaskTitle.trim(),
+        description: editTaskDesc.trim(),
+        priority: editTaskPriority,
+        category: editTaskCategory
+      })
+    }).catch(() => {});
+    setEditingTaskId(null);
+  };
+
+  const handleCancelEditTask = () => {
+    setEditingTaskId(null);
   };
 
   // Note actions
@@ -320,6 +375,45 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
     const nextNotes = notes.filter((n) => n.id !== id);
     setNotes(nextNotes);
     syncBackend({ notes: nextNotes });
+    if (editingNoteId === id) setEditingNoteId(null);
+  };
+
+  const handleStartEditNote = (note: NoteItem) => {
+    setEditingNoteId(note.id);
+    setEditNoteTitle(note.title);
+    setEditNoteContent(note.content);
+    setEditNoteColor(note.color || 'purple');
+  };
+
+  const handleSaveEditNote = (noteId: string) => {
+    if (!editNoteTitle.trim()) return;
+    const nextNotes = notes.map((n) =>
+      n.id === noteId
+        ? {
+            ...n,
+            title: editNoteTitle.trim(),
+            content: editNoteContent.trim(),
+            color: editNoteColor,
+            updated_at: new Date().toISOString()
+          }
+        : n
+    );
+    setNotes(nextNotes);
+    syncBackend({ notes: nextNotes });
+    smartFetch(`/api/extras/note/${noteId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: editNoteTitle.trim(),
+        content: editNoteContent.trim(),
+        color: editNoteColor
+      })
+    }).catch(() => {});
+    setEditingNoteId(null);
+  };
+
+  const handleCancelEditNote = () => {
+    setEditingNoteId(null);
   };
 
   const handleCopyNote = (n: NoteItem) => {
@@ -1199,19 +1293,44 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
                 </button>
               </div>
 
-              {/* Progress Indicator */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: '#94a3b8' }}>
-                <div style={{ width: 120, height: 6, borderRadius: 3, background: 'rgba(255, 255, 255, 0.08)', overflow: 'hidden' }}>
-                  <div
-                    style={{
-                      height: '100%',
-                      width: `${taskProgress}%`,
-                      background: 'linear-gradient(90deg, #a855f7, #38bdf8)',
-                      transition: 'width 0.3s ease'
+              {/* Progress Indicator & Clear All */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                {tasks.length > 0 && (
+                  <button
+                    onClick={() => {
+                      setTasks([]);
+                      syncBackend({ tasks: [] });
                     }}
-                  />
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#ef4444',
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      opacity: 0.85
+                    }}
+                    title="Удалить все задачи"
+                  >
+                    <Trash2 size={13} />
+                    Очистить все
+                  </button>
+                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: '#94a3b8' }}>
+                  <div style={{ width: 120, height: 6, borderRadius: 3, background: 'rgba(255, 255, 255, 0.08)', overflow: 'hidden' }}>
+                    <div
+                      style={{
+                        height: '100%',
+                        width: `${taskProgress}%`,
+                        background: 'linear-gradient(90deg, #a855f7, #38bdf8)',
+                        transition: 'width 0.3s ease'
+                      }}
+                    />
+                  </div>
+                  <span>{taskProgress}% выполнено</span>
                 </div>
-                <span>{taskProgress}% выполнено</span>
               </div>
             </div>
 
@@ -1235,6 +1354,131 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
               ) : (
                 filteredTasks.map((task) => {
                   const pInfo = priorityColor(task.priority);
+
+                  if (editingTaskId === task.id) {
+                    return (
+                      <div
+                        key={task.id}
+                        style={{
+                          background: 'rgba(168, 85, 247, 0.08)',
+                          border: '1px solid rgba(168, 85, 247, 0.35)',
+                          borderRadius: 12,
+                          padding: '14px 16px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 10
+                        }}
+                      >
+                        <input
+                          type="text"
+                          value={editTaskTitle}
+                          onChange={(e) => setEditTaskTitle(e.target.value)}
+                          placeholder="Название задачи..."
+                          style={{
+                            width: '100%',
+                            padding: '8px 12px',
+                            borderRadius: 8,
+                            background: 'rgba(0, 0, 0, 0.4)',
+                            border: '1px solid rgba(255, 255, 255, 0.15)',
+                            color: '#fff',
+                            fontSize: 13,
+                            outline: 'none',
+                            boxSizing: 'border-box'
+                          }}
+                        />
+                        <input
+                          type="text"
+                          value={editTaskDesc}
+                          onChange={(e) => setEditTaskDesc(e.target.value)}
+                          placeholder="Описание (необязательно)..."
+                          style={{
+                            width: '100%',
+                            padding: '6px 12px',
+                            borderRadius: 8,
+                            background: 'rgba(0, 0, 0, 0.3)',
+                            border: '1px solid rgba(255, 255, 255, 0.1)',
+                            color: '#cbd5e1',
+                            fontSize: 12,
+                            outline: 'none',
+                            boxSizing: 'border-box'
+                          }}
+                        />
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                            <select
+                              value={editTaskPriority}
+                              onChange={(e: any) => setEditTaskPriority(e.target.value)}
+                              style={{
+                                background: 'rgba(0, 0, 0, 0.4)',
+                                border: '1px solid rgba(255, 255, 255, 0.1)',
+                                color: '#fff',
+                                borderRadius: 6,
+                                padding: '4px 8px',
+                                fontSize: 11,
+                                outline: 'none'
+                              }}
+                            >
+                              <option value="low">Низкий</option>
+                              <option value="medium">Средний</option>
+                              <option value="high">Высокий</option>
+                              <option value="urgent">Срочно</option>
+                            </select>
+                            <select
+                              value={editTaskCategory}
+                              onChange={(e: any) => setEditTaskCategory(e.target.value)}
+                              style={{
+                                background: 'rgba(0, 0, 0, 0.4)',
+                                border: '1px solid rgba(255, 255, 255, 0.1)',
+                                color: '#fff',
+                                borderRadius: 6,
+                                padding: '4px 8px',
+                                fontSize: 11,
+                                outline: 'none'
+                              }}
+                            >
+                              <option value="study">🎓 Учеба / ДЗ</option>
+                              <option value="work">💼 Работа</option>
+                              <option value="personal">🏠 Личное</option>
+                              <option value="health">🏃 Здоровье</option>
+                              <option value="other">💡 Другое</option>
+                            </select>
+                          </div>
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button
+                              onClick={handleCancelEditTask}
+                              style={{
+                                padding: '6px 12px',
+                                borderRadius: 6,
+                                background: 'rgba(255, 255, 255, 0.05)',
+                                border: '1px solid rgba(255, 255, 255, 0.1)',
+                                color: '#94a3b8',
+                                fontSize: 11,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Отмена
+                            </button>
+                            <button
+                              onClick={() => handleSaveEditTask(task.id)}
+                              style={{
+                                padding: '6px 14px',
+                                borderRadius: 6,
+                                background: 'linear-gradient(135deg, #a855f7, #38bdf8)',
+                                border: 'none',
+                                color: '#fff',
+                                fontSize: 11,
+                                fontWeight: 600,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Сохранить
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+
                   return (
                     <div
                       key={task.id}
@@ -1311,6 +1555,21 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
                         {task.category === 'study' ? '🎓 Учеба' : task.category === 'work' ? '💼 Работа' : '💡 Общее'}
                       </span>
 
+                      {/* Edit Button */}
+                      <button
+                        onClick={() => handleStartEditTask(task)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#64748b',
+                          cursor: 'pointer',
+                          padding: 4
+                        }}
+                        title="Редактировать задачу"
+                      >
+                        <Edit2 size={14} />
+                      </button>
+
                       {/* Delete */}
                       <button
                         onClick={() => handleDeleteTask(task.id)}
@@ -1361,25 +1620,53 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
                 />
               </div>
 
-              <button
-                onClick={() => setIsCreatingNote(!isCreatingNote)}
-                style={{
-                  padding: '9px 18px',
-                  borderRadius: 10,
-                  background: 'linear-gradient(135deg, #a855f7 0%, #38bdf8 100%)',
-                  border: 'none',
-                  color: '#fff',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6
-                }}
-              >
-                <Plus size={16} />
-                Новая заметка
-              </button>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                {notes.length > 0 && (
+                  <button
+                    onClick={() => {
+                      setNotes([]);
+                      syncBackend({ notes: [] });
+                    }}
+                    style={{
+                      padding: '9px 14px',
+                      borderRadius: 10,
+                      background: 'rgba(239, 68, 68, 0.1)',
+                      border: '1px solid rgba(239, 68, 68, 0.3)',
+                      color: '#f87171',
+                      fontSize: 12,
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6
+                    }}
+                    title="Удалить все заметки"
+                  >
+                    <Trash2 size={14} />
+                    Очистить все ({notes.length})
+                  </button>
+                )}
+
+                <button
+                  onClick={() => setIsCreatingNote(!isCreatingNote)}
+                  style={{
+                    padding: '9px 18px',
+                    borderRadius: 10,
+                    background: 'linear-gradient(135deg, #a855f7 0%, #38bdf8 100%)',
+                    border: 'none',
+                    color: '#fff',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6
+                  }}
+                >
+                  <Plus size={16} />
+                  Новая заметка
+                </button>
+              </div>
             </div>
 
             {/* Note Creation Card (Expands when clicked) */}
@@ -1512,6 +1799,116 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
               ) : (
                 filteredNotes.map((note) => {
                   const styleColor = noteColorMap[note.color] || noteColorMap.purple;
+
+                  if (editingNoteId === note.id) {
+                    return (
+                      <div
+                        key={note.id}
+                        style={{
+                          background: styleColor.bg,
+                          border: `2px solid #a855f7`,
+                          borderRadius: 16,
+                          padding: '16px 18px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 10,
+                          minHeight: 180,
+                          boxShadow: '0 8px 24px rgba(168, 85, 247, 0.2)'
+                        }}
+                      >
+                        <input
+                          type="text"
+                          value={editNoteTitle}
+                          onChange={(e) => setEditNoteTitle(e.target.value)}
+                          placeholder="Заголовок заметки..."
+                          style={{
+                            width: '100%',
+                            padding: '8px 10px',
+                            borderRadius: 8,
+                            background: 'rgba(0, 0, 0, 0.4)',
+                            border: '1px solid rgba(255, 255, 255, 0.15)',
+                            color: '#fff',
+                            fontSize: 14,
+                            fontWeight: 600,
+                            outline: 'none',
+                            boxSizing: 'border-box'
+                          }}
+                        />
+
+                        <textarea
+                          rows={4}
+                          value={editNoteContent}
+                          onChange={(e) => setEditNoteContent(e.target.value)}
+                          placeholder="Текст заметки..."
+                          style={{
+                            width: '100%',
+                            padding: '8px 10px',
+                            borderRadius: 8,
+                            background: 'rgba(0, 0, 0, 0.4)',
+                            border: '1px solid rgba(255, 255, 255, 0.15)',
+                            color: '#fff',
+                            fontSize: 12,
+                            outline: 'none',
+                            resize: 'vertical',
+                            boxSizing: 'border-box',
+                            fontFamily: 'inherit'
+                          }}
+                        />
+
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            {(['purple', 'blue', 'emerald', 'amber', 'rose'] as const).map((colorKey) => (
+                              <button
+                                key={colorKey}
+                                onClick={() => setEditNoteColor(colorKey)}
+                                style={{
+                                  width: 18,
+                                  height: 18,
+                                  borderRadius: '50%',
+                                  background: noteColorMap[colorKey].dot,
+                                  border: editNoteColor === colorKey ? '2px solid #ffffff' : 'none',
+                                  cursor: 'pointer'
+                                }}
+                              />
+                            ))}
+                          </div>
+
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button
+                              onClick={handleCancelEditNote}
+                              style={{
+                                padding: '6px 12px',
+                                borderRadius: 6,
+                                background: 'rgba(255, 255, 255, 0.05)',
+                                border: '1px solid rgba(255, 255, 255, 0.1)',
+                                color: '#94a3b8',
+                                fontSize: 11,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Отмена
+                            </button>
+                            <button
+                              onClick={() => handleSaveEditNote(note.id)}
+                              style={{
+                                padding: '6px 14px',
+                                borderRadius: 6,
+                                background: 'linear-gradient(135deg, #a855f7, #38bdf8)',
+                                border: 'none',
+                                color: '#fff',
+                                fontSize: 11,
+                                fontWeight: 600,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Сохранить
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+
                   return (
                     <div
                       key={note.id}
@@ -1563,6 +1960,20 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
                               title="Копировать текст"
                             >
                               {copiedNoteId === note.id ? <Check size={13} /> : <Copy size={13} />}
+                            </button>
+
+                            <button
+                              onClick={() => handleStartEditNote(note)}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: '#64748b',
+                                cursor: 'pointer',
+                                padding: 3
+                              }}
+                              title="Редактировать заметку"
+                            >
+                              <Edit2 size={13} />
                             </button>
 
                             <button

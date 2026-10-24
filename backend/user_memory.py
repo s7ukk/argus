@@ -20,14 +20,22 @@ def load_memory() -> Dict[str, Any]:
     global _MEMORY_CACHE
     if _MEMORY_CACHE is not None:
         return _MEMORY_CACHE
+    best_data = None
+    best_mtime = -1.0
     for p in _PATHS_TO_TRY:
         if os.path.exists(p):
             try:
+                mtime = os.path.getmtime(p)
                 with open(p, "r", encoding="utf-8") as f:
-                    _MEMORY_CACHE = json.load(f)
-                    return _MEMORY_CACHE
+                    data = json.load(f)
+                    if mtime > best_mtime:
+                        best_mtime = mtime
+                        best_data = data
             except Exception:
                 pass
+    if best_data is not None:
+        _MEMORY_CACHE = best_data
+        return _MEMORY_CACHE
     _MEMORY_CACHE = {
         "name": None,
         "age": None,
@@ -48,7 +56,6 @@ def save_memory() -> None:
             os.makedirs(os.path.dirname(p), exist_ok=True)
             with open(p, "w", encoding="utf-8") as f:
                 json.dump(_MEMORY_CACHE, f, ensure_ascii=False, indent=2)
-            return
         except Exception:
             continue
 
@@ -180,21 +187,19 @@ def query_memory_question(user_text: str, has_history: bool = False) -> Optional
     if any(q in low for q in ["как зовут моего друга", "как зовут друга", "моего друга зовут", "кто мой друг", "имя моего друга", "как звать моего друга", "как звать друга"]):
         if mem.get("friend_name"):
             return f"Вашего друга зовут {mem['friend_name']}, сэр."
-        for n in mem.get("notes", []):
-            if "друг" in n.lower():
-                return f"Судя по моим записям, сэр: {n}."
         try:
             try:
                 import backend.extras_manager as em
             except ImportError:
                 import extras_manager as em
-            matches = em.search_notes("друг")
-            if not matches:
-                matches = em.search_notes("друга")
-            if matches:
-                return f"Судя по вашей заметке «{matches[0].get('title')}», сэр: {matches[0].get('content')}"
+            ans = em.extract_specific_answer_from_notes(user_text)
+            if ans:
+                return ans
         except Exception:
             pass
+        for n in mem.get("notes", []):
+            if "друг" in n.lower():
+                return f"Судя по моим записям, сэр: {n}."
         return "Вы пока не говорили мне, как зовут вашего друга, сэр. Скажите, например: «Моего друга зовут Алексей», или создайте заметку, и я обязательно запомню это."
 
     # 2.6 Question about Relatives
@@ -204,9 +209,9 @@ def query_memory_question(user_text: str, has_history: bool = False) -> Optional
                 import backend.extras_manager as em
             except ImportError:
                 import extras_manager as em
-            matches = em.search_notes(low)
-            if matches:
-                return f"Судя по вашей заметке «{matches[0].get('title')}», сэр: {matches[0].get('content')}"
+            ans = em.extract_specific_answer_from_notes(user_text)
+            if ans:
+                return ans
         except Exception:
             pass
         return "У меня пока нет информации об этом в ваших заметках или памяти, сэр. Вы можете сказать мне или записать в заметки, и я сохраню это."

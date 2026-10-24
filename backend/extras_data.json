@@ -1,27 +1,6 @@
 {
   "tasks": [],
-  "notes": [
-    {
-      "id": "note_1792869973490",
-      "title": "бам бам",
-      "content": "Мой друг Илья ему 45 лет живет в караганде",
-      "color": "rose",
-      "category": "Общее",
-      "pinned": false,
-      "created_at": "2026-10-24T19:26:13.490Z",
-      "updated_at": "2026-10-24T19:26:13.490Z"
-    }
-  ],
-  "timers": [
-    {
-      "id": "timer_868ff3f7",
-      "title": "Таймер",
-      "total_seconds": 180,
-      "remaining_seconds": 180,
-      "is_running": true,
-      "is_completed": false,
-      "created_at": "2026-10-24T22:36:23.154364"
-    }
-  ],
+  "notes": [],
+  "timers": [],
   "reminders": []
 }

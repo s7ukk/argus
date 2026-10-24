@@ -866,6 +866,30 @@ async def search_notes_endpoint(q: str = Query(..., alias="q")):
     matches = extras_mgr.search_notes(q)
     return {"success": True, "matches": matches}
 
+@app.put("/api/extras/note/{note_id}")
+async def update_note_endpoint(note_id: str, payload: Dict[str, Any]):
+    ok, note = extras_mgr.update_note(
+        note_id,
+        title=payload.get("title"),
+        content=payload.get("content"),
+        color=payload.get("color"),
+        category=payload.get("category"),
+        pinned=payload.get("pinned")
+    )
+    return {"success": ok, "note": note}
+
+@app.put("/api/extras/task/{task_id}")
+async def update_task_endpoint(task_id: str, payload: Dict[str, Any]):
+    ok, task = extras_mgr.update_task(
+        task_id,
+        title=payload.get("title"),
+        description=payload.get("description"),
+        priority=payload.get("priority"),
+        category=payload.get("category"),
+        completed=payload.get("completed")
+    )
+    return {"success": ok, "task": task}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("backend.server:app", host="127.0.0.1", port=18274, reload=False)
