@@ -311,28 +311,16 @@ def execute_autonomous_messenger_task(messenger: str, contact: str, message: str
     if not is_tg_username:
         # Step 2: Search for contact in search bar
         add_step(f"Активация поисковой строки интерфейса **{m_name}**.")
-        send_key_native("escape")
-        time.sleep(0.2)
         
-        # In Telegram Desktop, focus global search bar via coordinates / shortcut
-        if m_name == "Telegram" and not IS_MAC and _HAS_WIN32GUI:
-            try:
-                import ctypes, win32gui
-                hwnd = ctypes.windll.user32.GetForegroundWindow()
-                if hwnd:
-                    rect = win32gui.GetWindowRect(hwnd)
-                    click_mouse_native(rect[0] + 160, rect[1] + 45)
-                    time.sleep(0.2)
-            except Exception:
-                pass
-
+        # Universal search shortcut: Ctrl+F (Win) / Cmd+F (Mac) for Telegram, WhatsApp, VK; Ctrl+K for Discord
+        search_key = "k" if m_name == "Discord" else "f"
         if IS_MAC:
-            send_hotkey_native("cmd", "k")
+            send_hotkey_native("cmd", search_key)
         else:
-            send_hotkey_native("ctrl", "k")
-        time.sleep(0.25)
+            send_hotkey_native("ctrl", search_key)
+        time.sleep(0.35)
 
-        # Clear any preexisting search query
+        # Clear any preexisting search query cleanly
         send_hotkey_native("cmd" if IS_MAC else "ctrl", "a")
         time.sleep(0.08)
         send_key_native("backspace")
