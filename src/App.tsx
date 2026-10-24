@@ -316,6 +316,7 @@ export const App: React.FC = () => {
   };
 
   const handleSend = async (customText?: string) => {
+    if (loading) return;
     const textToSend = (customText || inputText).trim();
     const activeProf = profileRef.current || profile;
     if (!textToSend || !activeProf) return;
@@ -543,7 +544,11 @@ export const App: React.FC = () => {
                 onToggleVoice={() => voiceAssistantRef.current?.toggleListening()}
                 isSpeaking={isSpeaking}
                 profile={profile}
-                onQuickAction={(cmd) => { setInputText(cmd); handleSend(cmd); }}
+                onQuickAction={(cmd) => {
+                  if (loading) return;
+                  setInputText(cmd);
+                  handleSend(cmd);
+                }}
                 streamingMessageId={streamingMessageId}
                 onStop={handleStop}
                 onFinishStreaming={() => setStreamingMessageId(null)}

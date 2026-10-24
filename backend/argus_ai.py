@@ -25,6 +25,15 @@ except ImportError:
 _AI_QUERY_CACHE: Dict[str, str] = {}
 _MESSENGER_WIZARD_STATE: Dict[str, Dict[str, Any]] = {}
 
+INVALID_CONTACT_KEYWORDS = {
+    'контакт', 'контакту', 'контакта', 'контактом', 'контакте', 'контакты',
+    'пользователь', 'пользователю', 'пользователя', 'пользователем', 'пользователи',
+    'человек', 'человеку', 'человека', 'людям', 'друг', 'другу', 'друга', 'друзьям',
+    'собеседник', 'собеседнику', 'юзер', 'юзеру', 'ник', 'нику', 'никнейм',
+    'сообщение', 'текст', 'слово', 'привет', 'хеллоу', 'hello', 'hi',
+    'кому-то', 'кому-нибудь', 'кому', 'куда', 'ему', 'ей', 'им', 'ним'
+}
+
 _AI_PLAN_CACHE: Dict[str, Any] = {}
 
 def is_english(text: str) -> bool:
@@ -1496,21 +1505,35 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         "ярославу": "Ярослав", "ярослава": "Ярослав", "ярослав": "Ярослав",
     }
 
+    INVALID_CONTACT_KEYWORDS = {
+        'контакт', 'контакту', 'контакта', 'контактом', 'контакте', 'контакты',
+        'пользователь', 'пользователю', 'пользователя', 'пользователем', 'пользователи',
+        'человек', 'человеку', 'человека', 'людям', 'друг', 'другу', 'друга', 'друзьям',
+        'собеседник', 'собеседнику', 'юзер', 'юзеру', 'ник', 'нику', 'никнейм',
+        'сообщение', 'текст', 'слово', 'привет', 'хеллоу', 'hello', 'hi',
+        'кому-то', 'кому-нибудь', 'кому', 'куда', 'ему', 'ей', 'им', 'ним'
+    }
+
     def normalize_contact_name(raw_name: str) -> str:
         s = raw_name.strip().strip('"\'«»')
         if not s:
             return ""
         low = s.lower()
+        if low in INVALID_CONTACT_KEYWORDS:
+            return ""
         if low in COMMON_NAME_DATIVE_MAP:
             return COMMON_NAME_DATIVE_MAP[low]
         if re.search(r'[а-яё]', low):
             if len(low) > 4 and low.endswith('у') and not low.endswith('ау'):
-                return low[:-1].capitalize()
+                res = low[:-1].capitalize()
+                return "" if res.lower() in INVALID_CONTACT_KEYWORDS else res
             if len(low) > 4 and low.endswith('ю'):
-                return (low[:-1] + 'й').capitalize()
+                res = (low[:-1] + 'й').capitalize()
+                return "" if res.lower() in INVALID_CONTACT_KEYWORDS else res
             if len(low) > 4 and low.endswith('е'):
-                return (low[:-1] + 'а').capitalize()
-            return s.capitalize()
+                res = (low[:-1] + 'а').capitalize()
+                return "" if res.lower() in INVALID_CONTACT_KEYWORDS else res
+            return "" if low in INVALID_CONTACT_KEYWORDS else s.capitalize()
         return s
 
     def normalize_messenger(name: str) -> str:
@@ -1583,7 +1606,7 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
 
     # Pattern 1C: 'в/на <messenger> [и] напиши/отправь [в/пользователю/контакту <contact>] [слово/текст] <message>'
     m1_c = re.match(
-        rf'^(?:в\s+|на\s+){M_KW_PATTERN}\s+(?:и\s+)?(?:напиши|напечатай|отправь|скинь|черкани)\s+(?:в\s+чат\s+|в\s+диалог\s+|пользователю\s+|контакту\s+|для\s+|в\s+)?([a-zA-Zа-яА-ЯёЁ0-9_\-\.]+)(?:\s+(?:слово\s+|текст\s+|сообщение\s+)?(.*))?$',
+        rf'^(?:в\s+|на\s+){M_KW_PATTERN}\s+(?:и\s+)?(?:напиши|напечатай|отправь|скинь|черкани)\s+(?:в\s+чат\w*\s+|в\s+диалог\w*\s+|пользовател\w*\s+|контакт\w*\s+|для\s+|в\s+|@)?([a-zA-Zа-яА-ЯёЁ0-9_\-\.]+)(?:\s+(?:слово\s+|текст\s+|сообщение\s+)?(.*))?$',
         c, re.IGNORECASE
     )
     if m1_c:
@@ -1591,6 +1614,11 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         raw_contact = extract_case_match(orig_c, m1_c.group(2).strip())
         m_target = normalize_contact_name(raw_contact)
         raw_msg = (m1_c.group(3) or "").strip()
+        if not m_target and raw_msg:
+            parts = raw_msg.split(None, 1)
+            raw_contact = extract_case_match(orig_c, parts[0])
+            m_target = normalize_contact_name(raw_contact)
+            raw_msg = parts[1] if len(parts) > 1 else ""
         if not raw_msg:
             return {
                 "type": "clarify",
@@ -1627,7 +1655,7 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
 
     # Pattern 2: 'напиши/отправь [в <messenger>] [в <contact>] [слово/текст] <message>'
     m2 = re.match(
-        rf'^(?:напиши|напечатай|отправь|скинь)\s+(?:сообщение\s+)?(?:в\s+|на\s+)?{M_KW_PATTERN}\s+(?:в\s+|пользователю\s+|контакту\s+|для\s+|в\s+чат\s+)?([a-zA-Zа-яА-ЯёЁ0-9_\-\.]+)(?:\s+(?:слово\s+|текст\s+|сообщение\s+)?(.*))?$',
+        rf'^(?:напиши|напечатай|отправь|скинь)\s+(?:сообщение\s+)?(?:в\s+|на\s+)?{M_KW_PATTERN}\s+(?:в\s+|пользовател\w*\s+|контакт\w*\s+|для\s+|в\s+чат\w*\s+|@)?([a-zA-Zа-яА-ЯёЁ0-9_\-\.]+)(?:\s+(?:слово\s+|текст\s+|сообщение\s+)?(.*))?$',
         c, re.IGNORECASE
     )
     if m2:
@@ -1635,6 +1663,11 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         raw_contact = extract_case_match(orig_c, m2.group(2).strip())
         m_target = normalize_contact_name(raw_contact)
         raw_msg = (m2.group(3) or "").strip()
+        if not m_target and raw_msg:
+            parts = raw_msg.split(None, 1)
+            raw_contact = extract_case_match(orig_c, parts[0])
+            m_target = normalize_contact_name(raw_contact)
+            raw_msg = parts[1] if len(parts) > 1 else ""
         if not raw_msg:
             return {
                 "type": "clarify",
@@ -1711,13 +1744,18 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
 
     # Pattern 4A: Explicit contact prefix: "напиши/отправь [сообщение] пользователю/контакту/для/в чат/в диалог <contact> <message>"
     m4_prefix = re.match(
-        r'^(?:напиши|напечатай|отправь|скинь)\s+(?:сообщение\s+|текст\s+|слово\s+)?(?:пользователю|контакту|для|в\s+чат|в\s+диалог)\s+([a-zA-Zа-яА-ЯёЁ0-9_\-\.]+)(?:\s+(?:сообщение\s+|текст\s+|слово\s+)?(.*))?$',
+        r'^(?:напиши|напечатай|отправь|скинь)\s+(?:сообщение\s+|текст\s+|слово\s+)?(?:пользовател\w*|контакт\w*|для|в\s+чат\w*|в\s+диалог\w*|@)\s+([a-zA-Zа-яА-ЯёЁ0-9_\-\.]+)(?:\s+(?:сообщение\s+|текст\s+|слово\s+)?(.*))?$',
         c, re.IGNORECASE
     )
     if m4_prefix:
         orig_contact = extract_case_match(orig_c, m4_prefix.group(1).strip())
         norm_contact = normalize_contact_name(orig_contact)
         raw_msg = (m4_prefix.group(2) or "").strip()
+        if not norm_contact and raw_msg:
+            parts = raw_msg.split(None, 1)
+            orig_contact = extract_case_match(orig_c, parts[0])
+            norm_contact = normalize_contact_name(orig_contact)
+            raw_msg = parts[1] if len(parts) > 1 else ""
         if not raw_msg:
             return {
                 "type": "clarify",
@@ -1741,8 +1779,13 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         cand_target = m4_direct.group(1).strip()
         cand_target_low = cand_target.lower()
         cand_msg = (m4_direct.group(2) or "").strip()
+        if cand_target_low in INVALID_CONTACT_KEYWORDS and cand_msg:
+            parts = cand_msg.split(None, 1)
+            cand_target = parts[0]
+            cand_target_low = cand_target.lower()
+            cand_msg = parts[1] if len(parts) > 1 else ""
         is_known_contact = cand_target_low in COMMON_NAME_DATIVE_MAP
-        is_latin_username = bool(re.match(r'^[A-Z][a-zA-Z0-9_\-\.]+$$', cand_target) and cand_target_low not in APP_MAP)
+        is_latin_username = bool(re.match(r'^[A-Z][a-zA-Z0-9_\-\.]+$', cand_target) and cand_target_low not in APP_MAP)
         if is_known_contact or is_latin_username:
             orig_contact = extract_case_match(orig_c, cand_target)
             norm_contact = normalize_contact_name(orig_contact)
@@ -1915,7 +1958,8 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
             if remaining_text:
                 raw_text = remaining_text
 
-        # Strip prefixes like "слово", "текст", "сообщение"
+        # Strip prefixes like "ему", "ей", "им", "слово", "текст", "сообщение"
+        raw_text = re.sub(r'^(?:ему\s+|ей\s+|им\s+|пользователю\s+|контакту\s+|в\s+чат\s+|в\s+диалог\s+)', '', raw_text, flags=re.IGNORECASE).strip()
         raw_text = re.sub(r'^(?:слово\s+|текст\s+|сообщение\s+|фразу\s+)', '', raw_text, flags=re.IGNORECASE).strip()
         # Strip outer quotes if present
         raw_text = re.sub(r'^["«\']|["»\']$', '', raw_text).strip()
@@ -2707,17 +2751,42 @@ def process_command(user_text: str, user_name: str = "Пользователь",
                 )
 
         elif stage == "awaiting_contact":
-            contact = raw.strip()
-            state["contact"] = contact
+            clean_contact = re.sub(r'^(?:контакт\w*|пользовател\w*|для|человек\w*|друг\w*|ник\w*|юзер\w*)\s+', '', raw.strip(), flags=re.IGNORECASE).strip()
+            clean_contact = re.sub(r'^(?:в\s+чат\s+|в\s+диалог\s+)', '', clean_contact, flags=re.IGNORECASE).strip()
+            clean_contact = clean_contact.strip('"\'«»')
+            
+            # Check if user entered both contact AND message e.g. "Siax Привет"
+            parts = clean_contact.split(None, 1)
+            if len(parts) > 1 and not clean_contact.startswith('@'):
+                contact = parts[0]
+                msg_text = parts[1]
+                m_id = state["messenger"]
+                m_name = state.get("messenger_name", m_id.capitalize())
+                _MESSENGER_WIZARD_STATE.pop(active_user_key, None)
+                res = gui_agent.execute_autonomous_messenger_task(m_id, contact, msg_text)
+                return (
+                    f"Сообщение для контакта «{contact}» в {m_name} успешно отправлено: «{msg_text}», сэр.",
+                    "messenger_send",
+                    res
+                )
+
+            if clean_contact.lower() in INVALID_CONTACT_KEYWORDS or not clean_contact:
+                return (
+                    "Пожалуйста, укажите имя контакта или ник/юзернейм (например: @username или Кирилл), сэр:",
+                    "messenger_wizard",
+                    {"stage": "enter_contact", "messenger": state["messenger"]}
+                )
+
+            state["contact"] = clean_contact
             state["stage"] = "awaiting_text"
             reply_text = (
-                f"Контакт «{contact}» принят, сэр.\n\n"
+                f"Контакт «{clean_contact}» принят, сэр.\n\n"
                 f"Введите текст сообщения, которое нужно отправить:"
             )
             return reply_text, "messenger_wizard", {
                 "stage": "enter_text",
                 "messenger": state["messenger"],
-                "contact": contact
+                "contact": clean_contact
             }
 
         elif stage == "awaiting_text":

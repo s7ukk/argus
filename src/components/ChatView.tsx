@@ -188,14 +188,16 @@ export const ChatView: React.FC<ChatViewProps> = ({
               {quickPrompts.map((p, idx) => (
                 <button
                   key={idx}
-                  onClick={() => onQuickAction(p.cmd)}
+                  onClick={() => { if (!loading) onQuickAction(p.cmd); }}
+                  disabled={loading}
                   className="glass-card"
                   style={{
                     padding: '10px 12px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    cursor: 'pointer',
+                    cursor: loading ? 'not-allowed' : 'pointer',
+                    opacity: loading ? 0.6 : 1,
                     textAlign: 'left',
                     borderRadius: 14,
                     border: '1px solid rgba(255, 255, 255, 0.06)',
@@ -333,7 +335,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
                         return (
                           <button
                             key={optIdx}
-                            onClick={() => onQuickAction(optCmd)}
+                            onClick={() => { if (!loading) onQuickAction(optCmd); }}
+                            disabled={loading}
                             style={{
                               display: 'inline-flex',
                               alignItems: 'center',
@@ -345,7 +348,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
                               color: '#ffffff',
                               fontSize: 13,
                               fontWeight: 600,
-                              cursor: 'pointer',
+                              cursor: loading ? 'not-allowed' : 'pointer',
+                              opacity: loading ? 0.6 : 1,
                               transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                               boxShadow: '0 4px 14px rgba(0, 0, 0, 0.3)',
                             }}
@@ -541,15 +545,20 @@ export const ChatView: React.FC<ChatViewProps> = ({
           <input
             type="text"
             value={inputText}
+            disabled={loading}
             onChange={(e) => onInputChange(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                onSendMessage();
+                if (!loading) {
+                  onSendMessage();
+                }
               }
             }}
             placeholder={
-              isListening
+              loading
+                ? 'Идёт обработка запроса, сэр... Пожалуйста, подождите...'
+                : isListening
                 ? 'Слушаю ваш голос... Произнесите команду...'
                 : 'Спросите Argus или отдайте команду (звук, скриншот, яркость, программы)...'
             }
@@ -558,7 +567,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
               background: 'transparent',
               border: 'none',
               outline: 'none',
-              color: '#ffffff',
+              color: loading ? 'rgba(255, 255, 255, 0.45)' : '#ffffff',
+              cursor: loading ? 'not-allowed' : 'text',
               fontSize: 13.5,
               padding: '6px 4px',
               userSelect: 'text',
@@ -593,25 +603,25 @@ export const ChatView: React.FC<ChatViewProps> = ({
           {/* Sleek Circular Send Button */}
           <button
             onClick={onSendMessage}
-            disabled={!inputText.trim()}
+            disabled={!inputText.trim() || loading}
             style={{
               width: 34,
               height: 34,
               borderRadius: '50%',
               border: 'none',
-              cursor: !inputText.trim() ? 'not-allowed' : 'pointer',
+              cursor: (!inputText.trim() || loading) ? 'not-allowed' : 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               flexShrink: 0,
-              background: !inputText.trim()
+              background: (!inputText.trim() || loading)
                 ? 'rgba(255, 255, 255, 0.05)'
                 : 'linear-gradient(135deg, #a855f7 0%, #ec4899 100%)',
-              color: !inputText.trim() ? '#64748b' : '#ffffff',
-              boxShadow: !inputText.trim() ? 'none' : '0 0 16px rgba(168, 85, 247, 0.45)',
+              color: (!inputText.trim() || loading) ? '#64748b' : '#ffffff',
+              boxShadow: (!inputText.trim() || loading) ? 'none' : '0 0 16px rgba(168, 85, 247, 0.45)',
               transition: 'all 0.18s ease',
             }}
-            title="Отправить (Enter)"
+            title={loading ? 'Идёт обработка запроса, сэр...' : 'Отправить (Enter)'}
           >
             <Send size={14} />
           </button>
