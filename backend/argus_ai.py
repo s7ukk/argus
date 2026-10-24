@@ -529,6 +529,19 @@ def execute_single_action(act: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]
         contact = act.get("contact", "").strip()
         msg_text = act.get("message", "").strip()
         
+        if not contact or not msg_text:
+            m_disp = "Telegram" if messenger in ["telegram", "тг"] else "Discord" if messenger in ["discord", "дискорд"] else "WhatsApp" if messenger in ["whatsapp", "ватсап"] else "VK" if messenger in ["vk", "вк"] else "мессенджере"
+            if not contact:
+                return (
+                    f"Уточните, пожалуйста, сэр: укажите имя контакта или username получателя в {m_disp}.\n"
+                    f"Например: «В {m_disp if m_disp != 'мессенджере' else 'Telegram'} напиши Кириллу текст {msg_text or 'Привет'}»."
+                ), "clarify", act
+            else:
+                return (
+                    f"Уточните, пожалуйста, сэр: какой текст сообщения отправить контакту «{contact}» в {m_disp}?\n"
+                    f"Например: «В {m_disp if m_disp != 'мессенджере' else 'Telegram'} напиши {contact} текст Привет»."
+                ), "clarify", act
+
         # 1. If messenger is "auto" or generic, pick active or installed messenger
         if messenger in ["auto", "any", "мессенджер", "chat"]:
             fg = sc.get_foreground_window_title().lower()
@@ -1565,40 +1578,67 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
 
     # Pattern 1C: 'в/на <messenger> [и] напиши/отправь [в/пользователю/контакту <contact>] [слово/текст] <message>'
     m1_c = re.match(
-        rf'^(?:в\s+|на\s+){M_KW_PATTERN}\s+(?:и\s+)?(?:напиши|напечатай|отправь|скинь|черкани)\s+(?:в\s+чат\s+|в\s+диалог\s+|пользователю\s+|контакту\s+|для\s+|в\s+)?([a-zA-Zа-яА-ЯёЁ0-9_\-\.]+)\s+(?:слово\s+|текст\s+|сообщение\s+)?(.*)',
+        rf'^(?:в\s+|на\s+){M_KW_PATTERN}\s+(?:и\s+)?(?:напиши|напечатай|отправь|скинь|черкани)\s+(?:в\s+чат\s+|в\s+диалог\s+|пользователю\s+|контакту\s+|для\s+|в\s+)?([a-zA-Zа-яА-ЯёЁ0-9_\-\.]+)(?:\s+(?:слово\s+|текст\s+|сообщение\s+)?(.*))?$',
         c, re.IGNORECASE
     )
     if m1_c:
         m_app = normalize_messenger(m1_c.group(1))
         raw_contact = extract_case_match(orig_c, m1_c.group(2).strip())
         m_target = normalize_contact_name(raw_contact)
-        m_msg = re.sub(r'^["«\']|["»\']$', '', m1_c.group(3).strip()).strip()
+        raw_msg = (m1_c.group(3) or "").strip()
+        if not raw_msg:
+            return {
+                "type": "clarify",
+                "message": (
+                    f"Уточните, пожалуйста, сэр: какой текст сообщения вы хотите отправить контакту «{m_target}» в {m_app.title()}?\n"
+                    f"Например: «В {m_app.title()} напиши {m_target} текст Привет»."
+                )
+            }
+        m_msg = re.sub(r'^["«\']|["»\']$', '', raw_msg).strip()
         m_msg = extract_case_match(orig_c, m_msg)
         return {"type": "messenger_send", "messenger": m_app, "contact": m_target, "message": m_msg}
 
     # Pattern 1D: 'в/на <messenger> [пользователю/контакту <contact>] напиши/отправь [слово/текст] <message>'
     m1_d = re.match(
-        rf'^(?:в\s+|на\s+){M_KW_PATTERN}\s+(?:в\s+чат\s+|в\s+диалог\s+|пользователю\s+|контакту\s+|для\s+|в\s+)?([a-zA-Zа-яА-ЯёЁ0-9_\-\.]+)\s+(?:напиши|напечатай|отправь|скинь|черкани)\s+(?:слово\s+|текст\s+|сообщение\s+)?(.*)',
+        rf'^(?:в\s+|на\s+){M_KW_PATTERN}\s+(?:в\s+чат\s+|в\s+диалог\s+|пользователю\s+|контакту\s+|для\s+|в\s+)?([a-zA-Zа-яА-ЯёЁ0-9_\-\.]+)\s+(?:напиши|напечатай|отправь|скинь|черкани)(?:\s+(?:слово\s+|текст\s+|сообщение\s+)?(.*))?$',
         c, re.IGNORECASE
     )
     if m1_d:
         m_app = normalize_messenger(m1_d.group(1))
         raw_contact = extract_case_match(orig_c, m1_d.group(2).strip())
         m_target = normalize_contact_name(raw_contact)
-        m_msg = re.sub(r'^["«\']|["»\']$', '', m1_d.group(3).strip()).strip()
+        raw_msg = (m1_d.group(3) or "").strip()
+        if not raw_msg:
+            return {
+                "type": "clarify",
+                "message": (
+                    f"Уточните, пожалуйста, сэр: какой текст сообщения вы хотите отправить контакту «{m_target}» в {m_app.title()}?\n"
+                    f"Например: «В {m_app.title()} напиши {m_target} текст Привет»."
+                )
+            }
+        m_msg = re.sub(r'^["«\']|["»\']$', '', raw_msg).strip()
         m_msg = extract_case_match(orig_c, m_msg)
         return {"type": "messenger_send", "messenger": m_app, "contact": m_target, "message": m_msg}
 
     # Pattern 2: 'напиши/отправь [в <messenger>] [в <contact>] [слово/текст] <message>'
     m2 = re.match(
-        rf'^(?:напиши|напечатай|отправь|скинь)\s+(?:сообщение\s+)?(?:в\s+|на\s+)?{M_KW_PATTERN}\s+(?:в\s+|пользователю\s+|контакту\s+|для\s+|в\s+чат\s+)?([a-zA-Zа-яА-ЯёЁ0-9_\-\.]+)\s+(?:слово\s+|текст\s+|сообщение\s+)?(.*)',
+        rf'^(?:напиши|напечатай|отправь|скинь)\s+(?:сообщение\s+)?(?:в\s+|на\s+)?{M_KW_PATTERN}\s+(?:в\s+|пользователю\s+|контакту\s+|для\s+|в\s+чат\s+)?([a-zA-Zа-яА-ЯёЁ0-9_\-\.]+)(?:\s+(?:слово\s+|текст\s+|сообщение\s+)?(.*))?$',
         c, re.IGNORECASE
     )
     if m2:
         m_app = normalize_messenger(m2.group(1))
         raw_contact = extract_case_match(orig_c, m2.group(2).strip())
         m_target = normalize_contact_name(raw_contact)
-        m_msg = re.sub(r'^["«\']|["»\']$', '', m2.group(3).strip()).strip()
+        raw_msg = (m2.group(3) or "").strip()
+        if not raw_msg:
+            return {
+                "type": "clarify",
+                "message": (
+                    f"Уточните, пожалуйста, сэр: какой текст сообщения вы хотите отправить контакту «{m_target}» в {m_app.title()}?\n"
+                    f"Например: «В {m_app.title()} напиши {m_target} текст Привет»."
+                )
+            }
+        m_msg = re.sub(r'^["«\']|["»\']$', '', raw_msg).strip()
         m_msg = extract_case_match(orig_c, m_msg)
         return {"type": "messenger_send", "messenger": m_app, "contact": m_target, "message": m_msg}
 
@@ -1622,6 +1662,15 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
                 if kw in c:
                     dest_m = normalize_messenger(kw)
                     break
+            if not msg_text:
+                m_disp = "Telegram" if dest_m == "telegram" else "Discord" if dest_m == "discord" else "WhatsApp" if dest_m == "whatsapp" else "VK" if dest_m == "vk" else "мессенджере"
+                return {
+                    "type": "clarify",
+                    "message": (
+                        f"Уточните, пожалуйста, сэр: какой текст сообщения вы хотите отправить контакту «{target_name}» в {m_disp}?\n"
+                        f"Например: «В {m_disp if m_disp != 'мессенджере' else 'Telegram'} напиши {target_name} текст Привет»."
+                    )
+                }
             return {'type': 'messenger_send', 'messenger': dest_m, 'contact': target_name, 'message': msg_text}
 
     # Pattern 3B: Find contact and send message (MUST have message verb): 'найди/поищи <contact> и напиши [ему] <msg>'
@@ -1644,45 +1693,147 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
                 if kw in c:
                     dest_m = normalize_messenger(kw)
                     break
+            if not msg_text:
+                m_disp = "Telegram" if dest_m == "telegram" else "Discord" if dest_m == "discord" else "WhatsApp" if dest_m == "whatsapp" else "VK" if dest_m == "vk" else "мессенджере"
+                return {
+                    "type": "clarify",
+                    "message": (
+                        f"Уточните, пожалуйста, сэр: какой текст сообщения вы хотите отправить контакту «{target_name}» в {m_disp}?\n"
+                        f"Например: «В {m_disp if m_disp != 'мессенджере' else 'Telegram'} напиши {target_name} текст Привет»."
+                    )
+                }
             return {'type': 'messenger_send', 'messenger': dest_m, 'contact': target_name, 'message': msg_text}
+
     # Pattern 4A: Explicit contact prefix: "напиши/отправь [сообщение] пользователю/контакту/для/в чат/в диалог <contact> <message>"
     m4_prefix = re.match(
-        r'^(?:напиши|напечатай|отправь|скинь)\s+(?:сообщение\s+|текст\s+|слово\s+)?(?:пользователю|контакту|для|в\s+чат|в\s+диалог)\s+([a-zA-Zа-яА-ЯёЁ0-9_\-\.]+)\s+(?:сообщение\s+|текст\s+|слово\s+)?(.*)$',
+        r'^(?:напиши|напечатай|отправь|скинь)\s+(?:сообщение\s+|текст\s+|слово\s+)?(?:пользователю|контакту|для|в\s+чат|в\s+диалог)\s+([a-zA-Zа-яА-ЯёЁ0-9_\-\.]+)(?:\s+(?:сообщение\s+|текст\s+|слово\s+)?(.*))?$',
         c, re.IGNORECASE
     )
     if m4_prefix:
         orig_contact = extract_case_match(orig_c, m4_prefix.group(1).strip())
         norm_contact = normalize_contact_name(orig_contact)
-        clean_msg = re.sub(r'^["«\']|["»\']$', '', m4_prefix.group(2).strip()).strip()
+        raw_msg = (m4_prefix.group(2) or "").strip()
+        if not raw_msg:
+            return {
+                "type": "clarify",
+                "message": (
+                    f"Уточните, пожалуйста, сэр: в какой именно мессенджер (Telegram, WhatsApp, Discord или VK) "
+                    f"и какой текст сообщения отправить контакту «{norm_contact}»?\n"
+                    f"Например: «В Telegram напиши {norm_contact} текст Привет» или «В Discord напиши {norm_contact} текст Привет»."
+                )
+            }
+        clean_msg = re.sub(r'^["«\']|["»\']$', '', raw_msg).strip()
         clean_msg = extract_case_match(orig_c, clean_msg)
         return {"type": "messenger_send", "messenger": "auto", "contact": norm_contact, "message": clean_msg}
 
     # Pattern 4B: Direct Russian name in dative case or Latin username:
-    # e.g. "напиши Кириллу привет как дела", "отправь Никите файл готов", "напиши JessePinkman привет"
+    # e.g. "напиши Кириллу привет как дела", "отправь Никите файл готов", "напиши JessePinkman привет", "напиши Кириллу в тг"
     m4_direct = re.match(
-        r'^(?:напиши|напечатай|отправь|скинь)\s+([a-zA-Zа-яА-ЯёЁ0-9_\-\.]+)\s+(?:сообщение\s+|текст\s+|слово\s+)?(.*)$',
+        r'^(?:напиши|напечатай|отправь|скинь)\s+([a-zA-Zа-яА-ЯёЁ0-9_\-\.]+)(?:\s+(?:сообщение\s+|текст\s+|слово\s+)?(.*))?$',
         c, re.IGNORECASE
     )
     if m4_direct:
         cand_target = m4_direct.group(1).strip()
         cand_target_low = cand_target.lower()
-        cand_msg = m4_direct.group(2).strip()
+        cand_msg = (m4_direct.group(2) or "").strip()
         is_known_contact = cand_target_low in COMMON_NAME_DATIVE_MAP
-        is_latin_username = bool(re.match(r'^[A-Z][a-zA-Z0-9_\-\.]{2,}$', cand_target) and cand_target_low not in APP_MAP)
-        if (is_known_contact or is_latin_username) and cand_msg:
+        is_latin_username = bool(re.match(r'^[A-Z][a-zA-Z0-9_\-\.]+$$', cand_target) and cand_target_low not in APP_MAP)
+        if is_known_contact or is_latin_username:
             orig_contact = extract_case_match(orig_c, cand_target)
             norm_contact = normalize_contact_name(orig_contact)
-            clean_msg = re.sub(r'^["«\']|["»\']$', '', cand_msg).strip()
-            clean_msg = extract_case_match(orig_c, clean_msg)
-            return {"type": "messenger_send", "messenger": "auto", "contact": norm_contact, "message": clean_msg}
+            if cand_msg:
+                m_embedded_app = re.match(
+                    r'^(?:в\s+|на\s+)?(тг|телеграм\w*|телег\w*|telegram|дискорд\w*|discord|ватсап\w*|whatsapp|воцап|вк|vk|вконтакте|скайп\w*|skype|слак\w*|slack|вайбер\w*|viber)(?:\s+(?:текст[:\s]+|сообщение[:\s]+|слово[:\s]+)?(.*))?$',
+                    cand_msg, re.IGNORECASE
+                )
+                if m_embedded_app:
+                    raw_app = m_embedded_app.group(1).lower()
+                    target_app = "Telegram" if any(k in raw_app for k in ["теле", "тг"]) else "Discord" if "дискорд" in raw_app or "discord" in raw_app else "WhatsApp" if "ватсап" in raw_app or "whatsapp" in raw_app else "VK" if "вк" in raw_app or "vk" in raw_app else raw_app.capitalize()
+                    remaining_msg = (m_embedded_app.group(2) or "").strip()
+                    if not remaining_msg:
+                        return {
+                            "type": "clarify",
+                            "message": (
+                                f"Уточните, пожалуйста, сэр: какой текст сообщения вы хотите отправить контакту «{norm_contact}» в {target_app}?\n"
+                                f"Например: «В {target_app} напиши {norm_contact} текст Привет»."
+                            )
+                        }
+                    else:
+                        remaining_msg = re.sub(r'^["«\']|["»\']$', '', remaining_msg).strip()
+                        remaining_msg = extract_case_match(orig_c, remaining_msg)
+                        return {
+                            "type": "messenger_send",
+                            "messenger": target_app.lower(),
+                            "contact": norm_contact,
+                            "message": remaining_msg
+                        }
+                else:
+                    clean_msg = re.sub(r'^["«\']|["»\']$', '', cand_msg).strip()
+                    clean_msg = extract_case_match(orig_c, clean_msg)
+                    return {"type": "messenger_send", "messenger": "auto", "contact": norm_contact, "message": clean_msg}
+            else:
+                return {
+                    "type": "clarify",
+                    "message": (
+                        f"Уточните, пожалуйста, сэр: в какой именно мессенджер (Telegram, WhatsApp, Discord или VK) "
+                        f"и какой текст сообщения отправить контакту «{norm_contact}»?\n"
+                        f"Например: «В Telegram напиши {norm_contact} текст Привет» или «В Discord напиши {norm_contact} текст Заходи в звонок»."
+                    )
+                }
 
-    # Clarify incomplete messenger write commands (e.g. "Зайди в Telegram и напиши")
-    if any(app in c for app in ["телеграм", "telegram", "тг", "телеге", "дискорд", "discord", "ватсап", "whatsapp"]) and any(v in c for v in ["напиши", "напечатай", "отправь", "скинь", "черкани", "сообщение"]):
-        target_app = "Telegram" if any(k in c for k in ["телеграм", "telegram", "тг", "телеге"]) else "Discord" if any(k in c for k in ["дискорд", "discord"]) else "WhatsApp"
-        return {
-            "type": "clarify",
-            "message": f"Кому и какое сообщение вы хотите отправить в {target_app}?\nНапример: «В {target_app} напиши Siax текст Привет» или «{target_app} напиши Кириллу Привет»."
-        }
+    # Universal Clarify for incomplete messenger / messaging requests
+    has_msg_verb = any(v in c for v in ["напиши", "напечатай", "отправь", "скинь", "черкани", "передай", "отошли", "пошли"])
+    has_message_noun = any(n in c for n in ["сообщение", "смс", "сообщени", "весть", "письмецо", "текст в чат", "текст в диалог"])
+    has_generic_recipient = any(r in c for r in ["кому-то", "кому-нибудь", "кому то", "кому нибудь", "человеку", "другу", "пользователю", "контакту"])
+    has_messenger_kw = any(app in c for app in [
+        "телеграм", "telegram", "тг", "телеге", "телега", "дискорд", "discord",
+        "ватсап", "whatsapp", "воцап", "вк", "vk", "вконтакте", "скайп", "skype",
+        "слак", "slack", "вайбер", "viber", "мессенджер", "чат", "диалог"
+    ])
+
+    is_incomplete_message = (
+        (has_messenger_kw and has_msg_verb) or
+        (has_msg_verb and has_message_noun) or
+        (has_msg_verb and has_generic_recipient) or
+        (has_message_noun and has_generic_recipient) or
+        any(phrase in c for phrase in ["напиши кому", "отправь кому", "напиши сообщение", "отправь сообщение", "скинь сообщение"])
+    )
+
+    if is_incomplete_message:
+        target_app = None
+        if any(k in c for k in ["телеграм", "telegram", "тг", "телеге", "телега"]):
+            target_app = "Telegram"
+        elif any(k in c for k in ["дискорд", "discord"]):
+            target_app = "Discord"
+        elif any(k in c for k in ["ватсап", "whatsapp", "воцап"]):
+            target_app = "WhatsApp"
+        elif any(k in c for k in ["вк", "vk", "вконтакте"]):
+            target_app = "VK"
+        elif any(k in c for k in ["скайп", "skype"]):
+            target_app = "Skype"
+        elif any(k in c for k in ["слак", "slack"]):
+            target_app = "Slack"
+        elif any(k in c for k in ["вайбер", "viber"]):
+            target_app = "Viber"
+
+        if target_app:
+            return {
+                "type": "clarify",
+                "message": (
+                    f"Уточните, пожалуйста, сэр: укажите имя контакта или username получателя, "
+                    f"а также текст сообщения, которое нужно отправить в {target_app}.\n"
+                    f"Например: «В {target_app} напиши Кириллу текст Привет» или «В {target_app} напиши @username текст Встречаемся в 18:00»."
+                )
+            }
+        else:
+            return {
+                "type": "clarify",
+                "message": (
+                    "Уточните, пожалуйста, сэр: в какой именно мессенджер (Telegram, WhatsApp, Discord или VK), "
+                    "укажите имя контакта или username получателя и текст сообщения.\n"
+                    "Например: «В Telegram напиши Кириллу текст Привет» или «В Discord напиши Alex текст Заходи в звонок»."
+                )
+            }
 
     # 14. In-App Automation: Typing Text & Messages (Voice Sunder dictation)
     if any(c.startswith(verb) for verb in ["напиши ", "напечатай ", "введи ", "вбей ", "продиктуй ", "вставь ", "type ", "write "]):
@@ -1776,7 +1927,7 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
     # 16. Universal Application Launch (Dynamic PC catalog & Start Menu discovery)
     # Check for bare verb without app name: e.g. "открой", "запусти"
     if c.strip() in ["открой", "открыть", "запусти", "запустить", "включи", "включить", "open", "launch", "start", "run"]:
-        return {"type": "clarify", "message": "Какое приложение или сайт вы хотите открыть?"}
+        return {"type": "clarify", "message": "Уточните, пожалуйста, сэр: какое приложение или сайт вы хотите открыть?"}
 
     open_verbs = [
         "открой", "открыть", "запусти", "запустить", "включи", "включить", "стартуй",
@@ -1792,7 +1943,7 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         target_app = re.sub(r'^(?:в\s+приложение|в\s+программу|приложение|программу|на\s+сайт|сайт)\s+', '', target_app).strip()
         target_app = re.sub(r'\s+(?:приложение|программу|на\s+сайт|сайт)$', '', target_app).strip()
         if not target_app or target_app in open_verbs:
-            return {"type": "clarify", "message": "Какое приложение или сайт вы хотите открыть?"}
+            return {"type": "clarify", "message": "Уточните, пожалуйста, сэр: какое приложение или сайт вы хотите открыть?"}
 
         # Check for generic browser request
         if target_app in ["браузер", "browser", "интернет"]:

@@ -261,8 +261,16 @@ def execute_autonomous_messenger_task(messenger: str, contact: str, message: str
         m_name = "Telegram"
     elif messenger.lower() in ["discord", "дискорд"]:
         m_name = "Discord"
-    elif messenger.lower() in ["whatsapp", "ватсап"]:
+    elif messenger.lower() in ["whatsapp", "ватсап", "воцап"]:
         m_name = "WhatsApp"
+    elif messenger.lower() in ["vk", "вконтакте", "вк"]:
+        m_name = "VK"
+    elif messenger.lower() in ["skype", "скайп"]:
+        m_name = "Skype"
+    elif messenger.lower() in ["slack", "слак"]:
+        m_name = "Slack"
+    elif messenger.lower() in ["viber", "вайбер"]:
+        m_name = "Viber"
 
     clean_contact = contact.lstrip('@').strip()
     # A contact is only treated as an explicit handle if user explicitly typed '@' in the prompt
