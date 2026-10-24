@@ -596,6 +596,134 @@ try:
 except Exception:
     pass
 
+
+# ─── MESSENGER DETECTION & DISCOVERY (WINDOWS & MACOS) ───────────
+def detect_installed_messengers() -> List[Dict[str, str]]:
+    """
+    Detects all messaging applications installed/active on Windows and macOS.
+    Returns list of dicts: [{"id": "telegram", "name": "Telegram", "cmd": "1", "label": "1. Telegram"}, ...]
+    """
+    found: List[Dict[str, str]] = []
+
+    # Check running processes first
+    running_procs = set()
+    try:
+        for p in psutil.process_iter(['name']):
+            p_name = p.info.get('name')
+            if p_name:
+                running_procs.add(p_name.lower())
+    except Exception:
+        pass
+
+    if sys.platform == "darwin":
+        # macOS Applications check
+        mac_messengers = [
+            {"id": "telegram", "name": "Telegram", "paths": ["/Applications/Telegram.app", os.path.expanduser("~/Applications/Telegram.app")]},
+            {"id": "discord", "name": "Discord", "paths": ["/Applications/Discord.app", os.path.expanduser("~/Applications/Discord.app")]},
+            {"id": "whatsapp", "name": "WhatsApp", "paths": ["/Applications/WhatsApp.app", os.path.expanduser("~/Applications/WhatsApp.app")]},
+            {"id": "vk", "name": "VK (ВКонтакте)", "paths": ["/Applications/VK.app", "/Applications/VK Messenger.app", os.path.expanduser("~/Applications/VK.app")]},
+            {"id": "skype", "name": "Skype", "paths": ["/Applications/Skype.app", os.path.expanduser("~/Applications/Skype.app")]},
+            {"id": "slack", "name": "Slack", "paths": ["/Applications/Slack.app", os.path.expanduser("~/Applications/Slack.app")]},
+            {"id": "viber", "name": "Viber", "paths": ["/Applications/Viber.app", os.path.expanduser("~/Applications/Viber.app")]},
+        ]
+        for m in mac_messengers:
+            is_installed = any(os.path.exists(p) for p in m["paths"])
+            is_running = any(m["id"] in proc for proc in running_procs)
+            if is_installed or is_running:
+                found.append({"id": m["id"], "name": m["name"]})
+
+    else:
+        # Windows Applications check
+        local_appdata = os.environ.get('LOCALAPPDATA', os.path.expanduser('~\\AppData\\Local'))
+        appdata = os.environ.get('APPDATA', os.path.expanduser('~\\AppData\\Roaming'))
+        prog_files = os.environ.get('ProgramFiles', 'C:\\Program Files')
+        prog_files_x86 = os.environ.get('ProgramFiles(x86)', 'C:\\Program Files (x86)')
+
+        win_messengers = [
+            {
+                "id": "telegram", "name": "Telegram",
+                "procs": ["telegram.exe"],
+                "paths": [
+                    os.path.join(appdata, "Telegram Desktop", "Telegram.exe"),
+                    os.path.join(local_appdata, "Programs", "Telegram Desktop", "Telegram.exe"),
+                    os.path.join(prog_files, "Telegram Desktop", "Telegram.exe"),
+                ]
+            },
+            {
+                "id": "discord", "name": "Discord",
+                "procs": ["discord.exe"],
+                "paths": [
+                    os.path.join(local_appdata, "Discord", "Update.exe"),
+                    os.path.join(local_appdata, "Programs", "Discord", "Discord.exe"),
+                ]
+            },
+            {
+                "id": "whatsapp", "name": "WhatsApp",
+                "procs": ["whatsapp.exe"],
+                "paths": [
+                    os.path.join(local_appdata, "WhatsApp", "WhatsApp.exe"),
+                ]
+            },
+            {
+                "id": "vk", "name": "VK (ВКонтакте)",
+                "procs": ["vk.exe", "vkmessenger.exe", "vk messenger.exe"],
+                "paths": [
+                    os.path.join(local_appdata, "Programs", "VK", "VK.exe"),
+                    os.path.join(local_appdata, "Programs", "VK Messenger", "VK Messenger.exe"),
+                ]
+            },
+            {
+                "id": "skype", "name": "Skype",
+                "procs": ["skype.exe"],
+                "paths": [
+                    os.path.join(prog_files, "Microsoft", "Skype for Desktop", "Skype.exe"),
+                    os.path.join(prog_files_x86, "Microsoft", "Skype for Desktop", "Skype.exe"),
+                ]
+            },
+            {
+                "id": "slack", "name": "Slack",
+                "procs": ["slack.exe"],
+                "paths": [
+                    os.path.join(local_appdata, "slack", "slack.exe"),
+                ]
+            },
+            {
+                "id": "viber", "name": "Viber",
+                "procs": ["viber.exe"],
+                "paths": [
+                    os.path.join(local_appdata, "Viber", "Viber.exe"),
+                ]
+            },
+        ]
+
+        for m in win_messengers:
+            is_running = any(p in running_procs for p in m["procs"])
+            is_installed = any(os.path.exists(p) for p in m["paths"])
+            if is_running or is_installed:
+                found.append({"id": m["id"], "name": m["name"]})
+
+    standard = [
+        {"id": "telegram", "name": "Telegram"},
+        {"id": "discord", "name": "Discord"},
+        {"id": "whatsapp", "name": "WhatsApp"},
+        {"id": "vk", "name": "VK (ВКонтакте)"},
+    ]
+    found_ids = {m["id"] for m in found}
+    for sm in standard:
+        if sm["id"] not in found_ids:
+            found.append(sm)
+
+    numbered = []
+    for idx, m in enumerate(found[:6], 1):
+        numbered.append({
+            "num": str(idx),
+            "id": m["id"],
+            "name": m["name"],
+            "cmd": str(idx),
+            "label": f"{idx}. {m['name']}"
+        })
+    return numbered
+
 # ─── FOREGROUND WINDOW ACTIVATOR ─────────────────────────────────
 _LAST_NON_ARGUS_HWND = None
 

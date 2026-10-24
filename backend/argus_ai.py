@@ -23,6 +23,8 @@ except ImportError:
     import openrouter_engine
 
 _AI_QUERY_CACHE: Dict[str, str] = {}
+_MESSENGER_WIZARD_STATE: Dict[str, Dict[str, Any]] = {}
+
 _AI_PLAN_CACHE: Dict[str, Any] = {}
 
 def is_english(text: str) -> bool:
@@ -230,7 +232,10 @@ def execute_single_action(act: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]
     act_type = act.get("type", "").lower()
     
     if act_type == "clarify":
-        return act.get("message", "Какое приложение или сайт вы хотите открыть?"), "clarify", act
+        return act.get("message", "Уточните, пожалуйста, сэр: укажите команду, приложение или действие."), "clarify", act
+
+    if act_type == "messenger_wizard":
+        return act.get("message", "Выберите мессенджер, сэр."), "messenger_wizard", act
 
     if act_type == "scenario":
         sc_id = act.get("id") or act.get("scenario_id")
@@ -1772,13 +1777,23 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
                     clean_msg = extract_case_match(orig_c, clean_msg)
                     return {"type": "messenger_send", "messenger": "auto", "contact": norm_contact, "message": clean_msg}
             else:
+                detected_m = sc.detect_installed_messengers()
+                _MESSENGER_WIZARD_STATE["default"] = {
+                    "stage": "awaiting_messenger",
+                    "messengers": detected_m,
+                    "contact": norm_contact
+                }
+                msg_lines = [f"Выберите мессенджер для отправки сообщения контакту «{norm_contact}», сэр:"]
+                for m in detected_m:
+                    msg_lines.append(f"{m['num']}. {m['name']}")
+                msg_lines.append("\nНажмите кнопку ниже или отправьте цифру/название.")
                 return {
-                    "type": "clarify",
-                    "message": (
-                        f"Уточните, пожалуйста, сэр: в какой именно мессенджер (Telegram, WhatsApp, Discord или VK) "
-                        f"и какой текст сообщения отправить контакту «{norm_contact}»?\n"
-                        f"Например: «В Telegram напиши {norm_contact} текст Привет» или «В Discord напиши {norm_contact} текст Заходи в звонок»."
-                    )
+                    "type": "messenger_wizard",
+                    "message": "\n".join(msg_lines),
+                    "stage": "select_messenger",
+                    "options": [{"label": m["label"], "cmd": m["num"]} for m in detected_m],
+                    "messengers": detected_m,
+                    "contact": norm_contact
                 }
 
     # Universal Clarify for incomplete messenger / messaging requests
@@ -1817,22 +1832,36 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
             target_app = "Viber"
 
         if target_app:
+            _MESSENGER_WIZARD_STATE["default"] = {
+                "stage": "awaiting_contact",
+                "messenger": target_app.lower(),
+                "messenger_name": target_app
+            }
             return {
-                "type": "clarify",
+                "type": "messenger_wizard",
                 "message": (
-                    f"Уточните, пожалуйста, сэр: укажите имя контакта или username получателя, "
-                    f"а также текст сообщения, которое нужно отправить в {target_app}.\n"
-                    f"Например: «В {target_app} напиши Кириллу текст Привет» или «В {target_app} напиши @username текст Встречаемся в 18:00»."
-                )
+                    f"Мессенджер {target_app} выбран, сэр.\n\n"
+                    f"Введите имя контакта или ник/юзернейм получателя (например: @username или Кирилл):"
+                ),
+                "stage": "enter_contact",
+                "messenger": target_app.lower()
             }
         else:
+            detected_m = sc.detect_installed_messengers()
+            _MESSENGER_WIZARD_STATE["default"] = {
+                "stage": "awaiting_messenger",
+                "messengers": detected_m
+            }
+            msg_lines = ["Выберите мессенджер для отправки сообщения, сэр:"]
+            for m in detected_m:
+                msg_lines.append(f"{m['num']}. {m['name']}")
+            msg_lines.append("\nНажмите кнопку ниже или отправьте цифру/название.")
             return {
-                "type": "clarify",
-                "message": (
-                    "Уточните, пожалуйста, сэр: в какой именно мессенджер (Telegram, WhatsApp, Discord или VK), "
-                    "укажите имя контакта или username получателя и текст сообщения.\n"
-                    "Например: «В Telegram напиши Кириллу текст Привет» или «В Discord напиши Alex текст Заходи в звонок»."
-                )
+                "type": "messenger_wizard",
+                "message": "\n".join(msg_lines),
+                "stage": "select_messenger",
+                "options": [{"label": m["label"], "cmd": m["num"]} for m in detected_m],
+                "messengers": detected_m
             }
 
     # 14. In-App Automation: Typing Text & Messages (Voice Sunder dictation)
@@ -2606,6 +2635,104 @@ def process_command(user_text: str, user_name: str = "Пользователь",
     if matched_sc:
         res = sc_mgr.execute_scenario(matched_sc)
         return res["summary"], "scenario", {"scenario_id": matched_sc.get("id"), "scenario_name": matched_sc.get("name")}
+
+    # 0.7 Interactive Stateful Messenger Wizard (Windows & macOS)
+    # Allows selecting messenger by button or number/text -> entering contact/username -> entering message text
+    raw_low = raw.lower()
+    
+    # Cancellation check
+    if any(k == raw_low or raw_low.startswith(k + " ") for k in ["отмена", "отбой", "стоп", "назад", "хватит", "не надо", "забудь", "cancel"]):
+        if user_name in _MESSENGER_WIZARD_STATE or "default" in _MESSENGER_WIZARD_STATE:
+            _MESSENGER_WIZARD_STATE.pop(user_name, None)
+            _MESSENGER_WIZARD_STATE.pop("default", None)
+            return "Мастер отправки сообщений отменён, сэр. Ожидаю ваших указаний.", "clarify", {}
+
+    active_user_key = user_name if user_name in _MESSENGER_WIZARD_STATE else ("default" if "default" in _MESSENGER_WIZARD_STATE else None)
+    if active_user_key:
+        state = _MESSENGER_WIZARD_STATE[active_user_key]
+        stage = state.get("stage")
+
+        if stage == "awaiting_messenger":
+            messengers = state.get("messengers", [])
+            selected = None
+            for m in messengers:
+                if raw_low in [m["num"], f"{m['num']}.", f"{m['num']})", f"{m['num']} "]:
+                    selected = m
+                    break
+                if m["id"] in raw_low or m["name"].lower() in raw_low:
+                    selected = m
+                    break
+                if ("тг" in raw_low or "телеграм" in raw_low) and m["id"] == "telegram":
+                    selected = m
+                    break
+                if ("вк" in raw_low or "вконтакте" in raw_low) and m["id"] == "vk":
+                    selected = m
+                    break
+                if ("дискорд" in raw_low or "discord" in raw_low) and m["id"] == "discord":
+                    selected = m
+                    break
+                if ("ватсап" in raw_low or "whatsapp" in raw_low) and m["id"] == "whatsapp":
+                    selected = m
+                    break
+
+            if selected:
+                state["messenger"] = selected["id"]
+                state["messenger_name"] = selected["name"]
+                if state.get("contact"):
+                    state["stage"] = "awaiting_text"
+                    reply_text = (
+                        f"Мессенджер {selected['name']} выбран для контакта «{state['contact']}», сэр.\n\n"
+                        f"Введите текст сообщения, которое нужно отправить:"
+                    )
+                    return reply_text, "messenger_wizard", {
+                        "stage": "enter_text",
+                        "messenger": selected["id"],
+                        "contact": state["contact"]
+                    }
+                else:
+                    state["stage"] = "awaiting_contact"
+                    reply_text = (
+                        f"Мессенджер {selected['name']} выбран, сэр.\n\n"
+                        f"Введите имя контакта или ник/юзернейм получателя (например: @username или Кирилл):"
+                    )
+                    return reply_text, "messenger_wizard", {
+                        "stage": "enter_contact",
+                        "messenger": selected["id"]
+                    }
+            else:
+                return (
+                    f"Пожалуйста, выберите мессенджер из списка (введите цифру 1-{len(messengers)} или нажмите кнопку):",
+                    "messenger_wizard",
+                    {"stage": "select_messenger", "options": [{"label": m["label"], "cmd": m["num"]} for m in messengers], "messengers": messengers}
+                )
+
+        elif stage == "awaiting_contact":
+            contact = raw.strip()
+            state["contact"] = contact
+            state["stage"] = "awaiting_text"
+            reply_text = (
+                f"Контакт «{contact}» принят, сэр.\n\n"
+                f"Введите текст сообщения, которое нужно отправить:"
+            )
+            return reply_text, "messenger_wizard", {
+                "stage": "enter_text",
+                "messenger": state["messenger"],
+                "contact": contact
+            }
+
+        elif stage == "awaiting_text":
+            msg_text = raw.strip()
+            m_id = state["messenger"]
+            m_name = state.get("messenger_name", m_id.capitalize())
+            contact = state["contact"]
+            _MESSENGER_WIZARD_STATE.pop(active_user_key, None)
+            res = gui_agent.execute_autonomous_messenger_task(m_id, contact, msg_text)
+            return (
+                f"Сообщение для контакта «{contact}» в {m_name} успешно отправлено: «{msg_text}», сэр.",
+                "messenger_send",
+                res
+            )
+
 
     # 1. First, check if input contains any system actions (single or compound) locally (<1ms)
     actions_to_run = local_multi_action_planner(resolved_text)

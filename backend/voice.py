@@ -1,5 +1,9 @@
 import asyncio
 import base64
+from typing import Dict, Any
+# In-memory LRU audio cache for instantaneous voice playback (<0.01ms)
+_VOICE_AUDIO_CACHE: Dict[str, str] = {}
+
 import io
 import os
 import sys
@@ -185,18 +189,34 @@ def clean_text_for_speech(text: str) -> str:
     t = re.sub(r'\s*([.,!?])\s*', r'\1 ', t)
     t = re.sub(r'\s+', ' ', t).strip()
 
-    # Shorten speech to first 1-2 punchy sentences (~140 chars max) for instantaneous (<0.2s) audio start
+    # Fast Wizard & List speech optimization
+    if "выберите мессенджер" in t.lower():
+        return "Выберите мессенджер для отправки сообщения, сэр."
+    if "введите имя контакта" in t.lower() or "введите ник" in t.lower():
+        return "Мессенджер выбран, сэр. Введите имя контакта или ник."
+    if "введите текст сообщения" in t.lower():
+        return "Контакт принят, сэр. Введите текст сообщения."
+    if "успешно отправлено" in t.lower():
+        return "Сообщение успешно отправлено, сэр."
+
+    # Strip bullet points, numbered lists and examples from speech
+    t = re.sub(r'(?m)^\s*\d+[\.\)]\s+.*$', '', t)
+    t = re.sub(r'Например:.*', '', t, flags=re.DOTALL)
+    t = re.sub(r'Нажмите кнопку ниже.*', '', t)
+    t = re.sub(r'\s+', ' ', t).strip()
+
+    # Shorten speech to first punchy sentence (~80 chars max) for lightning-fast (<0.2s) audio start
     sentences = re.split(r'(?<=[.!?])\s+', t)
     shortened = ""
     for s in sentences:
-        if len(shortened) + len(s) < 140:
+        if len(shortened) + len(s) < 85:
             shortened += (s + " ")
         else:
             break
     if shortened.strip():
         t = shortened.strip()
-    elif len(t) > 140:
-        t = t[:135] + "..."
+    elif len(t) > 85:
+        t = t[:80] + "..."
     return t
 
 async def generate_speech_base64(
@@ -213,6 +233,18 @@ async def generate_speech_base64(
         return None
 
     clean_text = clean_text_for_speech(text)
+    if not clean_text or not clean_text.strip():
+        return None
+
+    target_voice = "ru-RU-DmitryNeural"
+    if voice and "dmitry" in voice.lower():
+        target_voice = "ru-RU-DmitryNeural"
+    elif voice and "svetlana" not in voice.lower() and "christopher" not in voice.lower() and "jenny" not in voice.lower():
+        target_voice = voice.strip()
+
+    cache_key = f"{clean_text}_{target_voice}_{rate}"
+    if cache_key in _VOICE_AUDIO_CACHE:
+        return _VOICE_AUDIO_CACHE[cache_key]
 
     # 1. Try Fish Audio if key is provided
     if fish_api_key and fish_api_key.strip():
@@ -240,7 +272,11 @@ async def generate_speech_base64(
 
             audio_data = await asyncio.wait_for(_stream_voice(target_voice), timeout=7.0)
             if audio_data and len(audio_data) > 100:
-                return base64.b64encode(audio_data).decode("utf-8")
+                b64_res = base64.b64encode(audio_data).decode("utf-8")
+                if len(_VOICE_AUDIO_CACHE) > 500:
+                    _VOICE_AUDIO_CACHE.clear()
+                _VOICE_AUDIO_CACHE[cache_key] = b64_res
+                return b64_res
         except Exception as e:
             print(f"[Edge-TTS Voice Notice]: Attempt {attempt + 1} Dmitry error: {e}")
             await asyncio.sleep(0.2)

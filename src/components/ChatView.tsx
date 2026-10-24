@@ -317,6 +317,58 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     )}
                   </div>
 
+                  {/* Interactive Wizard & Options Buttons */}
+                  {msg.action_data?.options && Array.isArray(msg.action_data.options) && msg.action_data.options.length > 0 && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: 8,
+                        marginTop: 4,
+                      }}
+                    >
+                      {msg.action_data.options.map((opt: any, optIdx: number) => {
+                        const optLabel = typeof opt === 'string' ? opt : (opt.label || opt.name);
+                        const optCmd = typeof opt === 'string' ? opt : (opt.cmd || opt.name || opt.label);
+                        return (
+                          <button
+                            key={optIdx}
+                            onClick={() => onQuickAction(optCmd)}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              padding: '8px 16px',
+                              borderRadius: 12,
+                              background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.28) 0%, rgba(217, 70, 239, 0.22) 100%)',
+                              border: '1px solid rgba(168, 85, 247, 0.5)',
+                              color: '#ffffff',
+                              fontSize: 13,
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                              boxShadow: '0 4px 14px rgba(0, 0, 0, 0.3)',
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = 'linear-gradient(135deg, rgba(139, 92, 246, 0.5) 0%, rgba(217, 70, 239, 0.4) 100%)';
+                              e.currentTarget.style.borderColor = 'rgba(192, 132, 252, 0.85)';
+                              e.currentTarget.style.transform = 'translateY(-2px)';
+                              e.currentTarget.style.boxShadow = '0 6px 20px rgba(168, 85, 247, 0.4)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = 'linear-gradient(135deg, rgba(139, 92, 246, 0.28) 0%, rgba(217, 70, 239, 0.22) 100%)';
+                              e.currentTarget.style.borderColor = 'rgba(168, 85, 247, 0.5)';
+                              e.currentTarget.style.transform = 'translateY(0)';
+                              e.currentTarget.style.boxShadow = '0 4px 14px rgba(0, 0, 0, 0.3)';
+                            }}
+                          >
+                            <span>{optLabel}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
                   {/* System Action Badge */}
                   {msg.action_type && (
                     <div
