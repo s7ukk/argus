@@ -697,6 +697,14 @@ function createWindow() {
       mainWindow.webContents.toggleDevTools();
       event.preventDefault();
     }
+    // Protect Argus AI from closing when Ctrl+W / Cmd+W is received
+    if (
+      (input.control || input.meta) &&
+      !input.alt &&
+      input.key.toLowerCase() === 'w'
+    ) {
+      event.preventDefault();
+    }
   });
 
   mainWindow.on('closed', () => {

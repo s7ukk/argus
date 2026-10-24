@@ -19,17 +19,12 @@ import backend.app_paths as app_paths
 _OPENROUTER_CACHE: Dict[str, Tuple[str, List[Dict[str, Any]]]] = {}
 _LAST_KEY: Optional[str] = None
 
-# Free models router and top-tier free fallback models
-FREE_PRIMARY_MODEL = "openrouter/free"
+# Free models router and top-tier free fallback models (OpenRouter enforces max 3 models in 'models' list)
+FREE_PRIMARY_MODEL = "nvidia/nemotron-3-ultra-550b-a55b:free"
 FREE_FALLBACK_MODELS = [
-    "openrouter/free",
-    "google/gemma-4-31b-it:free",
-    "google/gemma-4-26b-a4b-it:free",
-    "nvidia/nemotron-3.5-lightning:free",
-    "nvidia/nemotron-3-super-120b-a12b:free",
     "nvidia/nemotron-3-ultra-550b-a55b:free",
-    "liquid/lfm-2.5-2.6b:free",
-    "cohere/north-mini-code:free"
+    "google/gemma-4-31b-it:free",
+    "openrouter/free"
 ]
 
 def load_openrouter_api_keys() -> List[str]:
@@ -220,14 +215,13 @@ def query_openrouter(
             "Content-Type": "application/json"
         }
 
-        # Attempt 1: primary model with fallback routing list and reasoning excluded
+        # Attempt 1: primary model with fallback routing list of max 3 items
         body = {
             "model": FREE_PRIMARY_MODEL,
-            "models": FREE_FALLBACK_MODELS,
+            "models": FREE_FALLBACK_MODELS[:3],
             "messages": messages,
             "temperature": 0.3,
-            "max_tokens": 1200,
-            "reasoning": {"exclude": True}
+            "max_tokens": 1500
         }
 
         try:
@@ -236,17 +230,50 @@ def query_openrouter(
                 data=json.dumps(body).encode("utf-8"),
                 headers=headers
             )
-            with urllib.request.urlopen(req, timeout=10.0) as resp:
+            with urllib.request.urlopen(req, timeout=12.0) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
                 if data.get("choices") and data["choices"][0].get("message"):
-                    raw_content = data["choices"][0]["message"].get("content", "").strip()
-                    if raw_content:
+                    msg = data["choices"][0]["message"]
+                    cnt = msg.get("content")
+                    if cnt and isinstance(cnt, str) and cnt.strip():
+                        raw_content = cnt.strip()
+                        break
+                    # Fallback for thinking models that place generation in reasoning field
+                    rsn = msg.get("reasoning")
+                    if rsn and isinstance(rsn, str) and rsn.strip():
+                        raw_content = rsn.strip()
                         break
         except urllib.error.HTTPError as e:
             if e.code == 429:
                 # Key rate limit exceeded, rotate to next candidate key
                 continue
-            pass
+            # If 400 or other HTTP error with 'models' array, try single model directly
+            try:
+                body_single = {
+                    "model": FREE_PRIMARY_MODEL,
+                    "messages": messages,
+                    "temperature": 0.3,
+                    "max_tokens": 1500
+                }
+                req_s = urllib.request.Request(
+                    url,
+                    data=json.dumps(body_single).encode("utf-8"),
+                    headers=headers
+                )
+                with urllib.request.urlopen(req_s, timeout=12.0) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+                    if data.get("choices") and data["choices"][0].get("message"):
+                        msg = data["choices"][0]["message"]
+                        cnt = msg.get("content")
+                        if cnt and isinstance(cnt, str) and cnt.strip():
+                            raw_content = cnt.strip()
+                            break
+                        rsn = msg.get("reasoning")
+                        if rsn and isinstance(rsn, str) and rsn.strip():
+                            raw_content = rsn.strip()
+                            break
+            except Exception:
+                pass
         except Exception:
             # Fallback to direct model request
             try:
@@ -254,19 +281,24 @@ def query_openrouter(
                     "model": "openrouter/free",
                     "messages": messages,
                     "temperature": 0.3,
-                    "max_tokens": 1000,
-                    "reasoning": {"exclude": True}
+                    "max_tokens": 1200
                 }
                 req_fb = urllib.request.Request(
                     url,
                     data=json.dumps(body_fallback).encode("utf-8"),
                     headers=headers
                 )
-                with urllib.request.urlopen(req_fb, timeout=9.0) as resp:
+                with urllib.request.urlopen(req_fb, timeout=10.0) as resp:
                     data = json.loads(resp.read().decode("utf-8"))
                     if data.get("choices") and data["choices"][0].get("message"):
-                        raw_content = data["choices"][0]["message"].get("content", "").strip()
-                        if raw_content:
+                        msg = data["choices"][0]["message"]
+                        cnt = msg.get("content")
+                        if cnt and isinstance(cnt, str) and cnt.strip():
+                            raw_content = cnt.strip()
+                            break
+                        rsn = msg.get("reasoning")
+                        if rsn and isinstance(rsn, str) and rsn.strip():
+                            raw_content = rsn.strip()
                             break
             except Exception:
                 pass

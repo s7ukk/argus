@@ -2173,6 +2173,87 @@ def minimize_all_windows() -> bool:
     return False
 
 # ─── BROWSER & YOUTUBE DEEP INTERACTION ────────────────────────────
+def is_argus_window(hwnd) -> bool:
+    """Checks if given Win32 HWND belongs to Argus AI application."""
+    if not _HAS_WIN32GUI or not hwnd:
+        return False
+    try:
+        import win32gui
+        import win32process
+        title = win32gui.GetWindowText(hwnd).lower()
+        if "argus" in title:
+            return True
+        _, pid = win32process.GetWindowThreadProcessId(hwnd)
+        if pid == os.getpid():
+            return True
+        try:
+            p = psutil.Process(pid)
+            pname = p.name().lower()
+            if "argus" in pname or "electron" in pname:
+                return True
+        except Exception:
+            pass
+    except Exception:
+        pass
+    return False
+
+def is_argus_foreground() -> bool:
+    """Checks if current foreground window belongs to Argus AI."""
+    if sys.platform == "darwin":
+        try:
+            script = 'tell application "System Events" to get name of first application process whose frontmost is true'
+            res = subprocess.run(["osascript", "-e", script], capture_output=True, timeout=2, text=True)
+            front_app = res.stdout.strip().lower()
+            if "argus" in front_app or "electron" in front_app:
+                return True
+        except Exception:
+            pass
+        return False
+
+    if not _HAS_WIN32GUI:
+        return False
+    try:
+        hwnd = ctypes.windll.user32.GetForegroundWindow()
+        if hwnd:
+            return is_argus_window(hwnd)
+    except Exception:
+        pass
+    return False
+
+def is_browser_foreground() -> bool:
+    """Verifies that the current foreground window is indeed a recognized web browser."""
+    browser_names = ["chrome", "edge", "yandex", "brave", "safari", "firefox", "opera", "vivaldi"]
+    if sys.platform == "darwin":
+        try:
+            script = 'tell application "System Events" to get name of first application process whose frontmost is true'
+            res = subprocess.run(["osascript", "-e", script], capture_output=True, timeout=2, text=True)
+            front_app = res.stdout.strip().lower()
+            return any(b in front_app for b in browser_names)
+        except Exception:
+            return False
+
+    if not _HAS_WIN32GUI:
+        return False
+    try:
+        import win32gui
+        import win32process
+        hwnd = ctypes.windll.user32.GetForegroundWindow()
+        if not hwnd or is_argus_window(hwnd):
+            return False
+        title = win32gui.GetWindowText(hwnd).lower()
+        if any(b in title for b in browser_names):
+            return True
+        _, pid = win32process.GetWindowThreadProcessId(hwnd)
+        try:
+            p = psutil.Process(pid)
+            pname = p.name().lower()
+            return any(b in pname for b in browser_names)
+        except Exception:
+            pass
+    except Exception:
+        pass
+    return False
+
 def activate_browser(browser_preference: Optional[str] = None) -> bool:
     """Brings any running browser (Chrome, Edge, Yandex, Brave, Safari, Firefox, Opera) to the foreground."""
     browsers = ["chrome", "edge", "yandex", "brave", "safari", "firefox", "opera", "browser"]
@@ -2199,7 +2280,8 @@ def activate_browser(browser_preference: Optional[str] = None) -> bool:
     for b in browsers:
         if activate_running_window(b):
             time.sleep(0.12)
-            return True
+            if not is_argus_foreground():
+                return True
     return False
 
 def activate_youtube_window() -> bool:
@@ -2265,7 +2347,7 @@ def activate_youtube_window() -> bool:
         found_yt = []
         found_browsers = []
         def cb(hwnd, _):
-            if win32gui.IsWindowVisible(hwnd):
+            if win32gui.IsWindowVisible(hwnd) and not is_argus_window(hwnd):
                 title = win32gui.GetWindowText(hwnd).lower()
                 if "youtube" in title:
                     found_yt.append(hwnd)
@@ -2368,7 +2450,11 @@ def youtube_control(action: str) -> bool:
 
     # Windows implementation:
     activate_youtube_window()
-    time.sleep(0.1)
+    time.sleep(0.12)
+
+    # Absolute safety check: never send player keys to Argus window
+    if is_argus_foreground():
+        return False
 
     try:
         if act in ["play_pause", "pause", "play", "toggle"]:
@@ -2469,7 +2555,7 @@ def close_specific_browser_tab(target_query: str) -> bool:
         import win32gui
         matched_hwnds = []
         def cb(hwnd, _):
-            if win32gui.IsWindowVisible(hwnd):
+            if win32gui.IsWindowVisible(hwnd) and not is_argus_window(hwnd):
                 title = win32gui.GetWindowText(hwnd).lower()
                 if match_term in title or q in title:
                     matched_hwnds.append(hwnd)
@@ -2479,45 +2565,77 @@ def close_specific_browser_tab(target_query: str) -> bool:
                 ctypes.windll.user32.ShowWindow(h, 9)
                 ctypes.windll.user32.SetForegroundWindow(h)
                 time.sleep(0.12)
-                send_hotkey("ctrl", "w")
+                if not is_argus_foreground():
+                    send_hotkey("ctrl", "w")
             return True
     except Exception as e:
         print("Windows close_specific_browser_tab error:", e)
 
-    activate_browser()
-    time.sleep(0.1)
-    return close_browser_tab()
+    # Safety: If specific tab was not found, DO NOT close arbitrary windows or Argus!
+    return False
 
 def close_browser_tab() -> bool:
-    """Closes active browser tab (Cmd+W on macOS, Ctrl+W on Windows/Linux)."""
-    activate_browser()
-    time.sleep(0.1)
+    """Closes active browser tab (Cmd+W on macOS, Ctrl+W on Windows/Linux). Never closes Argus AI."""
+    if is_argus_foreground():
+        return False
+
     if sys.platform == "darwin":
+        script = '''
+        tell application "System Events"
+            set runningBrowsers to (every application process whose name is in {"Google Chrome", "Safari", "Brave Browser", "Microsoft Edge", "Firefox", "Opera", "Yandex"})
+            if (count of runningBrowsers) > 0 then
+                set frontBrowser to name of (item 1 of runningBrowsers)
+                tell application frontBrowser to close active tab of front window
+                return true
+            end if
+        end tell
+        '''
         try:
-            script = 'tell application "System Events" to keystroke "w" using {command down}'
-            subprocess.run(["osascript", "-e", script], capture_output=True, timeout=2)
-            return True
+            res = subprocess.run(["osascript", "-e", script], capture_output=True, timeout=2, text=True)
+            if "true" in res.stdout.lower():
+                return True
         except Exception:
             pass
-    if _HAS_PYAUTOGUI:
-        try:
-            pyautogui.hotkey('ctrl', 'w')
-            return True
-        except Exception as e:
-            print("close_browser_tab error:", e)
+
+    if activate_browser():
+        time.sleep(0.12)
+        if is_browser_foreground() and not is_argus_foreground():
+            if _HAS_PYAUTOGUI:
+                try:
+                    pyautogui.hotkey('ctrl', 'w')
+                    return True
+                except Exception as e:
+                    print("close_browser_tab error:", e)
     return False
 
 def close_all_browser_tabs() -> bool:
     """Closes all browser tabs / browser window (Cmd+Shift+W on macOS, Ctrl+Shift+W on Windows/Linux)."""
-    activate_browser()
-    time.sleep(0.1)
+    if is_argus_foreground():
+        return False
+
     if sys.platform == "darwin":
+        script = '''
+        tell application "System Events"
+            set runningBrowsers to (every application process whose name is in {"Google Chrome", "Safari", "Brave Browser", "Microsoft Edge", "Firefox", "Opera", "Yandex"})
+            if (count of runningBrowsers) > 0 then
+                set frontBrowser to name of (item 1 of runningBrowsers)
+                tell application frontBrowser to close front window
+                return true
+            end if
+        end tell
+        '''
         try:
-            script = 'tell application "System Events" to keystroke "w" using {command down, shift down}'
-            subprocess.run(["osascript", "-e", script], capture_output=True, timeout=2)
-            return True
+            res = subprocess.run(["osascript", "-e", script], capture_output=True, timeout=2, text=True)
+            if "true" in res.stdout.lower():
+                return True
         except Exception:
             pass
+
+    if activate_browser():
+        time.sleep(0.12)
+        if is_browser_foreground() and not is_argus_foreground():
+            return send_hotkey("ctrl", "shift", "w")
+    return False
     if _HAS_PYAUTOGUI:
         try:
             pyautogui.hotkey('ctrl', 'shift', 'w')

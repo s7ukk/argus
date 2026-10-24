@@ -329,7 +329,8 @@ def execute_single_action(act: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]
             target_disp = "GitHub"
         elif target.lower() in ["mail", "gmail", "почта", "почту"]:
             target_disp = "Почта"
-        return f"Вкладка {target_disp} закрыта в браузере", "close_specific_tab", {"target": target, "success": ok}
+        msg = f"Вкладка {target_disp} закрыта в браузере" if ok else f"Вкладка {target_disp} не найдена в запущенных браузерах"
+        return msg, "close_specific_tab", {"target": target, "success": ok}
 
     elif act_type == "youtube_control":
         yt_act = act.get("action", "play_pause")
@@ -348,7 +349,7 @@ def execute_single_action(act: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]
             "speed_down": "Скорость воспроизведения в YouTube уменьшена",
             "subtitles": "Субтитры в YouTube переключены"
         }
-        msg = messages.get(yt_act, "Команда YouTube выполнена")
+        msg = messages.get(yt_act, "Команда YouTube выполнена") if ok else "Окно YouTube не найдено или не активно"
         return msg, "youtube_control", {"action": yt_act, "success": ok}
 
     elif act_type == "reopen_browser_tab":
@@ -935,7 +936,9 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
     if any(k in c for k in ["новая вкладка", "новую вкладку", "открой вкладку", "открыть новую вкладку", "new tab"]):
         return {"type": "new_browser_tab"}
     if any(k in c for k in [
-        "верни вкладку", "вернуть вкладку", "восстанови вкладку", "восстановить вкладку",
+        "верни вкладку", "вернуть вкладку", "верни закрытую", "вернуть закрытую",
+        "верни закрытую вкладку", "вернуть закрытую вкладку", "восстанови закрытую",
+        "восстанови вкладку", "восстановить вкладку", "восстанови закрытую вкладку",
         "открой закрытую вкладку", "открыть закрытую вкладку", "открой последнюю вкладку",
         "reopen tab", "restore tab"
     ]):
