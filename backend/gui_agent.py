@@ -180,6 +180,17 @@ def paste_text_native(text: str):
         send_hotkey_native("ctrl", "v")
     time.sleep(0.1)
 
+def release_all_modifiers():
+    """Ensures no modifier keys (Ctrl, Alt, Shift, Win/Cmd) are stuck in pressed state."""
+    if IS_MAC:
+        return
+    if _HAS_PYAUTOGUI:
+        for k in ['ctrl', 'alt', 'shift', 'win']:
+            try:
+                pyautogui.keyUp(k)
+            except Exception:
+                pass
+
 def activate_app_window(app_name: str) -> bool:
     """Brings the target application window to the absolute foreground."""
     from backend.system_control import launch_application, activate_running_window
@@ -221,20 +232,14 @@ def activate_app_window(app_name: str) -> bool:
         except Exception as e:
             print(f"[GUI Agent Mac Activate error]: {e}")
 
-    # Windows & fallback
-    if not IS_MAC and app_lower in ["telegram", "телеграм", "телега", "тг"]:
-        try:
-            import os
-            os.startfile("tg:")
-            time.sleep(0.5)
-        except Exception:
-            pass
-    if not activate_running_window(app_lower):
-        res = launch_application(app_lower)
-        time.sleep(1.2)
-        return res.get("success", False)
-    time.sleep(0.4)
-    return True
+    # Windows: First try activating already running window to never close/minimize it
+    if activate_running_window(app_lower):
+        time.sleep(0.4)
+        return True
+    # If not running, launch application
+    res = launch_application(app_lower)
+    time.sleep(1.2)
+    return res.get("success", False)
 
 # ─── AUTONOMOUS MESSENGER AGENT (COMPUTER-USE LOOP) ──────────────
 def execute_autonomous_messenger_task(messenger: str, contact: str, message: str) -> Dict[str, Any]:
@@ -273,11 +278,10 @@ def execute_autonomous_messenger_task(messenger: str, contact: str, message: str
         m_name = "Viber"
 
     clean_contact = contact.lstrip('@').strip()
-    # A contact is only treated as an explicit handle if user explicitly typed '@' in the prompt
+    # Any valid latin alphanumeric handle (e.g. Siax, @Siax) can be directly resolved via Telegram protocol
     is_tg_username = bool(
         m_name == "Telegram" and
-        contact.strip().startswith('@') and
-        re.match(r'^[a-zA-Z0-9_]{3,}$', clean_contact)
+        bool(re.match(r'^[a-zA-Z0-9_]{3,}$', clean_contact))
     )
 
     step_num = 1
@@ -298,8 +302,6 @@ def execute_autonomous_messenger_task(messenger: str, contact: str, message: str
             except Exception:
                 subprocess.run(["cmd", "/c", "start", "", f"tg://resolve?domain={clean_contact}"], shell=False, capture_output=True)
         time.sleep(1.2)
-        activate_app_window(messenger)
-        time.sleep(0.4)
     else:
         add_step(f"Запуск и активация окна приложения **{m_name}** на передний план.")
         activate_app_window(messenger)
@@ -372,6 +374,7 @@ def execute_autonomous_messenger_task(messenger: str, contact: str, message: str
     else:
         summary_text = f"Диалог с контактом «{contact}» в {m_name} открыт, сэр."
 
+    release_all_modifiers()
     return {
         "success": True,
         "action": "autonomous_messenger_task",

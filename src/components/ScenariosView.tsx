@@ -667,7 +667,7 @@ export const ScenariosView: React.FC = () => {
                         handleAddCustomPromptStep();
                       }
                     }}
-                    placeholder="Напишите своё ТЗ / команду (например: открой телеграм и напиши Кириллу привет)"
+                    placeholder="Напишите своё ТЗ / команду (например: в Telegram напиши @username привет)"
                     style={{
                       flex: 1,
                       padding: '8px 12px',

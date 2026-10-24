@@ -548,7 +548,7 @@ def execute_single_action(act: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]
             if not contact:
                 return (
                     f"Уточните, пожалуйста, сэр: укажите имя контакта или username получателя в {m_disp}.\n"
-                    f"Например: «В {m_disp if m_disp != 'мессенджере' else 'Telegram'} напиши Кириллу текст {msg_text or 'Привет'}»."
+                    f"Например: «В {m_disp if m_disp != 'мессенджере' else 'Telegram'} напиши @username текст {msg_text or 'Привет'}»."
                 ), "clarify", act
             else:
                 return (
@@ -1461,8 +1461,7 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
     M_KW_PATTERN = r'(?:в\s+|на\s+)?(' + '|'.join(MESSENGER_KEYWORDS) + r')'
 
     COMMON_NAME_DATIVE_MAP = {
-        "кириллу": "Кирилл", "кирилла": "Кирилл", "кирилл": "Кирилл",
-        "никите": "Никита", "никиту": "Никита", "никита": "Никита",
+                "никите": "Никита", "никиту": "Никита", "никита": "Никита",
         "саше": "Саша", "сашу": "Саша", "саша": "Саша",
         "маше": "Маша", "машу": "Маша", "маша": "Маша",
         "даше": "Даша", "дашу": "Даша", "даша": "Даша",
@@ -1557,7 +1556,7 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         return m.group(0) if m else lower_match
 
     # 12.5. In-Page / In-Browser / Active Window Typing Check
-    # e.g. "в активной странице браузера напиши контакту Кирилл Привет", "в браузере напиши Привет"
+    # e.g. "в активной странице браузера напиши контакту Алексей Привет", "в браузере напиши Привет"
     m_in_page = re.match(
         r'^(?:в\s+активн\w*\s+страниц\w*(?:\s+браузер\w*)?|на\s+активн\w*\s+страниц\w*(?:\s+браузер\w*)?|в\s+браузер\w*|на\s+страниц\w*|в\s+текущ\w*\s+вкладк\w*|в\s+активн\w*\s+окн\w*|в\s+текущ\w*\s+окн\w*)\s+(?:и\s+)?(?:напиши|напечатай|введи|вбей|вставь|отправь)\s+(?:сообщение\s+|текст\s+|слово\s+)?(?:контакту\s+|пользователю\s+|для\s+|в\s+чат\s+)?(?:([a-zA-Zа-яА-ЯёЁ0-9_\-\.]+)\s+)?(.*)$',
         c, re.IGNORECASE
@@ -1770,7 +1769,7 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         return {"type": "messenger_send", "messenger": "auto", "contact": norm_contact, "message": clean_msg}
 
     # Pattern 4B: Direct Russian name in dative case or Latin username:
-    # e.g. "напиши Кириллу привет как дела", "отправь Никите файл готов", "напиши JessePinkman привет", "напиши Кириллу в тг"
+    # e.g. "напиши Алексею привет как дела", "отправь Никите файл готов", "напиши JessePinkman привет", "напиши Алексею в тг"
     m4_direct = re.match(
         r'^(?:напиши|напечатай|отправь|скинь)\s+([a-zA-Zа-яА-ЯёЁ0-9_\-\.]+)(?:\s+(?:сообщение\s+|текст\s+|слово\s+)?(.*))?$',
         c, re.IGNORECASE
@@ -1785,7 +1784,7 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
             cand_target_low = cand_target.lower()
             cand_msg = parts[1] if len(parts) > 1 else ""
         is_known_contact = cand_target_low in COMMON_NAME_DATIVE_MAP
-        is_latin_username = bool(re.match(r'^[A-Z][a-zA-Z0-9_\-\.]+$', cand_target) and cand_target_low not in APP_MAP)
+        is_latin_username = bool(re.match(r'^[a-zA-Z0-9_\-\.]+$', cand_target) and cand_target_low not in APP_MAP)
         if is_known_contact or is_latin_username:
             orig_contact = extract_case_match(orig_c, cand_target)
             norm_contact = normalize_contact_name(orig_contact)
@@ -1884,7 +1883,7 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
                 "type": "messenger_wizard",
                 "message": (
                     f"Мессенджер {target_app} выбран, сэр.\n\n"
-                    f"Введите имя контакта или ник/юзернейм получателя (например: @username или Кирилл):"
+                    f"Введите имя контакта или ник/юзернейм получателя (например: @username или Алексей):"
                 ),
                 "stage": "enter_contact",
                 "messenger": target_app.lower()
@@ -2147,15 +2146,15 @@ def neural_action_planner(user_text: str) -> Optional[List[Dict[str, Any]]]:
         "- {\"type\": \"wait\", \"seconds\": 1.5}\n"
         "CRITICAL RULES:\n"
         "1. NEVER generate 'close_app' UNLESS the user explicitly asked to close or exit ('закрой', 'выйди', 'close'). Keep all opened messengers and apps OPEN.\n"
-        "2. If user asks to find a chat and write a message (e.g. 'найди чат Кирилл и напиши привет' or 'зайди в телеграм и напиши в Node.js слово привет'), output a single 'messenger_send' or 'launch_app' + 'type_text', NEVER 'close_app'.\n"
+        "2. If user asks to find a chat and write a message (e.g. 'найди чат Alex и напиши привет' or 'зайди в телеграм и напиши в Node.js слово привет'), output a single 'messenger_send' or 'launch_app' + 'type_text', NEVER 'close_app'.\n"
         "3. If user asks to play music, a playlist, pause or next track in Spotify, Yandex Music, SoundCloud, use 'play_music'.\n"
         "Examples:\n"
         "- Instruction: включи плейлист рок в спотифай\n"
         "  JSON: [{\"type\":\"play_music\",\"service\":\"spotify\",\"playlist\":\"рок\",\"action\":\"play\"}]\n"
         "- Instruction: выключи то что играет\n"
         "  JSON: [{\"type\":\"play_music\",\"action\":\"pause\"}]\n"
-        "- Instruction: найди чат кирилл и напиши сообщение привет\n"
-        "  JSON: [{\"type\":\"messenger_send\",\"messenger\":\"auto\",\"contact\":\"Кирилл\",\"message\":\"привет\"}]\n"
+        "- Instruction: найди чат alex и напиши сообщение привет\n"
+        "  JSON: [{\"type\":\"messenger_send\",\"messenger\":\"auto\",\"contact\":\"Alex\",\"message\":\"привет\"}]\n"
         "- Instruction: зайди в телеграм и напиши в Node.js слово привет\n"
         "  JSON: [{\"type\":\"messenger_send\",\"messenger\":\"telegram\",\"contact\":\"Node.js\",\"message\":\"привет\"}]\n"
         "- Instruction: открой блокнот и напиши Привет мир\n"
@@ -2737,7 +2736,7 @@ def process_command(user_text: str, user_name: str = "Пользователь",
                     state["stage"] = "awaiting_contact"
                     reply_text = (
                         f"Мессенджер {selected['name']} выбран, сэр.\n\n"
-                        f"Введите имя контакта или ник/юзернейм получателя (например: @username или Кирилл):"
+                        f"Введите имя контакта или ник/юзернейм получателя (например: @username или Алексей):"
                     )
                     return reply_text, "messenger_wizard", {
                         "stage": "enter_contact",
@@ -2772,7 +2771,7 @@ def process_command(user_text: str, user_name: str = "Пользователь",
 
             if clean_contact.lower() in INVALID_CONTACT_KEYWORDS or not clean_contact:
                 return (
-                    "Пожалуйста, укажите имя контакта или ник/юзернейм (например: @username или Кирилл), сэр:",
+                    "Пожалуйста, укажите имя контакта или ник/юзернейм (например: @username или Алексей), сэр:",
                     "messenger_wizard",
                     {"stage": "enter_contact", "messenger": state["messenger"]}
                 )

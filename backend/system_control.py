@@ -881,8 +881,14 @@ def activate_running_window(app_query: str) -> bool:
                                 cls_buff = ctypes.create_unicode_buffer(256)
                                 ctypes.windll.user32.GetClassNameW(hwnd, cls_buff, 256)
                                 if "Qt" in cls_buff.value and "Icon" in cls_buff.value:
-                                    found_hwnds.append(hwnd)
-                                    return False
+                                    if _HAS_WIN32GUI:
+                                        rect = win32gui.GetWindowRect(hwnd)
+                                        if (rect[2] - rect[0]) > 100 and (rect[3] - rect[1]) > 100:
+                                            found_hwnds.append(hwnd)
+                                            return False
+                                    else:
+                                        found_hwnds.append(hwnd)
+                                        return False
                             elif query in ["discord", "дискорд"] and "discord" in pname:
                                 found_hwnds.append(hwnd)
                                 return False
