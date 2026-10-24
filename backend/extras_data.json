@@ -1,0 +1,114 @@
+{
+  "tasks": [
+    {
+      "id": "task_81c2beab",
+      "title": "Выучить стих",
+      "description": "",
+      "priority": "medium",
+      "category": "general",
+      "completed": false,
+      "due_date": "",
+      "created_at": "2026-10-24T21:19:54.235702"
+    },
+    {
+      "id": "task_demo_1",
+      "title": "Сделать домашнее задание",
+      "description": "Математика и физика",
+      "priority": "high",
+      "category": "study",
+      "completed": false,
+      "due_date": "",
+      "created_at": "2026-10-24T21:06:37.423491"
+    },
+    {
+      "id": "task_demo_2",
+      "title": "Проверить функционал Argus AI",
+      "description": "Проверить таймеры, заметки и задачи",
+      "priority": "urgent",
+      "category": "work",
+      "completed": true,
+      "due_date": "",
+      "created_at": "2026-10-24T21:06:37.423519"
+    }
+  ],
+  "notes": [
+    {
+      "id": "note_171fbd47",
+      "title": "Список покупок",
+      "content": "список покупок",
+      "category": "general",
+      "color": "purple",
+      "pinned": false,
+      "created_at": "2026-10-24T21:19:54.256556",
+      "updated_at": "2026-10-24T21:19:54.256556"
+    },
+    {
+      "id": "note_demo_1",
+      "title": "План на день",
+      "content": "1. Проверить меню Дополнительно\n2. Проверить отправку сообщений в Telegram\n3. Запустить таймер на ДЗ",
+      "category": "work",
+      "color": "purple",
+      "pinned": true,
+      "created_at": "2026-10-24T21:06:37.423523",
+      "updated_at": "2026-10-24T21:06:37.423524"
+    },
+    {
+      "id": "note_demo_2",
+      "title": "Горячие клавиши",
+      "content": "• Telegram поиск: Ctrl+F / Cmd+F\n• Двойной Ctrl: голосовой ввод в активное окно\n• Пробел PTT: голосовой ассистент",
+      "category": "info",
+      "color": "blue",
+      "pinned": false,
+      "created_at": "2026-10-24T21:06:37.423526",
+      "updated_at": "2026-10-24T21:06:37.423528"
+    }
+  ],
+  "timers": [
+    {
+      "id": "timer_ba891f7a",
+      "title": "Перерыв",
+      "total_seconds": 900,
+      "remaining_seconds": 900,
+      "is_running": true,
+      "is_completed": false,
+      "created_at": "2026-10-24T21:19:54.212324"
+    },
+    {
+      "id": "timer_b9e3a9f1",
+      "title": "Дз",
+      "total_seconds": 420,
+      "remaining_seconds": 420,
+      "is_running": true,
+      "is_completed": false,
+      "created_at": "2026-10-24T21:19:54.188266"
+    },
+    {
+      "id": "timer_abc59fc2",
+      "title": "Дз",
+      "total_seconds": 420,
+      "remaining_seconds": 420,
+      "is_running": true,
+      "is_completed": false,
+      "created_at": "2026-10-24T21:19:25.004766"
+    },
+    {
+      "id": "timer_919af6d7",
+      "title": "Сделать ДЗ",
+      "total_seconds": 420,
+      "remaining_seconds": 420,
+      "is_running": true,
+      "is_completed": false,
+      "created_at": "2026-10-24T21:06:37.423680"
+    },
+    {
+      "id": "timer_demo_1",
+      "title": "Сделать ДЗ",
+      "total_seconds": 420,
+      "remaining_seconds": 420,
+      "is_running": false,
+      "is_completed": false,
+      "created_at": "2026-10-24T21:06:37.423530"
+    }
+  ],
+  "reminders": []
+}

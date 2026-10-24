@@ -8,6 +8,7 @@ import { ProfileModal } from './components/ProfileModal';
 import { NavDock } from './components/NavDock';
 import { ScenariosView } from './components/ScenariosView';
 import { PluginsView } from './components/PluginsView';
+import { ExtrasView } from './components/ExtrasView';
 import { SystemView } from './components/SystemView';
 import { AboutView } from './components/AboutView';
 import { SettingsView } from './components/SettingsView';
@@ -412,6 +413,10 @@ export const App: React.FC = () => {
           console.warn('Client-side action dispatch notice:', e);
         }
       }
+
+      if (['create_timer', 'create_task', 'create_note'].includes(res.action_type || '')) {
+        window.dispatchEvent(new CustomEvent('argus_extras_updated'));
+      }
     } catch (err: any) {
       if (err?.name === 'AbortError') {
         return;
@@ -558,6 +563,9 @@ export const App: React.FC = () => {
 
           {activeTab === 'scenarios' && <ScenariosView />}
           {activeTab === 'plugins' && <PluginsView />}
+          <div style={{ flex: 1, display: activeTab === 'extras' ? 'flex' : 'none', overflow: 'hidden' }}>
+            <ExtrasView />
+          </div>
           {activeTab === 'system' && <SystemView />}
           {activeTab === 'about' && <AboutView />}
           {activeTab === 'settings' && <SettingsView />}

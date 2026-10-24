@@ -165,4 +165,51 @@ export interface Scenario {
   steps: ScenarioStep[];
 }
 
-export type NavTab = 'chat' | 'scenarios' | 'plugins' | 'system' | 'about' | 'settings';
+export type NavTab = 'chat' | 'scenarios' | 'plugins' | 'extras' | 'system' | 'about' | 'settings';
+
+export interface TaskItem {
+  id: string;
+  title: string;
+  description?: string;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  category: 'study' | 'work' | 'personal' | 'health' | 'other';
+  completed: boolean;
+  due_date?: string;
+  created_at: string;
+}
+
+export interface NoteItem {
+  id: string;
+  title: string;
+  content: string;
+  category?: string;
+  color: 'purple' | 'blue' | 'emerald' | 'amber' | 'rose';
+  pinned: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TimerItem {
+  id: string;
+  title: string;
+  total_seconds: number;
+  remaining_seconds: number;
+  is_running: boolean;
+  is_completed: boolean;
+  created_at: string;
+}
+
+export interface ReminderItem {
+  id: string;
+  title: string;
+  remind_at: string;
+  is_completed: boolean;
+  created_at: string;
+}
+
+export interface ExtrasData {
+  tasks: TaskItem[];
+  notes: NoteItem[];
+  timers: TimerItem[];
+  reminders: ReminderItem[];
+}

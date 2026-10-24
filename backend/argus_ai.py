@@ -18,6 +18,10 @@ import backend.plugins_manager as pm
 import backend.scenarios_manager as sc_mgr
 import backend.gui_agent as gui_agent
 try:
+    import backend.extras_manager as extras_mgr
+except ImportError:
+    import extras_manager as extras_mgr
+try:
     import backend.openrouter_engine as openrouter_engine
 except ImportError:
     import openrouter_engine
@@ -597,6 +601,10 @@ def execute_single_action(act: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]
         res = sc.play_music(service=service, query=query, playlist=playlist, action=m_act)
         return res["message"], "play_music", res
 
+    elif act_type in ["create_timer", "create_task", "create_note"]:
+        msg = act.get("message", "Действие успешно выполнено, сэр.")
+        return msg, act_type, act
+
     elif act_type == "power":
         p_act = act.get("action", "shutdown")
         sc.system_power(p_act)
@@ -862,6 +870,92 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
                     keep_list.append(canonical)
             if keep_list:
                 return {"type": "close_all_except", "keep": list(set(keep_list))}
+
+    # 0.6 Extras: Timers, Tasks, Notes, Reminders
+    # Timer e.g. "поставь таймер на 7 минут сделать дз", "таймер на 7 минут сделать дз", "таймер 5 минут", "напомни через 10 минут сделать дз"
+    m_timer = re.match(
+        r'^(?:поставь|запусти|включи|установи|сделай)?\s*(?:мне\s+)?таймер(?:\s+на)?\s+(\d+)\s*(минут\w*|мин|секунд\w*|сек|час\w*|ч)?(?:\s+(?:на|чтобы|для|сделать|выполнить)?\s*(.*))?$',
+        c, re.IGNORECASE
+    )
+    if m_timer:
+        val = int(m_timer.group(1))
+        unit = (m_timer.group(2) or "мин").lower()
+        task_label = (m_timer.group(3) or "").strip()
+        secs = val * 60
+        if "сек" in unit:
+            secs = val
+        elif "час" in unit or unit == "ч":
+            secs = val * 3600
+        clean_label = re.sub(r'^(?:на|чтобы|для|сделать|выполнить)\s+', '', task_label, flags=re.IGNORECASE).strip()
+        title_disp = clean_label.capitalize() if clean_label else "Таймер"
+        try:
+            import backend.extras_manager as extras_mgr
+            extras_mgr.add_timer(title_disp, secs)
+        except Exception:
+            pass
+        mins_disp = f"{val} мин" if "мин" in unit else f"{val} сек" if "сек" in unit else f"{val} ч"
+        msg = f"Таймер на {mins_disp} для «{title_disp}» успешно запущен, сэр. Я напомню вам голосом, когда время истечёт."
+        return {"type": "create_timer", "title": title_disp, "seconds": secs, "message": msg}
+
+    # Reminder e.g. "напомни через 7 минут сделать дз", "напомни через 10 минут выключить духовку"
+    m_remind = re.match(
+        r'^(?:напомни|напомнить)(?:\s+мне)?\s+через\s+(\d+)\s*(минут\w*|мин|секунд\w*|сек|час\w*|ч)\s+(?:что\s+|чтобы\s+|по\s+|о\s+том\s+что\s+)?(.*)$',
+        c, re.IGNORECASE
+    )
+    if m_remind:
+        val = int(m_remind.group(1))
+        unit = (m_remind.group(2) or "мин").lower()
+        task_label = (m_remind.group(3) or "").strip()
+        secs = val * 60
+        if "сек" in unit:
+            secs = val
+        elif "час" in unit or unit == "ч":
+            secs = val * 3600
+        clean_label = re.sub(r'^(?:на|чтобы|для|сделать|выполнить)\s+', '', task_label, flags=re.IGNORECASE).strip()
+        title_disp = clean_label.capitalize() if clean_label else "Напоминание"
+        try:
+            import backend.extras_manager as extras_mgr
+            extras_mgr.add_timer(title_disp, secs)
+        except Exception:
+            pass
+        mins_disp = f"{val} мин" if "мин" in unit else f"{val} сек" if "сек" in unit else f"{val} ч"
+        msg = f"Напоминание установлено на {mins_disp} для «{title_disp}», сэр. Я озвучу его сразу, как только время пройдёт."
+        return {"type": "create_timer", "title": title_disp, "seconds": secs, "message": msg}
+
+    # Task creation e.g. "добавь задачу сделать дз", "создай задачу купить хлеб"
+    m_task = re.match(
+        r'^(?:добавь|создай|запиши|новая)?\s*задач[ауие]?[:\s]+(.*)$',
+        c, re.IGNORECASE
+    )
+    if m_task and not any(k in c for k in ["реши", "математик", "алгебр"]):
+        raw_task = m_task.group(1).strip()
+        clean_t = re.sub(r'^(?:на|чтобы|для|сделать|выполнить)\s+', '', raw_task, flags=re.IGNORECASE).strip()
+        if clean_t:
+            title_disp = clean_t.capitalize()
+            try:
+                import backend.extras_manager as extras_mgr
+                extras_mgr.add_task(title_disp)
+            except Exception:
+                pass
+            msg = f"Задача «{title_disp}» успешно добавлена в меню Дополнительно, сэр."
+            return {"type": "create_task", "title": title_disp, "message": msg}
+
+    # Note creation e.g. "создай заметку купить хлеб", "запиши заметку номер телефона 123"
+    m_note = re.match(
+        r'^(?:добавь|создай|запиши|новая)?\s*заметк[ауие]?[:\s]+(.*)$',
+        c, re.IGNORECASE
+    )
+    if m_note:
+        raw_note = m_note.group(1).strip()
+        if raw_note:
+            title_disp = raw_note.capitalize()
+            try:
+                import backend.extras_manager as extras_mgr
+                extras_mgr.add_note(title_disp, raw_note)
+            except Exception:
+                pass
+            msg = f"Заметка «{title_disp}» успешно сохранена в меню Дополнительно, сэр."
+            return {"type": "create_note", "title": title_disp, "content": raw_note, "message": msg}
 
     # 1. Screenshot / Screen capture with folder detection
     if any(k in c for k in [
@@ -2054,7 +2148,7 @@ def local_multi_action_planner(user_text: str) -> List[Dict[str, Any]]:
     """
     # 0. If user_text directly maps to a unified action (e.g. messenger_send), execute directly without splitting
     single_act = parse_single_clause(user_text)
-    if single_act and single_act.get("type") in ["messenger_send", "type_text", "search_web", "clarify", "browser_choice", "terminal_command", "play_music"]:
+    if single_act and single_act.get("type") in ["messenger_send", "type_text", "search_web", "clarify", "browser_choice", "terminal_command", "play_music", "create_timer", "create_task", "create_note"]:
         return [single_act]
 
     # 1. Normalize verb boundaries to avoid missing clauses without punctuation

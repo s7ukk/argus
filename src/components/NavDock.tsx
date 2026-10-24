@@ -1,5 +1,5 @@
 import React from 'react';
-import { MessageSquare, Boxes, Cpu, Info, Sparkles, User, Settings, Workflow } from 'lucide-react';
+import { MessageSquare, Boxes, Cpu, Info, Sparkles, User, Settings, Workflow, BookmarkCheck } from 'lucide-react';
 import { UserProfile, NavTab } from '../types';
 
 interface NavDockProps {
@@ -19,9 +19,10 @@ export const NavDock: React.FC<NavDockProps> = ({
     { id: 'chat', number: 1, label: 'Чат', icon: <MessageSquare size={17} /> },
     { id: 'scenarios', number: 2, label: 'Сценарии', icon: <Workflow size={17} /> },
     { id: 'plugins', number: 3, label: 'Плагины', icon: <Boxes size={17} /> },
-    { id: 'system', number: 4, label: 'Система', icon: <Cpu size={17} /> },
-    { id: 'about', number: 5, label: 'О системе', icon: <Info size={17} /> },
-    { id: 'settings', number: 6, label: 'Настройки', icon: <Settings size={17} /> },
+    { id: 'extras', number: 4, label: 'Дополнительно', icon: <BookmarkCheck size={17} /> },
+    { id: 'system', number: 5, label: 'Система', icon: <Cpu size={17} /> },
+    { id: 'about', number: 6, label: 'О системе', icon: <Info size={17} /> },
+    { id: 'settings', number: 7, label: 'Настройки', icon: <Settings size={17} /> },
   ];
 
   return (

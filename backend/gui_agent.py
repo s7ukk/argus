@@ -180,6 +180,25 @@ def paste_text_native(text: str):
         send_hotkey_native("ctrl", "v")
     time.sleep(0.1)
 
+def click_mouse_native(x: int, y: int):
+    """Safely clicks at screen coordinates (x, y) across Windows and macOS."""
+    if IS_MAC:
+        try:
+            script = f'''
+            tell application "System Events"
+                click at {{{x}, {y}}}
+            end tell
+            '''
+            subprocess.run(["osascript", "-e", script], capture_output=True)
+            return
+        except Exception:
+            pass
+    if _HAS_PYAUTOGUI:
+        try:
+            pyautogui.click(x, y)
+        except Exception:
+            pass
+
 def release_all_modifiers():
     """Ensures no modifier keys (Ctrl, Alt, Shift, Win/Cmd) are stuck in pressed state."""
     if IS_MAC:
@@ -278,9 +297,10 @@ def execute_autonomous_messenger_task(messenger: str, contact: str, message: str
         m_name = "Viber"
 
     clean_contact = contact.lstrip('@').strip()
-    # Any valid latin alphanumeric handle (e.g. Siax, @Siax) can be directly resolved via Telegram protocol
+    # Only treat as explicit handle if user explicitly typed '@' in the prompt; otherwise search in Telegram UI!
     is_tg_username = bool(
         m_name == "Telegram" and
+        contact.strip().startswith('@') and
         bool(re.match(r'^[a-zA-Z0-9_]{3,}$', clean_contact))
     )
 
@@ -314,6 +334,19 @@ def execute_autonomous_messenger_task(messenger: str, contact: str, message: str
         # Step 2: Search for contact in search bar
         add_step(f"Активация поисковой строки интерфейса **{m_name}**.")
         
+        # Focus search bar: on Windows Telegram click top-left search input + hotkey
+        if m_name == "Telegram" and not IS_MAC and _HAS_WIN32GUI:
+            try:
+                import win32gui
+                hwnd = ctypes.windll.user32.GetForegroundWindow()
+                if hwnd:
+                    rect = win32gui.GetWindowRect(hwnd)
+                    if (rect[2] - rect[0]) > 200:
+                        click_mouse_native(rect[0] + 160, rect[1] + 45)
+                        time.sleep(0.12)
+            except Exception:
+                pass
+
         # Universal search shortcut: Ctrl+F (Win) / Cmd+F (Mac) for Telegram, WhatsApp, VK; Ctrl+K for Discord
         search_key = "k" if m_name == "Discord" else "f"
         if IS_MAC:

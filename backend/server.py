@@ -792,6 +792,55 @@ async def run_scenario_endpoint(scenario_id: str):
         raise HTTPException(status_code=404, detail="Scenario not found")
     return sc_mgr.execute_scenario(matched)
 
+
+# ─── EXTRAS: TASKS, NOTES, TIMERS & REMINDERS ───────────────────
+import backend.extras_manager as extras_mgr
+
+class ExtrasDataModel(BaseModel):
+    tasks: Optional[List[Dict[str, Any]]] = None
+    notes: Optional[List[Dict[str, Any]]] = None
+    timers: Optional[List[Dict[str, Any]]] = None
+    reminders: Optional[List[Dict[str, Any]]] = None
+
+@app.get("/api/extras/data")
+async def get_extras_endpoint():
+    return extras_mgr.load_extras_data()
+
+@app.post("/api/extras/data")
+async def save_extras_endpoint(payload: ExtrasDataModel):
+    current = extras_mgr.load_extras_data()
+    dumped = payload.model_dump(exclude_unset=True)
+    current.update(dumped)
+    success = extras_mgr.save_extras_data(current)
+    return {"success": success, "data": current}
+
+@app.post("/api/extras/task")
+async def add_task_endpoint(payload: Dict[str, Any]):
+    title = payload.get("title", "")
+    desc = payload.get("description", "")
+    prio = payload.get("priority", "medium")
+    cat = payload.get("category", "general")
+    due = payload.get("due_date", "")
+    task = extras_mgr.add_task(title, desc, prio, cat, due)
+    return {"success": True, "task": task}
+
+@app.post("/api/extras/note")
+async def add_note_endpoint(payload: Dict[str, Any]):
+    title = payload.get("title", "")
+    content = payload.get("content", "")
+    cat = payload.get("category", "general")
+    color = payload.get("color", "purple")
+    pinned = payload.get("pinned", False)
+    note = extras_mgr.add_note(title, content, cat, color, pinned)
+    return {"success": True, "note": note}
+
+@app.post("/api/extras/timer")
+async def add_timer_endpoint(payload: Dict[str, Any]):
+    title = payload.get("title", "Таймер")
+    seconds = int(payload.get("seconds", 300))
+    timer = extras_mgr.add_timer(title, seconds)
+    return {"success": True, "timer": timer}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("backend.server:app", host="127.0.0.1", port=18274, reload=False)
