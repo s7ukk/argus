@@ -31,10 +31,22 @@ IS_WIN = sys.platform == "win32"
 
 def get_agent_run_dir() -> str:
     """Creates and returns a timestamped directory for autonomous GUI agent step snapshots."""
-    user_home = os.path.expanduser("~")
+    try:
+        import backend.app_paths as app_paths
+        base_dir = app_paths.get_argus_data_dir()
+    except Exception:
+        base_dir = os.path.expanduser("~")
     run_id = f"run_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}_{str(uuid.uuid4())[:6]}"
-    run_dir = os.path.join(user_home, ".argus", "agent_runs", run_id)
-    os.makedirs(run_dir, exist_ok=True)
+    run_dir = os.path.join(base_dir, "agent_runs", run_id)
+    try:
+        os.makedirs(run_dir, exist_ok=True)
+    except Exception:
+        import tempfile
+        run_dir = os.path.join(tempfile.gettempdir(), "argus_agent_runs", run_id)
+        try:
+            os.makedirs(run_dir, exist_ok=True)
+        except Exception:
+            pass
     return run_dir
 
 def capture_step_screenshot(step_name: str, run_dir: str) -> Optional[str]:
@@ -359,10 +371,10 @@ def execute_autonomous_messenger_task(messenger: str, contact: str, message: str
     else:
         add_step(f"Чат с контактом «{contact}» успешно открыт и готов к общению.")
 
-    summary_text = (
-        f"🤖 **Автономный AI Агент выполнил действие в {m_name}:**\n\n"
-        + "\n".join(steps_log)
-    )
+    if message:
+        summary_text = f"Сообщение для контакта «{contact}» в {m_name} успешно отправлено: «{message}», сэр."
+    else:
+        summary_text = f"Диалог с контактом «{contact}» в {m_name} открыт, сэр."
 
     return {
         "success": True,

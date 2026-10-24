@@ -317,7 +317,13 @@ def execute_single_action(act: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]
         target = act.get("target", "")
         ok = sc.close_specific_browser_tab(target)
         target_disp = target.capitalize()
-        if target.lower() in ["youtube", "ютуб", "ютубе", "ютуби"]:
+        if target.lower() in ["deepseek", "дипсик", "дипсика", "дипсике", "дипсиком"]:
+            target_disp = "DeepSeek"
+        elif target.lower() in ["chatgpt", "чатгпт", "чат гпт"]:
+            target_disp = "ChatGPT"
+        elif target.lower() in ["google", "гугл", "гугле"]:
+            target_disp = "Google"
+        elif target.lower() in ["youtube", "ютуб", "ютубе", "ютуби"]:
             target_disp = "YouTube"
         elif target.lower() in ["vk", "вк", "вконтакте"]:
             target_disp = "VK"
@@ -329,7 +335,7 @@ def execute_single_action(act: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]
             target_disp = "GitHub"
         elif target.lower() in ["mail", "gmail", "почта", "почту"]:
             target_disp = "Почта"
-        msg = f"Вкладка {target_disp} закрыта в браузере" if ok else f"Вкладка {target_disp} не найдена в запущенных браузерах"
+        msg = f"Вкладка {target_disp} закрыта в браузере, сэр." if ok else f"Вкладка {target_disp} не найдена в запущенных браузерах, сэр."
         return msg, "close_specific_tab", {"target": target, "success": ok}
 
     elif act_type == "youtube_control":
@@ -775,6 +781,7 @@ def clean_clause_text(text: str) -> str:
     fillers = [
         r'\bпожалуйста\b', r'\bпж\b', r'\bплиз\b', r'\bplease\b',
         r'\bсейчас\b', r'\bбыстро\b', r'\bсрочно\b', r'\bблин\b',
+        r'\bтам\b', r'\bтут\b', r'\bздесь\b',
         r'\bмне\b', r'\bнам\b', r'\bты\b', r'\bже\b', r'\bка\b', r'\bну-ка\b', r'\bдавай\b',
         r'\bможешь\b', r'\bможешь ли\b', r'\bсможешь\b', r'\bхочу\b', r'\bхотел бы\b',
         r'\bнужно\b', r'\bнадо\b', r'\bпопробуй\b', r'\bбудь добр\b',
@@ -793,7 +800,7 @@ def clean_clause_text(text: str) -> str:
         t = re.sub(pattern, '', t, flags=re.IGNORECASE)
 
     # Normalize popular brand synonyms
-    t = re.sub(r'\b(?:deep\s*seek|дип\s*сик)\b', 'deepseek', t, flags=re.IGNORECASE)
+    t = re.sub(r'\b(?:deep\s*seek\w*|дип\s*сик\w*)\b', 'deepseek', t, flags=re.IGNORECASE)
     t = re.sub(r'\b(?:тик\s*ток)\b', 'tiktok', t, flags=re.IGNORECASE)
     t = re.sub(r'\b(?:чат\s*гпт|chat\s*gpt)\b', 'chatgpt', t, flags=re.IGNORECASE)
 
@@ -809,6 +816,13 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
     raw_c = clean_orig_c.lower()
     c = clean_clause_text(raw_c)
     if not c:
+        return None
+
+    # 0. Global Coding Guard: Requests to write code, bots, programs, or scripts must NEVER be hijacked by messengers!
+    coding_verbs = ["напиши", "написать", "создай", "создать", "сделай", "сделать", "сгенерируй", "покажи", "напишите", "write", "create", "generate"]
+    coding_nouns = ["код", "скрипт", "программ", "функци", "класс", "алгоритм", "бота", "бот ", "парсер", "сервер", "приложение на"]
+    coding_langs = ["node", "nodejs", "node.js", "js", "javascript", "python", "питон", "typescript", "ts", "c++", "c#", "java", "джав", "go", "golang", "rust", "html", "css", "sql", "php"]
+    if (any(n in c for n in coding_nouns) and (any(v in c for v in coding_verbs) or any(l in c for l in coding_langs))) or ("бот на" in c or "бота на" in c or "телеграм бота" in c or "telegram bot" in c or "телеграм бот" in c):
         return None
 
     # 0. "Закрой все кроме X" (Negative Exclusion Filter)
@@ -910,14 +924,18 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         if any(k in c for k in ["замедли", "медленнее видео", "уменьши скорость", "замедлить видео"]):
             return {"type": "youtube_control", "action": "speed_down"}
 
-    # 1.28 Specific Browser Tab Close ("закрой вкладку ютуб", "закрой ютуб в браузере", "закрой вкладку с вк")
+    # 1.28 Specific Browser Tab Close ("закрой вкладку дипсик", "закрой ютуб в браузере", "закрой вкладку deepseek")
     m_close_tab = re.search(
-        r'(?:закрой|закрыть|прикрой|прикрыть)\s+(?:вкладку\s+(?:с\s+|в\s+)?|страницу\s+(?:с\s+|в\s+)?|сайт\s+)?([a-zA-Zа-яА-ЯёЁ0-9_\-\.]+)(?:\s+в\s+браузере)?',
+        r'(?:закрой|закрыть|прикрой|прикрыть)\s+(?:там\s+|тут\s+|здесь\s+|пожалуйста\s+)?(?:вкладку\s+(?:с\s+|в\s+|под\s+названием\s+)?|страницу\s+(?:с\s+|в\s+)?|сайт\s+)?([a-zA-Zа-яА-ЯёЁ0-9_\-\.]+)(?:\s+в\s+браузере)?',
         c, re.IGNORECASE
     )
-    if m_close_tab and any(k in c for k in ["вкладк", "страниц", "браузер", "ютуб", "youtube", "вк", "vk", "яндекс", "yandex", "гитхаб", "github", "почт"]):
+    if m_close_tab and any(k in c for k in ["вкладк", "страниц", "браузер", "ютуб", "youtube", "дипсик", "deepseek", "чатгпт", "chatgpt", "вк", "vk", "яндекс", "yandex", "гитхаб", "github", "почт"]):
         matched_target = m_close_tab.group(1).lower().strip()
-        if matched_target not in ["все", "всё", "браузер", "вкладку", "страницу", "окно", "это", "эту"]:
+        if matched_target in ["там", "тут", "здесь", "пожалуйста"]:
+            m_after = re.search(r'(?:вкладку\s+(?:с\s+|в\s+)?|страницу\s+(?:с\s+|в\s+)?|сайт\s+)([a-zA-Zа-яА-ЯёЁ0-9_\-\.]+)', c, re.IGNORECASE)
+            if m_after:
+                matched_target = m_after.group(1).lower().strip()
+        if matched_target not in ["все", "всё", "браузер", "вкладку", "страницу", "окно", "это", "эту", "там", "тут"]:
             return {"type": "close_specific_browser_tab", "target": matched_target}
 
     # 1.3 Browser Tab Close (только "закрой" = close, НЕ "смахни")
@@ -1584,9 +1602,9 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         m_msg = extract_case_match(orig_c, m_msg)
         return {"type": "messenger_send", "messenger": m_app, "contact": m_target, "message": m_msg}
 
-    # Pattern 3A: Explicit chat keyword e.g. 'найди/открой чат/диалог/контакт <contact> [и напиши <msg>]'
+    # Pattern 3A: Explicit chat keyword e.g. 'найди/открой чат/диалог/контакт <contact> [и напиши ему <msg>]'
     m3_chat = re.match(
-        r'^(?:найди|открой|выбери|поищи)\s+(?:чат|диалог|беседу|группу|канал|контакт|переписку)\s+(?:с\s+|для\s+)?([a-zA-Zа-яА-ЯёЁ0-9_\-\.]+)(?:\s+(?:и\s+)?(?:напиши|напечатай|отправь|скинь)\s+(?:сообщение\s+|текст\s+|слово\s+)?(.*))?$',
+        r'^(?:найди|открой|выбери|поищи)\s+(?:там\s+|тут\s+|здесь\s+)?(?:чат|диалог|беседу|группу|канал|контакт|переписку)\s+(?:с\s+|для\s+)?([a-zA-Zа-яА-ЯёЁ0-9_\-\.]+)(?:\s+(?:и\s+)?(?:напиши|напечатай|отправь|скинь)\s+(?:ему\s+|ей\s+|им\s+)?(?:сообщение\s+|текст\s+|слово\s+)?(.*))?$',
         c, re.IGNORECASE
     )
     if m3_chat:
@@ -1596,8 +1614,9 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         if target_name.lower() not in ['приложение', 'программу', 'файл', 'папку', 'вкладку', 'окно', 'видео', 'музыку']:
             msg_text = ''
             if raw_msg:
-                msg_text = re.sub(r'^["«\']|["»\']$', '', raw_msg.strip()).strip()
-                msg_text = extract_case_match(orig_c, msg_text)
+                clean_raw = re.sub(r'^(?:ему\s+|ей\s+|им\s+|пользователю\s+)', '', raw_msg.strip(), flags=re.IGNORECASE).strip()
+                clean_raw = re.sub(r'^["«\']|["»\']$', '', clean_raw).strip()
+                msg_text = extract_case_match(orig_c, clean_raw)
             dest_m = 'auto'
             for kw in MESSENGER_KEYWORDS:
                 if kw in c:
@@ -1605,9 +1624,9 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
                     break
             return {'type': 'messenger_send', 'messenger': dest_m, 'contact': target_name, 'message': msg_text}
 
-    # Pattern 3B: Find contact and send message (MUST have message verb): 'найди/поищи <contact> и напиши/отправь <msg>'
+    # Pattern 3B: Find contact and send message (MUST have message verb): 'найди/поищи <contact> и напиши [ему] <msg>'
     m3_write = re.match(
-        r'^(?:найди|поищи)\s+(?:с\s+|для\s+)?([a-zA-Zа-яА-ЯёЁ0-9_\-\.]+)\s+(?:и\s+)?(?:напиши|напечатай|отправь|скинь)\s+(?:сообщение\s+|текст\s+|слово\s+)?(.*)$',
+        r'^(?:найди|поищи)\s+(?:там\s+|тут\s+|здесь\s+)?(?:с\s+|для\s+)?([a-zA-Zа-яА-ЯёЁ0-9_\-\.]+)\s+(?:и\s+)?(?:напиши|напечатай|отправь|скинь)\s+(?:ему\s+|ей\s+|им\s+)?(?:сообщение\s+|текст\s+|слово\s+)?(.*)$',
         c, re.IGNORECASE
     )
     if m3_write:
@@ -1617,8 +1636,9 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         if target_name.lower() not in ['приложение', 'программу', 'файл', 'папку', 'вкладку', 'окно', 'видео', 'музыку', 'постман', 'хром', 'калькулятор', 'браузер']:
             msg_text = ''
             if raw_msg:
-                msg_text = re.sub(r'^["«\']|["»\']$', '', raw_msg.strip()).strip()
-                msg_text = extract_case_match(orig_c, msg_text)
+                clean_raw = re.sub(r'^(?:ему\s+|ей\s+|им\s+|пользователю\s+)', '', raw_msg.strip(), flags=re.IGNORECASE).strip()
+                clean_raw = re.sub(r'^["«\']|["»\']$', '', clean_raw).strip()
+                msg_text = extract_case_match(orig_c, clean_raw)
             dest_m = 'auto'
             for kw in MESSENGER_KEYWORDS:
                 if kw in c:
@@ -2010,32 +2030,32 @@ def query_free_ai(prompt: str, user_name: str = "Пользователь", hist
 
 # ─── LOCAL PERSONA KNOWLEDGE BASE (OFFLINE FALLBACK) ────────────
 CONVERSATIONAL_KNOWLEDGE = {
-    "привет": "Приветствую. Все системы Argus активны и готовы к работе. Чем могу помочь?",
+    "привет": "Приветствую, сэр. Все системы Argus активны и готовы к работе. Чем могу помочь?",
     "hello": "Hello. All Argus systems are operational and ready. How can I assist you?",
-    "как дела": "Все модули Argus функционируют в штатном режиме с максимальной производительностью. Ожидаю ваших указаний.",
+    "как дела": "Все модули Argus функционируют в штатном режиме, сэр. Ожидаю ваших указаний.",
     "how are you": "All systems operating at peak performance. Ready for your instructions.",
-    "что делаешь": "Работаю в фоновом режиме, жду ваших команд. Чем могу помочь?",
-    "чем занимаешься": "Работаю в фоновом режиме, жду ваших команд. Готов к любой задаче.",
-    "что делаем": "Жду ваших указаний. Готов запустить приложение, открыть сайт, поискать информацию или выполнить команду.",
-    "кто ты": "Я Argus — ваш персональный автономный ИИ-ассистент для глубокого управления Windows и macOS, автоматизации задач, взаимодействия с сайтами и работы за компьютером.",
-    "who are you": "I am Argus — your personal autonomous AI assistant for Windows and macOS control, workflow automation, and productivity.",
+    "что делаешь": "Работаю в фоновом режиме, сэр. Жду ваших команд. Чем могу помочь?",
+    "чем занимаешься": "Работаю в фоновом режиме, сэр. Жду ваших команд. Готов к любой задаче.",
+    "что делаем": "Жду ваших указаний, сэр. Готов запустить приложение, открыть сайт, написать код или выполнить любую задачу.",
+    "кто ты": "Я Argus, сэр — ваш персональный автономный ИИ-ассистент для глубокого управления Windows и macOS, автоматизации задач, работы с браузером и написания кода.",
+    "who are you": "I am Argus, sir — your personal autonomous AI assistant for Windows and macOS control, workflow automation, and productivity.",
     "что ты умеешь": "Я умею полноценно управлять компьютером: открывать любые сайты и нажимать кнопки на страницах, запускать и закрывать любые программы (Chrome, Telegram, Discord, VS Code, GoLand, Postman, Steam и др.), создавать и удалять файлы и папки на компьютере, анализировать содержимое файлов, делать скриншоты в любую папку (Загрузки, Рабочий стол), настраивать громкость и яркость экрана («на полную», «в ноль»), закрывать программы с фильтрами исключений («кроме vs code»), очищать корзину, блокировать ПК, искать в Google, YouTube, Wildberries и Ozon, а также управлять плагинами.",
     "почему небо синее": "Небо кажется синим из-за рэлеевского рассеяния солнечного света в атмосфере: газы атмосферы рассеивают короткие синие и фиолетовые волны значительно сильнее, чем длинные красные.",
     "почему небо голубое": "Небо голубое благодаря рэлеевскому рассеянию: солнечный свет рассеивается молекулами воздуха, при этом коротковолновые синие и голубые лучи рассеиваются сильнее всего.",
-    "нет": "Хорошо, отменил. Ожидаю ваших указаний.",
-    "не надо": "Понял вас, отменяю. Чем могу помочь?",
-    "не нужно": "Хорошо, не буду. Ожидаю следующих команд.",
-    "отмена": "Действие отменено. Жду ваших указаний.",
-    "отбой": "Принято, отбой. Системы готовы к работе.",
-    "стоп": "Остановил выполнение. Ожидаю дальнейших указаний.",
-    "хватит": "Хорошо, остановился. Чем займёмся дальше?",
-    "понял": "Отлично. Всегда готов к новым задачам.",
-    "понятно": "Договорились. Если что-то понадобится — обращайтесь.",
-    "ясно": "Принято. Готов к выполнению любых команд.",
-    "ок": "Принято. Что делаем дальше?",
-    "хорошо": "Вас понял. Готов продолжить работу.",
-    "ладно": "Хорошо. Ожидаю ваших команд.",
-    "да": "Слушаю вас. Какую задачу выполняем?",
+    "нет": "Хорошо, сэр, отменил. Ожидаю ваших указаний.",
+    "не надо": "Понял вас, сэр, отменяю. Чем могу помочь?",
+    "не нужно": "Хорошо, сэр, не буду. Ожидаю следующих команд.",
+    "отмена": "Действие отменено, сэр. Жду ваших указаний.",
+    "отбой": "Принято, сэр, отбой. Системы готовы к работе.",
+    "стоп": "Остановил выполнение, сэр. Ожидаю дальнейших указаний.",
+    "хватит": "Хорошо, сэр, остановился. Чем займёмся дальше?",
+    "понял": "Отлично, сэр. Всегда готов к новым задачам.",
+    "понятно": "Договорились, сэр. Если что-то понадобится — обращайтесь.",
+    "ясно": "Принято, сэр. Готов к выполнению любых команд.",
+    "ок": "Принято, сэр. Что делаем дальше?",
+    "хорошо": "Вас понял, сэр. Готов продолжить работу.",
+    "ладно": "Хорошо, сэр. Ожидаю ваших команд.",
+    "да": "Слушаю вас, сэр. Какую задачу выполняем?",
 }
 
 def generate_smart_code_reply(prompt: str) -> Optional[str]:
@@ -2097,9 +2117,52 @@ def generate_smart_code_reply(prompt: str) -> Optional[str]:
             "Средняя сложность алгоритма — O(n log n)."
         )
 
+    if any(k in low for k in ["node", "nodejs", "node.js", "js", "javascript"]) and any(k in low for k in ["бот", "telegram", "телеграм"]):
+        return (
+            "Вот готовый и проверенный код Telegram-бота на Node.js, сэр:\n\n"
+            "```javascript\n"
+            "// 1. Инициализация проекта: npm init -y\n"
+            "// 2. Установка библиотеки: npm install node-telegram-bot-api\n\n"
+            "const TelegramBot = require('node-telegram-bot-api');\n\n"
+            "// Замените на токен вашего бота от @BotFather\n"
+            "const token = process.env.TELEGRAM_BOT_TOKEN || 'ВАШ_ТОКЕН_БОТА';\n\n"
+            "// Создаем экземпляр бота с включенным поллингом\n"
+            "const bot = new TelegramBot(token, { polling: true });\n\n"
+            "console.log('Бот успешно запущен и ожидает сообщений...');\n\n"
+            "// Обработка команды /start\n"
+            "bot.onText(/\\/start/, (msg) => {\n"
+            "    const chatId = msg.chat.id;\n"
+            "    const userName = msg.from.first_name || 'Пользователь';\n"
+            "    bot.sendMessage(chatId, `Здравствуйте, ${userName}! Я простой эхо-бот на Node.js.`);\n"
+            "});\n\n"
+            "// Обработка команды /help\n"
+            "bot.onText(/\\/help/, (msg) => {\n"
+            "    const chatId = msg.chat.id;\n"
+            "    bot.sendMessage(chatId, 'Доступные команды:\\n/start — начать диалог\\n/help — справка\\nИли просто напишите мне любое сообщение.');\n"
+            "});\n\n"
+            "// Эхо-ответ на любые входящие текстовые сообщения\n"
+            "bot.on('message', (msg) => {\n"
+            "    // Пропускаем команды, чтобы не дублировать ответ\n"
+            "    if (msg.text && !msg.text.startsWith('/')) {\n"
+            "        const chatId = msg.chat.id;\n"
+            "        bot.sendMessage(chatId, `Вы написали: ${msg.text}`);\n"
+            "    }\n"
+            "});\n\n"
+            "// Обработка ошибок опроса сервера\n"
+            "bot.on('polling_error', (error) => {\n"
+            "    console.error('Ошибка поллинга:', error.code, error.message);\n"
+            "});\n"
+            "```\n\n"
+            "**Инструкция по запуску:**\n"
+            "1. Создайте файл `bot.js` и вставьте в него код выше.\n"
+            "2. Установите зависимость: `npm install node-telegram-bot-api`.\n"
+            "3. Запустите бота командой: `node bot.js`.\n\n"
+            "Все модули готовы к работе, сэр."
+        )
+
     if any(k in low for k in ["бот", "telegram bot", "тг бот"]):
         return (
-            "Вот базовый шаблон асинхронного Telegram-бота на Python:\n\n"
+            "Вот базовый шаблон асинхронного Telegram-бота на Python, сэр:\n\n"
             "```python\n"
             "import asyncio\n"
             "from aiogram import Bot, Dispatcher, types\n"
@@ -2320,18 +2383,18 @@ def get_conversational_reply(raw_text: str, en: bool, user_name: str = "Поль
     else:
         low_t = raw_text.lower().strip()
         if any(g in low_t for g in ["спасибо", "благодарю"]):
-            return "Пожалуйста. Всегда к вашим услугам. Чем еще могу помочь?"
+            return "Пожалуйста, сэр. Всегда к вашим услугам. Чем ещё могу быть полезен?"
         if any(g in low_t for g in ["отлично", "хорошо", "супер", "класс", "молодец"]):
-            return "Рад помочь. Готов к выполнению следующих задач."
+            return "Рад помочь, сэр. Все системы функционируют штатно и ждут ваших задач."
         if any(g in low_t for g in ["пока", "до свидания", "до встречи"]):
-            return "До связи. Все системы Argus остаются активными и ждут ваших указаний."
+            return "До связи, сэр. Все службы Argus остаются на страже и ждут ваших указаний."
         if any(h in low_t for h in ["привет", "здравствуй", "добрый день", "добрый вечер", "доброе утро"]):
-            return f"Здравствуйте, {u_name}! Чем могу помочь вам сегодня за компьютером?"
+            return f"Здравствуйте, сэр! Чем могу помочь вам сегодня за компьютером?"
         if any(re.search(r'\b' + re.escape(w) + r'\b', low_t) for w in ["нет", "не", "не надо", "не нужно", "отмена", "отбой"]):
-            return "Хорошо, отменил. Ожидаю ваших указаний."
+            return "Хорошо, сэр, отменил. Ожидаю ваших указаний."
         if any(re.search(r'\b' + re.escape(w) + r'\b', low_t) for w in ["стоп", "хватит", "остановись", "прекрати"]):
-            return "Остановил выполнение. Ожидаю дальнейших указаний."
-        return f"Принято, {u_name}. Я внимательно слушаю и готов выполнить команду или продолжить диалог."
+            return "Остановил выполнение, сэр. Ожидаю дальнейших указаний."
+        return f"Принято, сэр. Я внимательно слушаю вас и готов выполнить команду или ответить на вопрос."
 
 # ─── MAIN MASTER ENTRY POINT ────────────────────────────────────
 def process_command(user_text: str, user_name: str = "Пользователь", history: Optional[List[Dict[str, Any]]] = None) -> Tuple[str, Optional[str], Optional[Dict[str, Any]]]:

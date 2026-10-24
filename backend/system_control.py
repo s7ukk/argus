@@ -2493,17 +2493,43 @@ def close_specific_browser_tab(target_query: str) -> bool:
     q = target_query.lower().strip()
     
     target_domains = {
+        "дипсик": "deepseek", "дипсика": "deepseek", "дипсике": "deepseek", "дипсиком": "deepseek", "deepseek": "deepseek",
+        "чатгпт": "chatgpt", "чат гпт": "chatgpt", "chatgpt": "chatgpt", "openai": "openai",
+        "гугл": "google", "гугле": "google", "google": "google",
+        "яндекс": "yandex", "яндексе": "yandex", "yandex": "yandex",
+        "википедия": "wikipedia", "википедии": "wikipedia", "вики": "wikipedia", "wikipedia": "wikipedia",
+        "стак": "stackoverflow", "стаковерфлоу": "stackoverflow", "stackoverflow": "stackoverflow",
+        "хабр": "habr", "хабре": "habr", "habr": "habr",
+        "кинопоиск": "kinopoisk", "кинопоиске": "kinopoisk", "kinopoisk": "kinopoisk",
+        "ношен": "notion", "ноушен": "notion", "notion": "notion",
+        "фигма": "figma", "фигме": "figma", "figma": "figma",
+        "клауд": "claude", "клод": "claude", "claude": "claude",
+        "реддит": "reddit", "редит": "reddit", "reddit": "reddit",
+        "стим": "steam", "steam": "steam",
+        "нетфликс": "netflix", "netflix": "netflix",
+        "спотифай": "spotify", "spotify": "spotify",
+        "авито": "avito", "avito": "avito",
+        "госуслуги": "gosuslugi",
+        "тинькофф": "tinkoff", "тбанк": "tbank", "tbank": "tbank", "tinkoff": "tinkoff",
+        "сбер": "sber", "сбербанк": "sberbank", "sber": "sber",
         "ютуб": "youtube", "ютубе": "youtube", "ютуби": "youtube", "youtube": "youtube",
         "вк": "vk", "вконтакте": "vk", "vk": "vk",
-        "яндекс": "yandex", "yandex": "yandex",
         "телеграм": "telegram", "телега": "telegram", "тг": "telegram",
         "гитхаб": "github", "github": "github",
         "почта": "mail", "почту": "mail", "mail": "mail", "gmail": "gmail",
         "озон": "ozon", "ozon": "ozon",
-        "вайлдберриз": "wildberries", "вб": "wildberries", "wildberries": "wildberries",
+        "вайлдберриз": "wildberries", "вайлдбериз": "wildberries", "вб": "wildberries", "wildberries": "wildberries",
         "дискорд": "discord", "discord": "discord"
     }
     match_term = target_domains.get(q, q)
+    translit_map = {
+        'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'yo', 'ж': 'zh',
+        'з': 'z', 'и': 'i', 'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm', 'н': 'n', 'о': 'o',
+        'п': 'p', 'р': 'r', 'с': 's', 'т': 't', 'у': 'u', 'ф': 'f', 'х': 'kh', 'ц': 'ts',
+        'ч': 'ch', 'ш': 'sh', 'щ': 'shch', 'ъ': '', 'ы': 'y', 'ь': '', 'э': 'e', 'ю': 'yu', 'я': 'ya'
+    }
+    translit_q = "".join(translit_map.get(ch, ch) for ch in q)
+    search_tokens = [tok for tok in [q, match_term, translit_q] if len(tok) >= 2]
 
     if sys.platform == "darwin":
         script = f'''
@@ -2557,7 +2583,7 @@ def close_specific_browser_tab(target_query: str) -> bool:
         def cb(hwnd, _):
             if win32gui.IsWindowVisible(hwnd) and not is_argus_window(hwnd):
                 title = win32gui.GetWindowText(hwnd).lower()
-                if match_term in title or q in title:
+                if any(tok in title for tok in search_tokens):
                     matched_hwnds.append(hwnd)
         win32gui.EnumWindows(cb, None)
         if matched_hwnds:
