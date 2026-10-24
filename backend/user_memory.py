@@ -8,19 +8,26 @@ try:
     _MEMORY_FILE = app_paths.get_data_file_path("user_memory.json")
 except Exception:
     _MEMORY_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "user_memory.json")
+
+_PATHS_TO_TRY = [
+    _MEMORY_FILE,
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "user_memory.json"),
+    os.path.join(os.path.expanduser("~"), ".argus_user_memory.json")
+]
 _MEMORY_CACHE: Optional[Dict[str, Any]] = None
 
 def load_memory() -> Dict[str, Any]:
     global _MEMORY_CACHE
     if _MEMORY_CACHE is not None:
         return _MEMORY_CACHE
-    if os.path.exists(_MEMORY_FILE):
-        try:
-            with open(_MEMORY_FILE, "r", encoding="utf-8") as f:
-                _MEMORY_CACHE = json.load(f)
-                return _MEMORY_CACHE
-        except Exception:
-            pass
+    for p in _PATHS_TO_TRY:
+        if os.path.exists(p):
+            try:
+                with open(p, "r", encoding="utf-8") as f:
+                    _MEMORY_CACHE = json.load(f)
+                    return _MEMORY_CACHE
+            except Exception:
+                pass
     _MEMORY_CACHE = {
         "name": None,
         "age": None,
@@ -36,11 +43,14 @@ def save_memory() -> None:
     global _MEMORY_CACHE
     if _MEMORY_CACHE is None:
         return
-    try:
-        with open(_MEMORY_FILE, "w", encoding="utf-8") as f:
-            json.dump(_MEMORY_CACHE, f, ensure_ascii=False, indent=2)
-    except Exception as e:
-        print("[Argus Memory]: Error saving user memory:", e)
+    for p in _PATHS_TO_TRY:
+        try:
+            os.makedirs(os.path.dirname(p), exist_ok=True)
+            with open(p, "w", encoding="utf-8") as f:
+                json.dump(_MEMORY_CACHE, f, ensure_ascii=False, indent=2)
+            return
+        except Exception:
+            continue
 
 def set_fact(key: str, value: Any) -> None:
     mem = load_memory()
@@ -88,6 +98,17 @@ def extract_and_learn(user_text: str) -> Optional[str]:
         if name_val.lower() not in ["аргус", "argus", "пользователь", "друг", "мне", "я"]:
             mem["name"] = name_val
             learned_items.append(f"вас зовут {name_val}")
+
+    # 1.5 Friend extraction: "моего друга зовут <Имя>", "мой друг <Имя>"
+    m_friend = re.search(r'\b(?:моего\s+друга\s+зовут|мой\s+друг(?:\s+это|\s+зовут)?)\s+([a-zA-Zа-яА-ЯёЁ0-9_]+)\b', t, re.IGNORECASE)
+    if m_friend:
+        friend_val = m_friend.group(1).capitalize()
+        if friend_val.lower() not in ["аргус", "argus", "пользователь", "я", "друг"]:
+            mem["friend_name"] = friend_val
+            if "notes" not in mem or not isinstance(mem["notes"], list):
+                mem["notes"] = []
+            mem["notes"].append(f"Друга зовут {friend_val}")
+            learned_items.append(f"вашего друга зовут {friend_val}")
 
     # 2. Age extraction: "мне 18 лет", "мне 18", "мой возраст 18", "мне исполнилось 18"
     m_age = re.search(r'\b(?:мне\s+(?:уже\s+)?(?:исполнилось\s+)?|мой\s+возраст\s+|i\s+am\s+|i\'m\s+)(\d{1,3})(?:\s+(?:лет|года|год|years\s+old))?\b', low)
@@ -154,6 +175,41 @@ def query_memory_question(user_text: str, has_history: bool = False) -> Optional
             return f"Вас зовут {mem['name']}."
         elif not has_history:
             return "Вы пока не назвали свое имя. Скажите, например: «меня зовут Алексей», и я запомню."
+
+    # 2.5 Question about Friend
+    if any(q in low for q in ["как зовут моего друга", "как зовут друга", "моего друга зовут", "кто мой друг", "имя моего друга", "как звать моего друга", "как звать друга"]):
+        if mem.get("friend_name"):
+            return f"Вашего друга зовут {mem['friend_name']}, сэр."
+        for n in mem.get("notes", []):
+            if "друг" in n.lower():
+                return f"Судя по моим записям, сэр: {n}."
+        try:
+            try:
+                import backend.extras_manager as em
+            except ImportError:
+                import extras_manager as em
+            matches = em.search_notes("друг")
+            if not matches:
+                matches = em.search_notes("друга")
+            if matches:
+                return f"Судя по вашей заметке «{matches[0].get('title')}», сэр: {matches[0].get('content')}"
+        except Exception:
+            pass
+        return "Вы пока не говорили мне, как зовут вашего друга, сэр. Скажите, например: «Моего друга зовут Алексей», или создайте заметку, и я обязательно запомню это."
+
+    # 2.6 Question about Relatives
+    if any(q in low for q in ["как зовут мою девушку", "имя моей девушки", "как зовут мою жену", "как зовут маму", "как зовут папу"]):
+        try:
+            try:
+                import backend.extras_manager as em
+            except ImportError:
+                import extras_manager as em
+            matches = em.search_notes(low)
+            if matches:
+                return f"Судя по вашей заметке «{matches[0].get('title')}», сэр: {matches[0].get('content')}"
+        except Exception:
+            pass
+        return "У меня пока нет информации об этом в ваших заметках или памяти, сэр. Вы можете сказать мне или записать в заметки, и я сохраню это."
 
     # 3. Question about City / Location
     if any(q in low for q in ["где я живу", "из какого я города", "в каком я городе", "мой город", "where do i live"]):
