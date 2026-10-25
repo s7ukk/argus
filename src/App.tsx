@@ -541,7 +541,19 @@ export const App: React.FC = () => {
       <div className="bg-grid" />
       <div className="bg-noise" />
 
-      <Header />
+      <Header
+        navDock={
+          themeConfig.navPosition === 'top' && profile ? (
+            <NavDock
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+              profile={profile}
+              onOpenProfile={() => setIsProfileOpen(true)}
+              position="top"
+            />
+          ) : undefined
+        }
+      />
 
       {/* Dynamic Island: ONLY rendered in web browser if Electron overlay is absent */}
       {!((window as any).electronAPI?.isElectron) && (
@@ -560,20 +572,20 @@ export const App: React.FC = () => {
           style={{
             flex: 1,
             display: 'flex',
-            flexDirection: themeConfig.navPosition === 'top' ? 'column' : 'row',
+            flexDirection: 'row',
             overflow: 'hidden',
             position: 'relative',
             zIndex: 2,
           }}
         >
-          {/* Top or Left NavDock */}
-          {themeConfig.navPosition !== 'right' && (
+          {/* Left NavDock (when position === 'left') */}
+          {themeConfig.navPosition === 'left' && (
             <NavDock
               activeTab={activeTab}
               onTabChange={setActiveTab}
               profile={profile}
               onOpenProfile={() => setIsProfileOpen(true)}
-              position={themeConfig.navPosition}
+              position="left"
             />
           )}
 
@@ -613,6 +625,7 @@ export const App: React.FC = () => {
                   onFinishStreaming={() => setStreamingMessageId(null)}
                   isSidebarCollapsed={isSidebarCollapsed}
                   onToggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                  activeChatTitle={chats.find((c) => c.id === activeChatId)?.title}
                 />
               </>
             )}

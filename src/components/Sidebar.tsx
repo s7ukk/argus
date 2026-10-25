@@ -73,32 +73,54 @@ export const Sidebar: React.FC<SidebarProps> = ({
         zIndex: 20,
       }}
     >
-      {/* ─── Top Header & New Chat Button ─── */}
-      <div style={{ padding: '14px 14px 10px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span
-            style={{
-              fontSize: 11,
-              fontWeight: 700,
-              textTransform: 'uppercase',
-              letterSpacing: '0.06em',
-              color: '#94a3b8',
-              paddingLeft: 4,
-            }}
-          >
-            Диалоги
-          </span>
-          <button
-            onClick={onToggleCollapse}
-            className="btn-icon"
-            style={{ width: 26, height: 26 }}
-            title="Свернуть список чатов"
-          >
-            <ChevronLeft size={15} />
-          </button>
-        </div>
+      {/* ─── Top Header (Aligned with ChatView top bar, height: 44px) ─── */}
+      <div
+        style={{
+          height: 44,
+          padding: '0 14px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.07)',
+          flexShrink: 0,
+        }}
+      >
+        <span
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+            color: '#94a3b8',
+            paddingLeft: 2,
+          }}
+        >
+          Диалоги
+        </span>
+        <button
+          onClick={onToggleCollapse}
+          className="btn-icon"
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: 8,
+            background: 'rgba(255, 255, 255, 0.04)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            color: '#94a3b8',
+            transition: 'all 0.15s ease',
+          }}
+          title="Свернуть список чатов"
+        >
+          <ChevronLeft size={15} />
+        </button>
+      </div>
 
-        {/* New Chat Button */}
+      {/* ─── New Chat Button Section ─── */}
+      <div style={{ padding: '10px 12px 6px 12px', flexShrink: 0 }}>
         <button
           onClick={onCreateChat}
           style={{
@@ -107,12 +129,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
             alignItems: 'center',
             justifyContent: 'center',
             gap: 7,
-            padding: '8px 14px',
+            padding: '7px 14px',
             borderRadius: 9999,
             background: 'rgba(255, 255, 255, 0.06)',
             border: '1px solid rgba(255, 255, 255, 0.12)',
             color: '#ffffff',
-            fontSize: 12.5,
+            fontSize: 12,
             fontWeight: 600,
             cursor: 'pointer',
             transition: 'all 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
@@ -130,7 +152,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           }}
           title="Создать новый диалог"
         >
-          <Plus size={14} />
+          <Plus size={13} />
           <span>Новый чат</span>
         </button>
       </div>

@@ -37,6 +37,7 @@ interface ChatViewProps {
   onFinishStreaming?: () => void;
   isSidebarCollapsed?: boolean;
   onToggleSidebar?: () => void;
+  activeChatTitle?: string;
 }
 
 export const ChatView: React.FC<ChatViewProps> = ({
@@ -53,6 +54,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   onStop,
   isSidebarCollapsed,
   onToggleSidebar,
+  activeChatTitle,
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -167,42 +169,76 @@ export const ChatView: React.FC<ChatViewProps> = ({
         userSelect: 'none',
       }}
     >
-      {/* Sidebar toggle button (when sidebar is collapsed) */}
-      {isSidebarCollapsed && onToggleSidebar && (
-        <button
-          onClick={onToggleSidebar}
-          style={{
-            position: 'absolute',
-            top: 14,
-            left: 14,
-            zIndex: 35,
-            width: 32,
-            height: 32,
-            borderRadius: 10,
-            background: 'rgba(12, 12, 16, 0.85)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            backdropFilter: 'blur(16px)',
-            color: '#94a3b8',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            transition: 'all 0.18s ease',
-            boxShadow: '0 4px 14px rgba(0, 0, 0, 0.4)',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.color = '#ffffff';
-            e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.25)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.color = '#94a3b8';
-            e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
-          }}
-          title="Развернуть диалоги"
-        >
-          <PanelLeft size={16} />
-        </button>
-      )}
+      {/* ─── Top Bar (Aligned with Sidebar header: height 44px) ─── */}
+      <div
+        style={{
+          height: 44,
+          padding: '0 16px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.07)',
+          background: 'rgba(8, 8, 12, 0.45)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          flexShrink: 0,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+          {isSidebarCollapsed && onToggleSidebar && (
+            <button
+              onClick={onToggleSidebar}
+              className="btn-icon"
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 8,
+                background: 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                color: '#cbd5e1',
+                flexShrink: 0,
+              }}
+              title="Развернуть диалоги"
+            >
+              <PanelLeft size={14} />
+            </button>
+          )}
+
+          <span
+            style={{
+              fontSize: 13,
+              fontWeight: 600,
+              color: '#ffffff',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              maxWidth: 360,
+            }}
+          >
+            {activeChatTitle || 'Новый диалог'}
+          </span>
+        </div>
+
+        {/* Right Info: Argus Neural Online Badge */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          <span
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: '50%',
+              background: '#4ade80',
+              boxShadow: '0 0 6px rgba(74, 222, 128, 0.6)',
+            }}
+          />
+          <span style={{ fontSize: 11, fontWeight: 500, color: '#94a3b8' }}>
+            Argus Neural
+          </span>
+        </div>
+      </div>
 
       {/* ─── SCROLLABLE MESSAGE LIST ─── */}
       <div

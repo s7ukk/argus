@@ -43,8 +43,8 @@ export const NavDock: React.FC<NavDockProps> = ({
           ? {
               position: 'relative',
               justifyContent: 'center',
-              padding: '6px 0 2px 0',
-              width: '100%',
+              padding: 0,
+              width: 'auto',
               flexShrink: 0,
             }
           : {
@@ -63,7 +63,8 @@ export const NavDock: React.FC<NavDockProps> = ({
           flexDirection: isVertical ? 'column' : 'row',
           alignItems: 'center',
           gap: 3,
-          padding: isVertical ? '8px 4px' : '4px 6px',
+          padding: isVertical ? '8px 4px' : '3px 6px',
+          height: isVertical ? 'auto' : 32,
           borderRadius: 9999,
           background: 'rgba(12, 12, 16, 0.82)',
           backdropFilter: 'blur(30px) saturate(190%)',
