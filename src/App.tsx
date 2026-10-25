@@ -166,67 +166,7 @@ export const App: React.FC = () => {
     };
     window.addEventListener('argus_settings_updated', handleSettingsUpdated);
 
-    // Synchronize Active Timer to Electron OS Overlay Dynamic Island
-  useEffect(() => {
-    if (!Boolean((window as any).electronAPI?.isElectron)) return;
-    const syncTimer = () => {
-      try {
-        const raw = localStorage.getItem('argus_extras_timers');
-        if (raw) {
-          const list: TimerItem[] = JSON.parse(raw);
-          const running = list.find((t) => t.is_running && t.remaining_seconds > 0);
-          if (running) {
-            (window as any).electronAPI?.updateIslandTimer?.({
-              id: running.id,
-              title: running.title,
-              remaining_seconds: running.remaining_seconds,
-              is_running: true,
-            });
-            return;
-          }
-        }
-        (window as any).electronAPI?.updateIslandTimer?.(null);
-      } catch {
-        (window as any).electronAPI?.updateIslandTimer?.(null);
-      }
-    };
 
-    syncTimer();
-    const interval = setInterval(syncTimer, 1000);
-    window.addEventListener('argus_extras_updated', syncTimer);
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener('argus_extras_updated', syncTimer);
-    };
-  }, []);
-
-  // Synchronize AI State (Thinking / Speaking / Idle) to Electron OS Overlay Dynamic Island
-  useEffect(() => {
-    if (!Boolean((window as any).electronAPI?.isElectron)) return;
-    if (loading) {
-      (window as any).electronAPI?.updateIslandState?.({ thinking: true });
-    } else if (isSpeaking) {
-      (window as any).electronAPI?.updateIslandState?.({ speaking: true });
-    } else {
-      (window as any).electronAPI?.updateIslandState?.({ idle: true });
-    }
-  }, [loading, isSpeaking]);
-
-  // Synchronize in-app Notifications to Electron OS Overlay Dynamic Island
-  useEffect(() => {
-    if (!Boolean((window as any).electronAPI?.isElectron)) return;
-    const handleIslandNotify = (e: any) => {
-      if (e.detail?.text) {
-        (window as any).electronAPI?.showIslandNotification?.({
-          text: e.detail.text,
-          type: e.detail.type || 'info',
-          duration: e.detail.duration || 3200,
-        });
-      }
-    };
-    window.addEventListener('argus_island_notify', handleIslandNotify);
-    return () => window.removeEventListener('argus_island_notify', handleIslandNotify);
-  }, []);
 
   return () => {
       isDictationSubscribed = false;
@@ -587,6 +527,68 @@ export const App: React.FC = () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
+  }, []);
+
+    // Synchronize Active Timer to Electron OS Overlay Dynamic Island
+  useEffect(() => {
+    if (!Boolean((window as any).electronAPI?.isElectron)) return;
+    const syncTimer = () => {
+      try {
+        const raw = localStorage.getItem('argus_extras_timers');
+        if (raw) {
+          const list: TimerItem[] = JSON.parse(raw);
+          const running = list.find((t) => t.is_running && t.remaining_seconds > 0);
+          if (running) {
+            (window as any).electronAPI?.updateIslandTimer?.({
+              id: running.id,
+              title: running.title,
+              remaining_seconds: running.remaining_seconds,
+              is_running: true,
+            });
+            return;
+          }
+        }
+        (window as any).electronAPI?.updateIslandTimer?.(null);
+      } catch {
+        (window as any).electronAPI?.updateIslandTimer?.(null);
+      }
+    };
+
+    syncTimer();
+    const interval = setInterval(syncTimer, 1000);
+    window.addEventListener('argus_extras_updated', syncTimer);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('argus_extras_updated', syncTimer);
+    };
+  }, []);
+
+  // Synchronize AI State (Thinking / Speaking / Idle) to Electron OS Overlay Dynamic Island
+  useEffect(() => {
+    if (!Boolean((window as any).electronAPI?.isElectron)) return;
+    if (loading) {
+      (window as any).electronAPI?.updateIslandState?.({ thinking: true });
+    } else if (isSpeaking) {
+      (window as any).electronAPI?.updateIslandState?.({ speaking: true });
+    } else {
+      (window as any).electronAPI?.updateIslandState?.({ idle: true });
+    }
+  }, [loading, isSpeaking]);
+
+  // Synchronize in-app Notifications to Electron OS Overlay Dynamic Island
+  useEffect(() => {
+    if (!Boolean((window as any).electronAPI?.isElectron)) return;
+    const handleIslandNotify = (e: any) => {
+      if (e.detail?.text) {
+        (window as any).electronAPI?.showIslandNotification?.({
+          text: e.detail.text,
+          type: e.detail.type || 'info',
+          duration: e.detail.duration || 3200,
+        });
+      }
+    };
+    window.addEventListener('argus_island_notify', handleIslandNotify);
+    return () => window.removeEventListener('argus_island_notify', handleIslandNotify);
   }, []);
 
   if (checkingAuth) {
