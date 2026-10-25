@@ -207,18 +207,16 @@ def clean_text_for_speech(text: str) -> str:
     t = re.sub(r'Нажмите кнопку ниже.*', '', t)
     t = re.sub(r'\s+', ' ', t).strip()
 
-    # Shorten speech to first punchy sentence (~80 chars max) for lightning-fast (<0.2s) audio start
-    sentences = re.split(r'(?<=[.!?])\s+', t)
-    shortened = ""
-    for s in sentences:
-        if len(shortened) + len(s) < 220:
-            shortened += (s + " ")
-        else:
-            break
-    if shortened.strip():
-        t = shortened.strip()
-    elif len(t) > 220:
-        t = t[:215] + "..."
+    # Extract strictly the first punchy sentence / clause (max 85 chars) for near-instant audio start
+    sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+|[\r\n]+', t) if s.strip()]
+    if sentences:
+        first = sentences[0]
+        if len(first) > 85:
+            m = re.match(r'^(.{20,80}?)[,;:\s]', first)
+            first = (m.group(1).strip() + '.') if m else (first[:80].strip() + '...')
+        t = first
+    elif len(t) > 85:
+        t = t[:80].strip() + '...'
     return t
 
 async def generate_speech_base64(
@@ -312,3 +310,47 @@ def transcribe_audio_wav_base64(wav_b64: str) -> Optional[str]:
     except Exception as e:
         print("STT transcription error:", e)
         return None
+
+
+def warmup_voice_cache():
+    """Pre-generates in-memory audio for the most common responses in background thread for 0ms voice latency."""
+    def _worker():
+        common_phrases = [
+            "Здравствуйте, сэр!",
+            "Слушаю Вас, сэр.",
+            "Готово, сэр.",
+            "Все задачи успешно выполнены, сэр.",
+            "Действие отменено, сэр.",
+            "Остановил выполнение, сэр.",
+            "Все системы работают в штатном режиме, сэр.",
+            "Открываю, сэр.",
+            "Вкладка закрыта, сэр.",
+            "Скриншот сделан, сэр."
+        ]
+        target_voice = "ru-RU-DmitryNeural"
+        for phrase in common_phrases:
+            cache_key = f"{phrase}_{target_voice}_+0%"
+            if cache_key in _VOICE_AUDIO_CACHE:
+                continue
+            try:
+                communicate = edge_tts.Communicate(phrase, target_voice, rate="+0%")
+                loop = asyncio.new_event_loop()
+                async def _fetch():
+                    b = bytearray()
+                    async for chunk in communicate.stream():
+                        if chunk["type"] == "audio":
+                            b.extend(chunk["data"])
+                    return b
+                audio_data = loop.run_until_complete(_fetch())
+                loop.close()
+                if audio_data and len(audio_data) > 100:
+                    b64_res = base64.b64encode(audio_data).decode("utf-8")
+                    _VOICE_AUDIO_CACHE[cache_key] = b64_res
+            except Exception:
+                pass
+            time.sleep(0.1)
+
+    threading.Thread(target=_worker, daemon=True).start()
+
+# Launch audio pre-warming upon module load
+warmup_voice_cache()

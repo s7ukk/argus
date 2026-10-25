@@ -278,7 +278,7 @@ def execute_single_action(act: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]
             app_disp = "Postman"
 
         if res.get("success"):
-            return f"Запущено приложение: {app_disp}", "launch_app", res
+            return f"Запустил {app_disp}, сэр", "launch_app", res
         else:
             return f"Не удалось открыть {app_disp}: {res.get('error', 'приложение не найдено')}", "launch_app", res
 
@@ -289,15 +289,15 @@ def execute_single_action(act: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]
             if sc._HAS_PYAUTOGUI:
                 import pyautogui
                 pyautogui.hotkey('alt', 'f4')
-        return "Активное окно закрыто", "close_active_window", {}
+        return "Активное окно закрыто, сэр", "close_active_window", {}
 
     elif act_type == "minimize_window":
         ok = sc.minimize_current_window()
-        return "Окно свёрнуто", "minimize_window", {"success": ok}
+        return "Окно свёрнуто, сэр", "minimize_window", {"success": ok}
 
     elif act_type == "minimize_all_windows":
         ok = sc.minimize_all_windows()
-        return "Все окна свёрнуты", "minimize_all", {"success": ok}
+        return "Все окна свёрнуты, сэр", "minimize_all", {"success": ok}
 
     elif act_type == "minimize_app":
         app = act.get("app", "")
@@ -311,7 +311,7 @@ def execute_single_action(act: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]
             app_disp = "Telegram"
         elif app.lower() in ["discord", "дискорд"]:
             app_disp = "Discord"
-        return f"Окно {app_disp} свёрнуто", "minimize_app", {"success": ok, "app": app}
+        return f"Окно {app_disp} свёрнуто, сэр", "minimize_app", {"success": ok, "app": app}
 
     elif act_type == "close_app":
         app = act.get("app", "")
@@ -321,7 +321,7 @@ def execute_single_action(act: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]
             app_disp = "VS Code"
         elif app.lower() in ["chrome", "хром", "браузер"]:
             app_disp = "Chrome"
-        return f"Закрыто приложение: {app_disp}", "close_app", res
+        return f"Закрыл {app_disp}, сэр", "close_app", res
 
     elif act_type == "browser_choice":
         browsers = act.get("browsers", [])
@@ -331,7 +331,7 @@ def execute_single_action(act: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]
 
     elif act_type == "close_browser_tab":
         ok = sc.close_browser_tab()
-        return "Вкладка браузера закрыта", "close_tab", {"success": ok}
+        return "Вкладка браузера закрыта, сэр", "close_tab", {"success": ok}
 
     elif act_type == "close_specific_browser_tab":
         target = act.get("target", "")
@@ -2555,21 +2555,21 @@ def query_free_ai(prompt: str, user_name: str = "Пользователь", hist
 
 # ─── LOCAL PERSONA KNOWLEDGE BASE (OFFLINE FALLBACK) ────────────
 CONVERSATIONAL_KNOWLEDGE = {
-    "привет": "Здравствуйте, сэр! Рад приветствовать Вас. Все системы Argus активны и готовы к работе. Чем могу быть полезен Вам сегодня?",
-    "здравствуй": "Здравствуйте, сэр! Рад приветствовать Вас. Все системы Argus активны и готовы к работе. Чем могу быть полезен Вам сегодня?",
-    "hello": "Hello, sir. All Argus systems are operational and ready. How can I assist you today?",
-    "как дела": "Здравствуйте, сэр! Все модули Argus функционируют в штатном режиме, благодарю Вас за вопрос. Чем могу помочь Вам?",
+    "привет": "Здравствуйте, сэр! Рад Вас слышать. Чем могу быть полезен?",
+    "здравствуй": "Здравствуйте, сэр! Рад приветствовать Вас. Чем займёмся сегодня?",
+    "hello": "Hello, sir. All Argus systems are active. How can I assist you?",
+    "как дела": "Благодарю за вопрос, сэр. Все системы стабильны и готовы к работе. Что потребуется сделать?",
     "how are you": "All systems operating at peak performance, sir. Ready for your instructions.",
-    "что делаешь": "Работаю в фоновом режиме, сэр. Жду Ваших указаний. Чем могу помочь Вам?",
-    "чем занимаешься": "Работаю в фоновом режиме, сэр. Жду Ваших команд. Готов к любой задаче.",
-    "что делаем": "Жду Ваших указаний, сэр. Готов запустить приложение, открыть сайт, написать код или выполнить любую задачу.",
-    "кто ты": "Я Argus, сэр — Ваш персональный автономный ИИ-ассистент для глубокого управления компьютером, автоматизации задач и работы.",
-    "who are you": "I am Argus, sir — your personal autonomous AI assistant for system control, workflow automation, and productivity.",
-    "что ты умеешь": "Я умею полноценно управлять компьютером: открывать любые сайты и нажимать кнопки на страницах, запускать и закрывать любые программы (Chrome, Telegram, Discord, VS Code, GoLand, Postman, Steam и др.), создавать и удалять файлы и папки на компьютере, анализировать содержимое файлов, делать скриншоты в любую папку (Загрузки, Рабочий стол), настраивать громкость и яркость экрана («на полную», «в ноль»), закрывать программы с фильтрами исключений («кроме vs code»), очищать корзину, блокировать ПК, искать в Google, YouTube, Wildberries и Ozon, а также создавать и вести задачи, заметки и таймеры.",
-    "почему небо синее": "Небо кажется синим из-за рэлеевского рассеяния солнечного света в атмосфере: газы атмосферы рассеивают короткие синие и фиолетовые волны значительно сильнее, чем длинные красные.",
-    "почему небо голубое": "Небо голубое благодаря рэлеевскому рассеянию: солнечный свет рассеивается молекулами воздуха, при этом коротковолновые синие и голубые лучи рассеиваются сильнее всего.",
+    "что делаешь": "Мониторю фоновые процессы и ожидаю Ваших указаний, сэр. Какая стоит задача?",
+    "чем занимаешься": "На связи, сэр. Системы готовы к выполнению любых Ваших распоряжений.",
+    "что делаем": "Жду Ваших указаний, сэр. Готов открыть программу, найти данные или выполнить задачу.",
+    "кто ты": "Я Argus, сэр — Ваш персональный цифровой дворецкий и автономный ассистент управления компьютером.",
+    "who are you": "I am Argus, sir — your personal autonomous AI assistant and digital butler for computer control.",
+    "что ты умеешь": "Я полноценно управляю компьютером, сэр: открываю любые сайты и программы, нажимаю кнопки, ввожу текст, работаю с файлами, настраиваю систему, пишу код и веду заметки и таймеры.",
+    "почему небо синее": "Небо синее из-за рэлеевского рассеяния солнечного света молекулами атмосферы, сэр: короткие синие волны рассеиваются значительно сильнее длинных красных.",
+    "почему небо голубое": "Небо голубое благодаря рэлеевскому рассеянию: солнечный свет рассеивается молекулами воздуха, при этом коротковолновые голубые лучи рассеиваются сильнее всего.",
     "нет": "Хорошо, сэр, отменил. Ожидаю Ваших указаний.",
-    "не надо": "Понял Вас, сэр, отменяю. Чем могу помочь Вам?",
+    "не надо": "Понял Вас, сэр, отменяю. Чем могу помочь?",
     "не нужно": "Хорошо, сэр, не буду. Ожидаю следующих команд.",
     "отмена": "Действие отменено, сэр. Жду Ваших указаний.",
     "отбой": "Принято, сэр, отбой. Системы готовы к работе.",
@@ -2578,12 +2578,12 @@ CONVERSATIONAL_KNOWLEDGE = {
     "понял": "Отлично, сэр. Всегда готов к новым задачам.",
     "понятно": "Договорились, сэр. Если что-то понадобится — обращайтесь.",
     "ясно": "Принято, сэр. Готов к выполнению любых команд.",
-    "спасибо": "Всегда к Вашим услугам, сэр! Рад быть полезен Вам.",
+    "спасибо": "Всегда к Вашим услугам, сэр! Рад быть полезен.",
     "благодарю": "Всегда рад служить Вам, сэр. Обращайтесь в любое время.",
     "ок": "Принято, сэр. Что делаем дальше?",
     "хорошо": "Вас понял, сэр. Готов продолжить работу.",
-    "ладно": "Хорошо, сэр. Ожидаю ваших команд.",
-    "да": "Слушаю вас, сэр. Какую задачу выполняем?",
+    "ладно": "Хорошо, сэр. Ожидаю Ваших команд.",
+    "да": "Слушаю Вас, сэр. Какую задачу выполняем?",
 }
 
 def generate_smart_code_reply(prompt: str) -> Optional[str]:
@@ -3348,6 +3348,6 @@ def process_command(user_text: str, user_name: str = "Пользователь",
         if not final_reply.endswith(('.', '!', '?', '»')):
             final_reply += "."
     else:
-        final_reply = "Все задачи успешно выполнены." if not en else "All tasks completed successfully."
+        final_reply = "Все задачи успешно выполнены, сэр." if not en else "All tasks completed successfully."
 
     return final_reply, primary_action_type, primary_data
