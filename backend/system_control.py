@@ -975,11 +975,12 @@ def activate_running_window(app_query: str) -> bool:
 # ─── UNIVERSAL APPLICATION LAUNCHER ──────────────────────────────
 # ─── UNIVERSAL APPLICATION LAUNCHER ──────────────────────────────
 APP_CANONICAL_KEYS = {
-    # Browsers
-    "хром": "chrome", "хром браузер": "chrome", "хромбраузер": "chrome",
+    # Browsers & typos
+    "хром": "chrome", "хром браузер": "chrome", "хромбраузер": "chrome", "хромчик": "chrome",
     "chrome": "chrome", "google chrome": "chrome", "googlechrome": "chrome",
     "гугл": "chrome", "гугл хром": "chrome", "гуглхром": "chrome",
-    "браузер": "chrome", "browser": "chrome", "интернет": "chrome",
+    "браузер": "chrome", "бразуер": "chrome", "браузр": "chrome", "браузера": "chrome", "браузеры": "chrome", "браузерчик": "chrome",
+    "browser": "chrome", "browsers": "chrome", "интернет": "chrome", "инет": "chrome", "веб": "chrome", "web": "chrome",
     "эдж": "msedge", "edge": "msedge", "microsoft edge": "msedge",
     "яндекс": "yandex", "yandex": "yandex", "яндекс браузер": "yandex",
     "опера": "opera", "opera": "opera", "файрфокс": "firefox", "firefox": "firefox",
@@ -987,16 +988,16 @@ APP_CANONICAL_KEYS = {
     # Music & Streaming
     "саундклауд": "soundcloud", "саунд клауд": "soundcloud", "саунд-клауд": "soundcloud",
     "soundcloud": "soundcloud", "sound cloud": "soundcloud", "sound-cloud": "soundcloud",
-    "спотифай": "spotify", "spotify": "spotify", "музыка": "spotify",
+    "спотифай": "spotify", "спотик": "spotify", "споти": "spotify", "спотифий": "spotify", "spotify": "spotify", "музыка": "spotify",
     "яндекс музыка": "yandexmusic", "яндекс.музыка": "yandexmusic", "яндексмузыка": "yandexmusic",
     "yandex music": "yandexmusic", "ямузыка": "yandexmusic",
     "вк музыка": "vkmusic", "музыка вк": "vkmusic", "vk music": "vkmusic",
     "ютуб музыка": "ytmusic", "youtube music": "ytmusic",
     # Messengers & Social
-    "телега": "telegram", "телеграм": "telegram", "тг": "telegram", "telegram": "telegram",
-    "дискорд": "discord", "диск": "discord", "дс": "discord", "discord": "discord",
+    "телега": "telegram", "телеграм": "telegram", "телегарм": "telegram", "телеграмм": "telegram", "тг": "telegram", "telegram": "telegram",
+    "дискорд": "discord", "дискрод": "discord", "дискор": "discord", "диск": "discord", "дс": "discord", "discord": "discord",
     "ватсап": "whatsapp", "whatsapp": "whatsapp",
-    "стим": "steam", "steam": "steam",
+    "стим": "steam", "стимчик": "steam", "steam": "steam",
     "твич": "twitch", "twitch": "twitch", "ютуб": "youtube", "youtube": "youtube",
     "рутуб": "rutube", "rutube": "rutube",
     # Dev & Productivity
@@ -1005,8 +1006,8 @@ APP_CANONICAL_KEYS = {
     "голенд": "goland", "голэнд": "goland", "го ленд": "goland", "goland": "goland", "go land": "goland",
     "пайчарм": "pycharm", "pycharm": "pycharm", "вебшторм": "webstorm", "webstorm": "webstorm",
     "гитхаб": "github", "github": "github",
-    "калькулятор": "calc", "кальк": "calc", "calc": "calc", "calculator": "calc",
-    "блокнот": "notepad", "notepad": "notepad", "заметки": "notes", "notes": "notes",
+    "калькулятор": "calc", "калькулатор": "calc", "кальк": "calc", "calc": "calc", "calculator": "calc",
+    "блокнот": "notepad", "блокнотик": "notepad", "notepad": "notepad", "заметки": "notes", "notes": "notes",
     "пейнт": "mspaint", "паинт": "mspaint", "paint": "mspaint",
     "проводник": "explorer", "explorer": "explorer", "папки": "explorer", "файлы": "explorer",
     "терминал": "wt", "консоль": "powershell", "powershell": "powershell", "cmd": "cmd",
@@ -1096,6 +1097,41 @@ def launch_application(app_name: str) -> Dict[str, Any]:
     clean_app = clean_app.replace('пожалуйста', '').replace('пж', '').strip()
     if not clean_app:
         return {"success": False, "error": "Пожалуйста, укажите название приложения или сайта"}
+
+    # 0.2 Universal Browser Launch Handler (handles 'браузер', 'бразуер', 'browser', 'интернет', etc.)
+    import difflib
+    browser_keywords = {"браузер", "бразуер", "браузр", "браузера", "браузеры", "браузерчик", "browser", "browsers", "интернет", "инет", "web", "веб"}
+    is_browser_req = clean_app in browser_keywords or app_lower in browser_keywords
+    if not is_browser_req:
+        close_b = difflib.get_close_matches(clean_app, list(browser_keywords), n=1, cutoff=0.72)
+        if close_b:
+            is_browser_req = True
+
+    if is_browser_req:
+        if sys.platform == "darwin":
+            try:
+                subprocess.run(["open", "-a", "Safari"], capture_output=True)
+                return {"success": True, "launched": "Safari", "os": "mac"}
+            except Exception:
+                pass
+        installed_browsers = detect_installed_browsers()
+        if installed_browsers:
+            primary_browser = installed_browsers[0]
+            b_path = primary_browser.get("path")
+            if b_path and universal_open_target(b_path):
+                return {"success": True, "launched": primary_browser.get("name", "Браузер"), "type": "executable", "path": b_path}
+            elif b_path:
+                try:
+                    subprocess.Popen([b_path])
+                    return {"success": True, "launched": primary_browser.get("name", "Браузер"), "type": "executable", "path": b_path}
+                except Exception:
+                    pass
+        try:
+            import webbrowser
+            webbrowser.open("about:blank")
+            return {"success": True, "launched": "Браузер", "type": "default_browser"}
+        except Exception:
+            pass
 
     # Special handling for macOS
     if sys.platform == "darwin":
@@ -1251,6 +1287,42 @@ def launch_application(app_name: str) -> Dict[str, Any]:
             return {"success": True, "launched": url, "type": "url"}
         except Exception as e:
             return {"success": False, "error": str(e)}
+
+    # 5.5 Fuzzy matching against canonical keys and catalog (catches 1-2 letter typos)
+    import difflib
+    close_canonical = difflib.get_close_matches(clean_app, list(APP_CANONICAL_KEYS.keys()), n=1, cutoff=0.68)
+    if close_canonical:
+        fuzzy_target = APP_CANONICAL_KEYS[close_canonical[0]]
+        if fuzzy_target in catalog:
+            f_path = catalog[fuzzy_target]
+            if universal_open_target(f_path):
+                return {"success": True, "launched": close_canonical[0].capitalize(), "type": "executable", "path": f_path}
+            try:
+                subprocess.Popen([f_path])
+                return {"success": True, "launched": close_canonical[0].capitalize(), "type": "executable", "path": f_path}
+            except Exception:
+                pass
+        elif fuzzy_target in system_execs:
+            s_exe = system_execs[fuzzy_target]
+            if universal_open_target(s_exe):
+                return {"success": True, "launched": close_canonical[0].capitalize(), "type": "executable", "path": s_exe}
+        elif fuzzy_target in protocols and universal_open_target(protocols[fuzzy_target]):
+            return {"success": True, "launched": close_canonical[0].capitalize(), "type": "protocol"}
+        elif fuzzy_target in WEB_SERVICE_FALLBACKS:
+            open_url(WEB_SERVICE_FALLBACKS[fuzzy_target])
+            return {"success": True, "launched": f"{close_canonical[0].capitalize()} (веб-сервис)", "type": "web_service"}
+
+    if not matched_path:
+        close_cat = difflib.get_close_matches(clean_app, list(catalog.keys()), n=1, cutoff=0.68)
+        if close_cat:
+            cat_path = catalog[close_cat[0]]
+            if universal_open_target(cat_path):
+                return {"success": True, "launched": close_cat[0].capitalize(), "type": "executable", "path": cat_path}
+            try:
+                subprocess.Popen([cat_path])
+                return {"success": True, "launched": close_cat[0].capitalize(), "type": "executable", "path": cat_path}
+            except Exception:
+                pass
 
     return {"success": False, "error": f"Приложение '{app_name}' не найдено на вашем компьютере"}
 
@@ -2764,7 +2836,7 @@ def close_specific_browser_tab(target_query: str) -> bool:
         "фигма": "figma", "фигме": "figma", "figma": "figma",
         "клауд": "claude", "клод": "claude", "claude": "claude",
         "реддит": "reddit", "редит": "reddit", "reddit": "reddit",
-        "стим": "steam", "steam": "steam",
+        "стим": "steam", "стимчик": "steam", "steam": "steam",
         "нетфликс": "netflix", "netflix": "netflix",
         "спотифай": "spotify", "spotify": "spotify",
         "авито": "avito", "avito": "avito",

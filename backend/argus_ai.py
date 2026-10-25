@@ -278,7 +278,10 @@ def execute_single_action(act: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]
             app_disp = "Postman"
 
         if res.get("success"):
-            return f"Запустил {app_disp}, сэр", "launch_app", res
+            app_title = app_disp if (not res.get("launched") or res.get("launched").lower() == app.lower()) else res.get("launched")
+            if app_title.lower() == "chrome":
+                app_title = "Chrome"
+            return f"Открыл {app_title}, сэр", "launch_app", res
         else:
             return f"Не удалось открыть {app_disp}: {res.get('error', 'приложение не найдено')}", "launch_app", res
 
@@ -765,16 +768,17 @@ def execute_single_action(act: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]
 
 # ─── COMPREHENSIVE LOCAL INTENT MATCHER ─────────────────────────
 APP_MAP = {
-    # Browsers
-    "chrome": "chrome", "хром": "chrome", "гугл хром": "chrome", "google chrome": "chrome",
-    "браузер": "chrome", "browser": "chrome", "интернет": "chrome",
+    # Browsers & typos
+    "chrome": "chrome", "хром": "chrome", "гугл хром": "chrome", "google chrome": "chrome", "хромчик": "chrome",
+    "браузер": "chrome", "бразуер": "chrome", "браузр": "chrome", "браузера": "chrome", "браузеры": "chrome", "браузерчик": "chrome",
+    "browser": "chrome", "browsers": "chrome", "интернет": "chrome", "инет": "chrome", "веб": "chrome", "web": "chrome",
     "edge": "edge", "эдж": "edge", "msedge": "edge",
     "yandex": "yandex", "яндекс": "yandex", "яндекс браузер": "yandex",
     # Messengers & Social
-    "telegram": "telegram", "телеграм": "telegram", "телега": "telegram", "тг": "telegram", "tg": "telegram",
-    "discord": "discord", "дискорд": "discord", "диск": "discord", "дс": "discord", "dc": "discord",
-    "steam": "steam", "стим": "steam",
-    "spotify": "spotify", "спотифай": "spotify", "музыка": "spotify",
+    "telegram": "telegram", "телеграм": "telegram", "телегарм": "telegram", "телеграмм": "telegram", "телега": "telegram", "тг": "telegram", "tg": "telegram",
+    "discord": "discord", "дискрод": "discord", "дискор": "discord", "диск": "discord", "дс": "discord", "dc": "discord",
+    "steam": "steam", "стим": "steam", "стимчик": "steam",
+    "spotify": "spotify", "спотифай": "spotify", "спотик": "spotify", "споти": "spotify", "спотифий": "spotify", "музыка": "spotify",
     "soundcloud": "soundcloud", "саундклауд": "soundcloud", "саунд клауд": "soundcloud", "sound cloud": "soundcloud",
     "yandex music": "yandex music", "яндекс музыка": "yandex music", "я музыка": "yandex music",
     # Productivity & Dev
@@ -783,8 +787,8 @@ APP_MAP = {
     "pycharm": "pycharm", "py charm": "pycharm", "пайчарм": "pycharm", "jetbrains pycharm": "pycharm",
     "webstorm": "webstorm", "web storm": "webstorm", "вебшторм": "webstorm", "jetbrains webstorm": "webstorm",
     "postman": "postman", "post man": "postman", "постман": "postman",
-    "calculator": "calculator", "калькулятор": "calculator", "кальк": "calculator", "calc": "calculator",
-    "notepad": "notepad", "блокнот": "notepad", "текстовый редактор": "notepad",
+    "calculator": "calculator", "калькулятор": "calculator", "калькулатор": "calculator", "кальк": "calculator", "calc": "calculator",
+    "notepad": "notepad", "блокнот": "notepad", "блокнотик": "notepad", "текстовый редактор": "notepad",
     "paint": "paint", "пейнт": "paint", "паинт": "paint", "рисовалка": "paint",
     # System
     "task manager": "task manager", "taskmgr": "task manager", "диспетчер задач": "task manager",
@@ -2319,18 +2323,16 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         if not target_app or target_app in open_verbs:
             return {"type": "clarify", "message": "Уточните, пожалуйста, сэр: какое приложение или сайт вы хотите открыть?"}
 
-        # Check for generic browser request
-        if target_app in ["браузер", "browser", "интернет"]:
+        # Intelligent resolution of app name with typo tolerance
+        resolved = resolve_app_name(target_app)
+        if resolved in ["chrome", "msedge", "safari"] and any(b in target_app for b in ["браузер", "бразуер", "брауз", "browser", "интернет", "инет"]):
             if any(k in raw_c for k in ["какие браузеры", "какой браузер", "список браузеров", "выбери браузер", "выбрать браузер"]):
                 browsers = sc.detect_installed_browsers()
                 if len(browsers) > 1:
                     return {"type": "browser_choice", "browsers": browsers}
-            return {"type": "launch_app", "app": "chrome"}
+            return {"type": "launch_app", "app": resolved}
 
-        for alias, canonical in APP_MAP.items():
-            if alias == target_app or alias in target_app.split():
-                return {"type": "launch_app", "app": canonical}
-        return {"type": "launch_app", "app": target_app}
+        return {"type": "launch_app", "app": resolved}
 
     # Short app names (e.g. "калькулятор", "chrome", "postman")
     if len(c.split()) <= 2:
@@ -2348,6 +2350,48 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         return {"type": "math", "expr": c, "res": m_calc}
 
     return None
+
+def resolve_app_name(target_app: str) -> str:
+    """
+    Intelligently resolves application names even with typos, transpositions, and informal slang.
+    e.g. 'бразуер' -> 'chrome'
+         'телегарм' -> 'telegram'
+         'спотик' -> 'spotify'
+    """
+    if not target_app:
+        return target_app
+    low = target_app.strip().lower()
+    
+    # 1. Exact alias match in APP_MAP
+    if low in APP_MAP:
+        return APP_MAP[low]
+        
+    # 2. Browser fuzzy / typo check
+    import difflib
+    browser_keywords = {"браузер", "бразуер", "браузр", "браузера", "браузеры", "браузерчик", "browser", "browsers", "интернет", "инет", "web", "веб"}
+    if low in browser_keywords:
+        return "chrome"
+    close_b = difflib.get_close_matches(low, list(browser_keywords), n=1, cutoff=0.70)
+    if close_b:
+        return "chrome"
+        
+    # 3. Fuzzy match against all known APP_MAP keys
+    close_aliases = difflib.get_close_matches(low, list(APP_MAP.keys()), n=1, cutoff=0.70)
+    if close_aliases:
+        return APP_MAP[close_aliases[0]]
+        
+    # 4. Fuzzy match against scanned installed apps catalog
+    try:
+        catalog = sc.scan_all_installed_apps()
+        if low in catalog:
+            return low
+        close_cat = difflib.get_close_matches(low, list(catalog.keys()), n=1, cutoff=0.70)
+        if close_cat:
+            return close_cat[0]
+    except Exception:
+        pass
+        
+    return target_app
 
 def local_multi_action_planner(user_text: str) -> List[Dict[str, Any]]:
     """
