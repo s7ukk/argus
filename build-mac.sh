@@ -28,7 +28,7 @@ echo "🎨 3. Building React Frontend (Vite)..."
 npm run build:frontend
 
 echo "⚙️ 4. Compiling Python Backend for macOS..."
-pyinstaller --noconfirm --onedir --name argus-backend --distpath backend-dist run_backend.py
+npm run build:backend
 
 echo "🍎 5. Packaging macOS Application (.dmg & .zip)..."
 npx electron-builder --mac

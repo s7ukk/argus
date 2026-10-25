@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, session, desktopCapturer, globalShortcut, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, session, desktopCapturer, globalShortcut, screen, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
@@ -63,8 +63,10 @@ function getFallbackScriptConfig() {
     const macCandidates = [
       '/opt/homebrew/bin/python3',
       '/usr/local/bin/python3',
+      '/Library/Frameworks/Python.framework/Versions/3.13/bin/python3',
       '/Library/Frameworks/Python.framework/Versions/3.12/bin/python3',
       '/Library/Frameworks/Python.framework/Versions/3.11/bin/python3',
+      '/Library/Frameworks/Python.framework/Versions/3.10/bin/python3',
       '/usr/bin/python3'
     ];
     for (const p of macCandidates) {
@@ -466,11 +468,7 @@ function registerIpcHandlers() {
   ipcMain.on('show-dictation-hud', () => {
     if (!dictationHudWindow || dictationHudWindow.isDestroyed()) createDictationHudWindow();
     if (dictationHudWindow) {
-      try {
-        const primaryDisplay = screen.getPrimaryDisplay();
-        const { width } = primaryDisplay.workAreaSize;
-        dictationHudWindow.setPosition(Math.round((width - 520) / 2), 12);
-      } catch (e) {}
+      positionDictationHudWindow();
       // Temporarily bring on top during active Double-Ctrl dictation
       dictationHudWindow.setAlwaysOnTop(true, 'screen-saver', 1);
       dictationHudWindow.showInactive();
@@ -538,11 +536,7 @@ function registerIpcHandlers() {
   ipcMain.on('show-island-notification', (event, data) => {
     if (!dictationHudWindow || dictationHudWindow.isDestroyed()) createDictationHudWindow();
     if (dictationHudWindow) {
-      try {
-        const primaryDisplay = screen.getPrimaryDisplay();
-        const { width } = primaryDisplay.workAreaSize;
-        dictationHudWindow.setPosition(Math.round((width - 520) / 2), 12);
-      } catch (e) {}
+      positionDictationHudWindow();
       dictationHudWindow.setAlwaysOnTop(false);
       dictationHudWindow.showInactive();
       dictationHudWindow.webContents.send('island-notify', data);
@@ -557,11 +551,7 @@ function registerIpcHandlers() {
     if (!dictationHudWindow || dictationHudWindow.isDestroyed()) createDictationHudWindow();
     if (dictationHudWindow) {
       if (timer && timer.is_running && timer.remaining_seconds > 0) {
-        try {
-          const primaryDisplay = screen.getPrimaryDisplay();
-          const { width } = primaryDisplay.workAreaSize;
-          dictationHudWindow.setPosition(Math.round((width - 520) / 2), 12);
-        } catch (e) {}
+        positionDictationHudWindow();
         dictationHudWindow.setAlwaysOnTop(false);
         dictationHudWindow.showInactive();
         dictationHudWindow.webContents.send('island-timer', timer);
@@ -575,11 +565,7 @@ function registerIpcHandlers() {
     if (!dictationHudWindow || dictationHudWindow.isDestroyed()) createDictationHudWindow();
     if (dictationHudWindow) {
       if (state.thinking || state.speaking) {
-        try {
-          const primaryDisplay = screen.getPrimaryDisplay();
-          const { width } = primaryDisplay.workAreaSize;
-          dictationHudWindow.setPosition(Math.round((width - 520) / 2), 12);
-        } catch (e) {}
+        positionDictationHudWindow();
         dictationHudWindow.setAlwaysOnTop(false);
         dictationHudWindow.showInactive();
         dictationHudWindow.webContents.send('island-state', state);
@@ -607,7 +593,13 @@ function registerIpcHandlers() {
   });
 
   ipcMain.on('window-close', () => {
-    if (mainWindow) mainWindow.close();
+    if (mainWindow) {
+      if (process.platform === 'darwin') {
+        mainWindow.hide();
+      } else {
+        mainWindow.close();
+      }
+    }
   });
 
   ipcMain.on('open-external', (e, url) => {
@@ -641,6 +633,18 @@ function registerIpcHandlers() {
 
 let dictationHudWindow = null;
 
+function positionDictationHudWindow() {
+  if (!dictationHudWindow || dictationHudWindow.isDestroyed()) return;
+  try {
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const { width } = primaryDisplay.workAreaSize;
+    const isMac = process.platform === 'darwin';
+    // On macOS, place just below the menu bar / notch for a natural Dynamic Island experience
+    const topY = isMac ? Math.max((primaryDisplay.workArea?.y || 28), 28) + 6 : 12;
+    dictationHudWindow.setPosition(Math.round((width - 520) / 2), topY);
+  } catch (e) {}
+}
+
 function createDictationHudWindow() {
   if (dictationHudWindow) return;
   const isMac = process.platform === 'darwin';
@@ -668,11 +672,7 @@ function createDictationHudWindow() {
     dictationHudWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   }
 
-  try {
-    const primaryDisplay = screen.getPrimaryDisplay();
-    const { width } = primaryDisplay.workAreaSize;
-    dictationHudWindow.setPosition(Math.round((width - 520) / 2), 12);
-  } catch (e) {}
+  positionDictationHudWindow();
 
   const html = `<!DOCTYPE html>
 <html>
@@ -1332,6 +1332,69 @@ app.whenReady().then(async () => {
     } catch (e) {
       logApp(`[Argus mic permission exception]: ${e.message}`);
     }
+
+    try {
+      const screenStatus = systemPreferences.getMediaAccessStatus('screen');
+      logApp(`[Argus]: macOS screen recording status: ${screenStatus}`);
+    } catch (e) {}
+
+    // Native macOS Application Menu for full hotkey (Cmd+C, Cmd+V, Cmd+A, Cmd+Q) and menu support
+    const template = [
+      {
+        label: app.name,
+        submenu: [
+          { role: 'about' },
+          { type: 'separator' },
+          { role: 'services' },
+          { type: 'separator' },
+          { role: 'hide' },
+          { role: 'hideOthers' },
+          { role: 'unhide' },
+          { type: 'separator' },
+          { role: 'quit' }
+        ]
+      },
+      {
+        label: 'Edit',
+        submenu: [
+          { role: 'undo' },
+          { role: 'redo' },
+          { type: 'separator' },
+          { role: 'cut' },
+          { role: 'copy' },
+          { role: 'paste' },
+          { role: 'selectAll' }
+        ]
+      },
+      {
+        label: 'View',
+        submenu: [
+          { role: 'reload' },
+          { role: 'forceReload' },
+          { role: 'toggleDevTools' },
+          { type: 'separator' },
+          { role: 'resetZoom' },
+          { role: 'zoomIn' },
+          { role: 'zoomOut' },
+          { type: 'separator' },
+          { role: 'togglefullscreen' }
+        ]
+      },
+      {
+        label: 'Window',
+        submenu: [
+          { role: 'minimize' },
+          { role: 'zoom' },
+          { type: 'separator' },
+          { role: 'front' },
+          { type: 'separator' },
+          { role: 'close' }
+        ]
+      }
+    ];
+    Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+  } else {
+    Menu.setApplicationMenu(null);
   }
 
   registerIpcHandlers();
@@ -1372,7 +1435,12 @@ app.whenReady().then(async () => {
   }
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      createWindow();
+    } else {
+      mainWindow.show();
+      mainWindow.focus();
+    }
   });
 });
 
