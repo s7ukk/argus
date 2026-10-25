@@ -469,10 +469,10 @@ function registerIpcHandlers() {
       try {
         const primaryDisplay = screen.getPrimaryDisplay();
         const { width } = primaryDisplay.workAreaSize;
-        dictationHudWindow.setPosition(Math.round((width - 480) / 2), 35);
+        dictationHudWindow.setPosition(Math.round((width - 520) / 2), 12);
       } catch (e) {}
+      // Temporarily bring on top during active Double-Ctrl dictation
       dictationHudWindow.setAlwaysOnTop(true, 'screen-saver', 1);
-      dictationHudWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
       dictationHudWindow.showInactive();
       dictationHudWindow.webContents.send('hud-update', { active: true });
     }
@@ -489,7 +489,20 @@ function registerIpcHandlers() {
   });
 
   ipcMain.on('hide-dictation-hud', () => {
-    try { dictationHudWindow?.hide(); } catch (e) {}
+    try {
+      dictationHudWindow?.setAlwaysOnTop(false);
+      dictationHudWindow?.hide();
+    } catch (e) {}
+  });
+
+  ipcMain.on('hud-mouse-state', (event, hovered) => {
+    if (dictationHudWindow && !dictationHudWindow.isDestroyed()) {
+      if (hovered) {
+        dictationHudWindow.setIgnoreMouseEvents(false);
+      } else {
+        dictationHudWindow.setIgnoreMouseEvents(true, { forward: true });
+      }
+    }
   });
 
   ipcMain.on('show-island-notification', (event, data) => {
@@ -498,10 +511,9 @@ function registerIpcHandlers() {
       try {
         const primaryDisplay = screen.getPrimaryDisplay();
         const { width } = primaryDisplay.workAreaSize;
-        dictationHudWindow.setPosition(Math.round((width - 520) / 2), 25);
+        dictationHudWindow.setPosition(Math.round((width - 520) / 2), 12);
       } catch (e) {}
-      dictationHudWindow.setAlwaysOnTop(true, 'screen-saver', 1);
-      dictationHudWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+      dictationHudWindow.setAlwaysOnTop(false);
       dictationHudWindow.showInactive();
       dictationHudWindow.webContents.send('island-notify', data);
     }
@@ -518,10 +530,9 @@ function registerIpcHandlers() {
         try {
           const primaryDisplay = screen.getPrimaryDisplay();
           const { width } = primaryDisplay.workAreaSize;
-          dictationHudWindow.setPosition(Math.round((width - 500) / 2), 20);
+          dictationHudWindow.setPosition(Math.round((width - 520) / 2), 12);
         } catch (e) {}
-        dictationHudWindow.setAlwaysOnTop(true, 'screen-saver', 1);
-        dictationHudWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+        dictationHudWindow.setAlwaysOnTop(false);
         dictationHudWindow.showInactive();
         dictationHudWindow.webContents.send('island-timer', timer);
       } else {
@@ -537,10 +548,9 @@ function registerIpcHandlers() {
         try {
           const primaryDisplay = screen.getPrimaryDisplay();
           const { width } = primaryDisplay.workAreaSize;
-          dictationHudWindow.setPosition(Math.round((width - 500) / 2), 20);
+          dictationHudWindow.setPosition(Math.round((width - 520) / 2), 12);
         } catch (e) {}
-        dictationHudWindow.setAlwaysOnTop(true, 'screen-saver', 1);
-        dictationHudWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+        dictationHudWindow.setAlwaysOnTop(false);
         dictationHudWindow.showInactive();
         dictationHudWindow.webContents.send('island-state', state);
       } else if (state.idle) {
@@ -606,11 +616,11 @@ function createDictationHudWindow() {
   const isMac = process.platform === 'darwin';
   
   dictationHudWindow = new BrowserWindow({
-    width: 500,
-    height: 60,
+    width: 520,
+    height: 220,
     frame: false,
     transparent: true,
-    alwaysOnTop: true,
+    alwaysOnTop: false, // Desktop level by default - does NOT block other applications
     skipTaskbar: true,
     focusable: false,
     resizable: false,
@@ -622,13 +632,13 @@ function createDictationHudWindow() {
     }
   });
 
-  dictationHudWindow.setAlwaysOnTop(true, 'screen-saver');
-  dictationHudWindow.setVisibleOnAllWorkspaces(true);
+  dictationHudWindow.setAlwaysOnTop(false);
+  dictationHudWindow.setIgnoreMouseEvents(true, { forward: true });
 
   try {
     const primaryDisplay = screen.getPrimaryDisplay();
     const { width } = primaryDisplay.workAreaSize;
-    dictationHudWindow.setPosition(Math.round((width - 500) / 2), 20);
+    dictationHudWindow.setPosition(Math.round((width - 520) / 2), 12);
   } catch (e) {}
 
   const html = `<!DOCTYPE html>
@@ -641,30 +651,70 @@ function createDictationHudWindow() {
       background: transparent;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       display: flex;
-      align-items: center;
       justify-content: center;
+      align-items: flex-start;
       height: 100vh;
       user-select: none;
       overflow: hidden;
+      padding-top: 6px;
+      pointer-events: none;
     }
+
     .hud-pill {
-      background: rgba(10, 10, 14, 0.94);
+      pointer-events: auto;
+      cursor: default;
+      background: rgba(13, 13, 18, 0.94);
       backdrop-filter: blur(28px);
       -webkit-backdrop-filter: blur(28px);
       border: 1px solid rgba(255, 255, 255, 0.14);
-      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.75), 0 0 1px rgba(255, 255, 255, 0.25);
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.72), 0 0 1px rgba(255, 255, 255, 0.25);
       border-radius: 9999px;
-      padding: 9px 22px;
+      padding: 7px 18px;
       display: flex;
+      flex-direction: column;
       align-items: center;
-      gap: 10px;
       color: #ffffff;
       font-size: 13px;
       font-weight: 600;
       letter-spacing: 0.02em;
-      transition: all 0.25s ease;
+      transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+      width: auto;
+      min-width: 140px;
       max-width: 480px;
     }
+
+    /* Hover expanded state */
+    .hud-pill:hover, .hud-pill.is-expanded {
+      border-radius: 20px;
+      padding: 14px 20px;
+      width: 460px;
+      max-width: 460px;
+      background: rgba(15, 15, 22, 0.97);
+      border-color: rgba(255, 255, 255, 0.24);
+      box-shadow: 0 24px 50px rgba(0, 0, 0, 0.85), 0 0 1px rgba(255, 255, 255, 0.3);
+    }
+
+    .pill-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      justify-content: center;
+    }
+
+    .hud-pill:hover .pill-header, .hud-pill.is-expanded .pill-header {
+      justify-content: space-between;
+    }
+
+    .online-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #4ade80;
+      box-shadow: 0 0 8px #4ade80;
+      flex-shrink: 0;
+    }
+
     .dot {
       width: 8px;
       height: 8px;
@@ -674,10 +724,12 @@ function createDictationHudWindow() {
       animation: pulse 1.2s infinite ease-in-out;
       flex-shrink: 0;
     }
+
     @keyframes pulse {
       0%, 100% { opacity: 1; transform: scale(1); }
       50% { opacity: 0.35; transform: scale(0.85); }
     }
+
     @keyframes dotRun1 {
       0% { transform: translateX(0); }
       33% { transform: translateX(7px); }
@@ -699,6 +751,7 @@ function createDictationHudWindow() {
     .anim-dot-run-1 { animation: dotRun1 1.4s infinite cubic-bezier(0.4, 0, 0.2, 1); }
     .anim-dot-run-2 { animation: dotRun2 1.4s infinite cubic-bezier(0.4, 0, 0.2, 1); }
     .anim-dot-run-3 { animation: dotRun3 1.4s infinite cubic-bezier(0.4, 0, 0.2, 1); }
+
     @keyframes soundwave {
       0%, 100% { height: 4px; }
       50% { height: 15px; }
@@ -710,23 +763,116 @@ function createDictationHudWindow() {
       display: inline-block;
       animation: soundwave 0.8s ease-in-out infinite;
     }
+
+    /* Expandable Body */
+    .expanded-body {
+      max-height: 0;
+      opacity: 0;
+      overflow: hidden;
+      width: 100%;
+      transition: max-height 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.22s ease, margin-top 0.22s ease;
+      margin-top: 0;
+      pointer-events: none;
+    }
+
+    .hud-pill:hover .expanded-body, .hud-pill.is-expanded .expanded-body {
+      max-height: 150px;
+      opacity: 1;
+      margin-top: 12px;
+      pointer-events: auto;
+    }
+
+    .divider {
+      height: 1px;
+      background: rgba(255, 255, 255, 0.09);
+      width: 100%;
+      margin-bottom: 10px;
+    }
+
+    .details-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .timer-large {
+      font-size: 24px;
+      font-weight: 800;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      color: #ffffff;
+      letter-spacing: 0.05em;
+    }
+
+    .sub-hint {
+      font-size: 11px;
+      color: #94a3b8;
+      font-weight: 500;
+      line-height: 1.45;
+    }
+
+    .badge-tag {
+      font-size: 10px;
+      padding: 2px 7px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #cbd5e1;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+    }
   </style>
 </head>
 <body>
   <div class="hud-pill" id="pill">
-    <div class="dot" id="dot" style="display:none;"></div>
-    <div id="thinking-dots" style="display:none;align-items:center;gap:3px;margin-right:2px;">
-      <span class="anim-dot-run-1" style="width:4.5px;height:4.5px;border-radius:50%;background:#ffffff;display:inline-block;"></span>
-      <span class="anim-dot-run-2" style="width:4.5px;height:4.5px;border-radius:50%;background:#ffffff;opacity:0.8;display:inline-block;"></span>
-      <span class="anim-dot-run-3" style="width:4.5px;height:4.5px;border-radius:50%;background:#ffffff;opacity:0.6;display:inline-block;"></span>
+    <div class="pill-header">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div class="online-dot" id="online-dot"></div>
+        <div class="dot" id="dot" style="display:none;"></div>
+        <div id="thinking-dots" style="display:none;align-items:center;gap:3px;margin-right:2px;">
+          <span class="anim-dot-run-1" style="width:4.5px;height:4.5px;border-radius:50%;background:#ffffff;display:inline-block;"></span>
+          <span class="anim-dot-run-2" style="width:4.5px;height:4.5px;border-radius:50%;background:#ffffff;opacity:0.8;display:inline-block;"></span>
+          <span class="anim-dot-run-3" style="width:4.5px;height:4.5px;border-radius:50%;background:#ffffff;opacity:0.6;display:inline-block;"></span>
+        </div>
+        <div id="soundwave" style="display:none;align-items:center;gap:2.5px;margin-right:4px;">
+          <span class="wave-bar" style="height:6px;animation-delay:0s;"></span>
+          <span class="wave-bar" style="height:14px;animation-delay:0.18s;"></span>
+          <span class="wave-bar" style="height:10px;animation-delay:0.36s;"></span>
+        </div>
+        <div id="icon" style="display:none;align-items:center;"></div>
+        <span id="text" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Argus AI</span>
+      </div>
+      <span class="badge-tag" id="header-tag" style="display:none;">OS</span>
     </div>
-    <div id="soundwave" style="display:none;align-items:center;gap:2.5px;margin-right:4px;">
-      <span class="wave-bar" style="height:6px;animation-delay:0s;"></span>
-      <span class="wave-bar" style="height:14px;animation-delay:0.18s;"></span>
-      <span class="wave-bar" style="height:10px;animation-delay:0.36s;"></span>
+
+    <!-- Expanded content on Hover -->
+    <div class="expanded-body" id="expanded-body">
+      <div class="divider"></div>
+      
+      <!-- Timer details if active -->
+      <div id="expanded-timer-section" style="display:none;margin-bottom:8px;">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;">
+          <span id="exp-timer-title" style="font-size:12px;color:#cbd5e1;font-weight:600;">Активный таймер</span>
+          <span class="timer-large" id="exp-timer-digits">00:00</span>
+        </div>
+        <div style="font-size:11px;color:#fbbf24;margin-top:2px;display:flex;align-items:center;gap:5px;">
+          <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#fbbf24;"></span>
+          Отсчет времени в процессе
+        </div>
+      </div>
+
+      <!-- General status & hint -->
+      <div id="expanded-info-section">
+        <div class="details-row">
+          <span style="font-size:11.5px;color:#cbd5e1;font-weight:600;">Argus AI Butler</span>
+          <span class="badge-tag">На связи • Готов</span>
+        </div>
+        <div class="sub-hint" id="exp-hint">
+          ⌨️ Двойной Ctrl: голосовой ввод в любую программу<br>
+          ⚡ Без задержек • Монохромный дизайн
+        </div>
+      </div>
     </div>
-    <div id="icon" style="display:none;align-items:center;"></div>
-    <span id="text" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
   </div>
   <script>
     const { ipcRenderer } = require('electron');
@@ -735,6 +881,14 @@ function createDictationHudWindow() {
     let isSpeaking = false;
     let isDictating = false;
     let activeTimer = null;
+
+    const pill = document.getElementById('pill');
+    pill.addEventListener('mouseenter', () => {
+      try { ipcRenderer.send('hud-mouse-state', true); } catch (e) {}
+    });
+    pill.addEventListener('mouseleave', () => {
+      try { ipcRenderer.send('hud-mouse-state', false); } catch (e) {}
+    });
 
     const ICONS = {
       check: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
@@ -751,48 +905,78 @@ function createDictationHudWindow() {
 
     function renderActiveState() {
       if (hideTimeout) clearTimeout(hideTimeout);
-      const pill = document.getElementById('pill');
+      const onlineDot = document.getElementById('online-dot');
       const dot = document.getElementById('dot');
       const tDots = document.getElementById('thinking-dots');
       const wave = document.getElementById('soundwave');
       const icon = document.getElementById('icon');
       const text = document.getElementById('text');
+      const headerTag = document.getElementById('header-tag');
+      const expTimerSec = document.getElementById('expanded-timer-section');
+      const expTimerTitle = document.getElementById('exp-timer-title');
+      const expTimerDigits = document.getElementById('exp-timer-digits');
+      const expHint = document.getElementById('exp-hint');
 
       if (isDictating) return;
 
       if (isThinking) {
+        onlineDot.style.display = 'none';
         dot.style.display = 'none';
         icon.style.display = 'none';
         wave.style.display = 'none';
         tDots.style.display = 'flex';
-        pill.style.borderColor = 'rgba(255, 255, 255, 0.22)';
+        pill.style.borderColor = 'rgba(255, 255, 255, 0.25)';
         text.innerText = 'Thinking...';
+        headerTag.style.display = 'block';
+        headerTag.innerText = 'AI';
+        expTimerSec.style.display = 'none';
+        expHint.innerText = 'Нейросеть обрабатывает запрос и генерирует структурированный ответ...';
         return;
       }
 
       if (isSpeaking) {
+        onlineDot.style.display = 'none';
         dot.style.display = 'none';
         icon.style.display = 'none';
         tDots.style.display = 'none';
         wave.style.display = 'flex';
-        pill.style.borderColor = 'rgba(255, 255, 255, 0.22)';
+        pill.style.borderColor = 'rgba(255, 255, 255, 0.25)';
         text.innerText = 'Озвучивание...';
+        headerTag.style.display = 'block';
+        headerTag.innerText = 'TTS';
+        expTimerSec.style.display = 'none';
+        expHint.innerText = 'Голосовой синтез (Дмитрий) озвучивает ответ с чистым звучанием.';
         return;
       }
 
       if (activeTimer && activeTimer.is_running && activeTimer.remaining_seconds > 0) {
+        onlineDot.style.display = 'none';
         dot.style.display = 'none';
         tDots.style.display = 'none';
         wave.style.display = 'none';
         icon.style.display = 'flex';
         icon.innerHTML = ICONS.timer;
         pill.style.borderColor = 'rgba(251, 191, 36, 0.45)';
-        text.innerHTML = '<span style="color:#e2e8f0;margin-right:8px;">' + (activeTimer.title || 'Таймер') + '</span><span style="color:#ffffff;font-weight:800;font-family:monospace;letter-spacing:0.04em;">' + formatTime(activeTimer.remaining_seconds) + '</span>';
+        text.innerHTML = '<span style="color:#e2e8f0;margin-right:6px;">' + (activeTimer.title || 'Таймер') + '</span><span style="color:#ffffff;font-weight:800;font-family:monospace;letter-spacing:0.04em;">' + formatTime(activeTimer.remaining_seconds) + '</span>';
+        headerTag.style.display = 'none';
+        expTimerSec.style.display = 'block';
+        expTimerTitle.innerText = activeTimer.title || 'Таймер';
+        expTimerDigits.innerText = formatTime(activeTimer.remaining_seconds);
+        expHint.innerText = 'Отсчет времени выполняется в фоновом режиме Argus.';
         return;
       }
 
-      // Hide if nothing active
-      try { ipcRenderer.send('hide-dictation-hud'); } catch (e) {}
+      // Standby / Idle on Desktop
+      onlineDot.style.display = 'block';
+      dot.style.display = 'none';
+      tDots.style.display = 'none';
+      wave.style.display = 'none';
+      icon.style.display = 'none';
+      headerTag.style.display = 'none';
+      pill.style.borderColor = 'rgba(255, 255, 255, 0.12)';
+      text.innerText = 'Argus AI';
+      expTimerSec.style.display = 'none';
+      expHint.innerHTML = '⌨️ Двойной Ctrl: голосовой ввод в любую программу<br>⚡ Все системы работают в штатном режиме';
     }
 
     ipcRenderer.on('island-timer', (event, timer) => {
@@ -802,15 +986,20 @@ function createDictationHudWindow() {
 
     ipcRenderer.on('hud-update', (event, state) => {
       if (hideTimeout) clearTimeout(hideTimeout);
-      const pill = document.getElementById('pill');
+      const onlineDot = document.getElementById('online-dot');
       const dot = document.getElementById('dot');
       const tDots = document.getElementById('thinking-dots');
       const wave = document.getElementById('soundwave');
       const icon = document.getElementById('icon');
       const text = document.getElementById('text');
+      const headerTag = document.getElementById('header-tag');
+      const expTimerSec = document.getElementById('expanded-timer-section');
+      const expHint = document.getElementById('exp-hint');
 
+      onlineDot.style.display = 'none';
       tDots.style.display = 'none';
       wave.style.display = 'none';
+      expTimerSec.style.display = 'none';
 
       if (state.active) {
         isDictating = true;
@@ -818,28 +1007,34 @@ function createDictationHudWindow() {
         dot.style.background = '#ef4444';
         dot.style.boxShadow = '0 0 10px #ef4444';
         icon.style.display = 'none';
+        headerTag.style.display = 'block';
+        headerTag.innerText = 'REC';
         pill.style.borderColor = 'rgba(239, 68, 68, 0.6)';
-        text.innerText = 'Голосовой ввод Argus: говорите текст... (Double-Ctrl)';
+        text.innerText = 'Голосовой ввод Argus... (Double-Ctrl)';
+        expHint.innerText = 'Идет запись речи с микрофона. Нажмите Double-Ctrl для вставки текста.';
       } else if (state.success) {
         isDictating = false;
         dot.style.display = 'none';
         icon.style.display = 'flex';
         icon.innerHTML = ICONS.check;
+        headerTag.style.display = 'none';
         pill.style.borderColor = 'rgba(74, 222, 128, 0.5)';
         text.innerText = 'Вставлено: «' + (state.text || '') + '»';
+        expHint.innerText = 'Текст успешно введен в активное окно приложения.';
         setTimeout(renderActiveState, 1800);
       }
     });
 
     ipcRenderer.on('island-notify', (event, data) => {
       if (hideTimeout) clearTimeout(hideTimeout);
-      const pill = document.getElementById('pill');
+      const onlineDot = document.getElementById('online-dot');
       const dot = document.getElementById('dot');
       const tDots = document.getElementById('thinking-dots');
       const wave = document.getElementById('soundwave');
       const icon = document.getElementById('icon');
       const text = document.getElementById('text');
 
+      onlineDot.style.display = 'none';
       dot.style.display = 'none';
       tDots.style.display = 'none';
       wave.style.display = 'none';
@@ -879,11 +1074,15 @@ function createDictationHudWindow() {
       }
       renderActiveState();
     });
+
+    // Initial render
+    renderActiveState();
   </script>
 </body>
 </html>`;
 
   dictationHudWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+  dictationHudWindow.showInactive();
 }
 
 function createWindow() {

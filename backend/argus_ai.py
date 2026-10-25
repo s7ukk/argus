@@ -25,6 +25,10 @@ try:
     import backend.openrouter_engine as openrouter_engine
 except ImportError:
     import openrouter_engine
+try:
+    import backend.smart_knowledge as smart_knowledge
+except ImportError:
+    import smart_knowledge
 
 _AI_QUERY_CACHE: Dict[str, str] = {}
 _MESSENGER_WIZARD_STATE: Dict[str, Dict[str, Any]] = {}
@@ -2632,6 +2636,12 @@ CONVERSATIONAL_KNOWLEDGE = {
 
 def generate_smart_code_reply(prompt: str) -> Optional[str]:
     """Generates clean, well-commented, working scripts for code requests."""
+    try:
+        kb_code = smart_knowledge.generate_smart_code(prompt)
+        if kb_code:
+            return kb_code
+    except Exception as e:
+        print(f"[Smart Knowledge Code Error]: {e}")
     low = prompt.lower().strip()
     is_code_req = any(k in low for k in [
         "напиши код", "напиши скрипт", "напиши программу", "напиши функцию",
@@ -2937,6 +2947,14 @@ def get_conversational_reply(raw_text: str, en: bool, user_name: str = "Поль
     if code_reply:
         return code_reply
 
+    # 1.3 Technical & CS Knowledge check (polymorphism, goroutines, interfaces, etc.)
+    try:
+        tech_reply = smart_knowledge.generate_technical_knowledge_reply(raw_text)
+        if tech_reply:
+            return tech_reply
+    except Exception as e:
+        print(f"[Smart Knowledge Tech Error]: {e}")
+
     # 1.5 Math / Equation Solver check
     eq = solve_algebraic_equation(raw_text)
     if eq:
@@ -2967,12 +2985,17 @@ def get_conversational_reply(raw_text: str, en: bool, user_name: str = "Поль
         if any(re.search(r'\b' + re.escape(w) + r'\b', low_t) for w in ["стоп", "хватит", "остановись", "прекрати"]):
             return "Остановил выполнение, сэр. Ожидаю дальнейших указаний."
 
-        # Questions fallback: Check user notes first
+        # Questions fallback: Check user notes ONLY for personal inquiries
         is_q = "?" in raw_text or any(low_t.startswith(w + " ") or low_t == w for w in [
             "как", "кто", "где", "когда", "почему", "зачем", "сколько",
             "какой", "какая", "какое", "какие", "что", "чем", "куда", "откуда"
         ]) or any(k in low_t for k in ["друг", "друга", "пароль", "возраст", "имя"])
-        if is_q:
+
+        is_personal_note_q = any(k in low_t for k in [
+            "заметк", "запис", "парол", "где я сохранил", "что я записал", "мои данные",
+            "напомни пароль", "где мой", "как зовут моего друга", "мой друг", "мой пароль"
+        ])
+        if is_personal_note_q:
             try:
                 ans = extras_mgr.extract_specific_answer_from_notes(raw_text)
                 if ans:
@@ -2980,6 +3003,9 @@ def get_conversational_reply(raw_text: str, en: bool, user_name: str = "Поль
             except Exception:
                 pass
             return "В Ваших сохранённых заметках и памяти пока нет информации по этому вопросу, сэр. Вы можете назвать нужные данные или добавить заметку, и я обязательно сохраню их."
+
+        if is_q:
+            return f"Я готов подробно ответить на Ваш вопрос по теме «{raw_text.rstrip('?.!')}», сэр. Задайте дополнительные параметры или уточните детали."
 
         return f"Готов к выполнению ваших задач, сэр. Скажите, что требуется сделать, или задайте вопрос."
 
