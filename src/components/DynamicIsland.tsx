@@ -153,12 +153,13 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
 
   return (
     <div
+      className="no-drag"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => { setHovered(false); setIsExpanded(false); }}
       onClick={() => setIsExpanded(!isExpanded)}
       style={{
         position: 'fixed',
-        top: 10,
+        top: 3,
         left: '50%',
         transform: 'translateX(-50%)',
         zIndex: 9999999, // Float on top of EVERYTHING
@@ -171,7 +172,7 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
           : hasTimer
           ? 200
           : 170,
-        height: showExpanded ? 76 : 34,
+        height: showExpanded ? 76 : 32,
         borderRadius: showExpanded ? 24 : 9999,
         background: 'rgba(8, 8, 12, 0.92)',
         backdropFilter: 'blur(36px) saturate(200%)',

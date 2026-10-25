@@ -8,7 +8,7 @@ export const StarburnLogo: React.FC<Props> = ({ size = 24, className = '', style
       <radialGradient id="sg1" cx="50%" cy="50%" r="50%">
         <stop offset="0%" stopColor="#ffffff" />
         <stop offset="45%" stopColor="var(--accent, #ffffff)" />
-        <stop offset="100%" stopColor="#6d28d9" />
+        <stop offset="100%" stopColor="var(--accent, #ffffff)" />
       </radialGradient>
       <radialGradient id="sg2" cx="50%" cy="30%" r="60%">
         <stop offset="0%" stopColor="#ffffff" stopOpacity="0.9" />
@@ -87,7 +87,7 @@ export const CalcIcon: React.FC<Props> = ({ size = 20 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
     <rect width="24" height="24" rx="6" fill="#374151" />
     <rect x="5" y="5" width="14" height="5" rx="2" fill="#9CA3AF" />
-    <rect x="5" y="13" width="4" height="3" rx="1" fill="#8B5CF6" />
+    <rect x="5" y="13" width="4" height="3" rx="1" fill="#e2e8f0" />
     <rect x="10" y="13" width="4" height="3" rx="1" fill="#6B7280" />
     <rect x="15" y="13" width="4" height="3" rx="1" fill="#6B7280" />
     <rect x="5" y="18" width="4" height="1.5" rx="0.75" fill="#6B7280" />

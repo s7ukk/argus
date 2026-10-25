@@ -24,7 +24,7 @@ import { fetchScenarios, saveScenario, deleteScenario, runScenario } from '../ap
 
 const ICON_MAP: Record<string, React.ReactNode> = {
   Briefcase: <Briefcase size={20} color="#38bdf8" />,
-  Gamepad2: <Gamepad2 size={20} color="#f43f5e" />,
+  Gamepad2: <Gamepad2 size={20} color="var(--accent, #ffffff)" />,
   Coffee: <Coffee size={20} color="#fbbf24" />,
   Sparkles: <Sparkles size={20} color="var(--accent, #ffffff)" />,
   Workflow: <Workflow size={20} color="var(--accent, #ffffff)" />,
@@ -174,7 +174,7 @@ export const ScenariosView: React.FC = () => {
         flex: 1,
         height: '100%',
         overflowY: 'auto',
-        background: 'radial-gradient(ellipse at 50% 0%, rgba(20, 10, 35, 0.6) 0%, rgba(6, 4, 14, 0.95) 75%)',
+        background: 'radial-gradient(ellipse at 50% 0%, rgba(255, 255, 255, 0.03) 0%, rgba(8, 8, 12, 0.98) 75%)',
         padding: '24px 32px',
         color: '#f8fafc',
       }}
@@ -305,11 +305,11 @@ export const ScenariosView: React.FC = () => {
                       <button
                         onClick={(e) => handleDelete(s.id, e)}
                         style={{
-                          background: 'rgba(244, 63, 94, 0.12)',
-                          border: '1px solid rgba(244, 63, 94, 0.25)',
+                          background: 'rgba(239, 68, 68, 0.12)',
+                          border: '1px solid rgba(239, 68, 68, 0.25)',
                           borderRadius: 8,
                           padding: 6,
-                          color: '#f43f5e',
+                          color: '#ef4444',
                           cursor: 'pointer',
                         }}
                         title="Удалить сценарий"
@@ -419,7 +419,7 @@ export const ScenariosView: React.FC = () => {
                       borderRadius: 12,
                       background: isRunning
                         ? 'var(--accent-glow, rgba(255, 255, 255, 0.12))'
-                        : 'linear-gradient(135deg, rgba(255, 255, 255, 0.4) 0%, rgba(124, 58, 237, 0.9) 100%)',
+                        : 'linear-gradient(135deg, rgba(255, 255, 255, 0.4) 0%, rgba(255, 255, 255, 0.35) 100%)',
                       border: '1px solid rgba(255, 255, 255, 0.2)',
                       color: '#ffffff',
                       fontSize: 13,
@@ -503,9 +503,9 @@ export const ScenariosView: React.FC = () => {
                   gap: 8,
                   padding: '10px 14px',
                   borderRadius: 10,
-                  background: 'rgba(244, 63, 94, 0.15)',
-                  border: '1px solid rgba(244, 63, 94, 0.3)',
-                  color: '#fb7185',
+                  background: 'rgba(239, 68, 68, 0.12)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  color: '#f87171',
                   fontSize: 12.5,
                   marginBottom: 16,
                 }}
@@ -628,8 +628,8 @@ export const ScenariosView: React.FC = () => {
                       style={{
                         padding: '4px 8px',
                         borderRadius: 6,
-                        background: 'rgba(244, 114, 182, 0.15)',
-                        border: '1px solid rgba(244, 114, 182, 0.3)',
+                        background: 'rgba(255, 255, 255, 0.08)',
+                        border: '1px solid rgba(255, 255, 255, 0.18)',
                         color: '#cbd5e1',
                         fontSize: 11,
                         cursor: 'pointer',
@@ -685,7 +685,7 @@ export const ScenariosView: React.FC = () => {
                     style={{
                       padding: '8px 12px',
                       borderRadius: 8,
-                      background: 'linear-gradient(135deg, var(--accent, #ffffff), #6366f1)',
+                      background: 'linear-gradient(135deg, var(--accent, #ffffff), rgba(200, 200, 210, 0.9))',
                       border: 'none',
                       color: '#ffffff',
                       fontSize: 11.5,
@@ -723,7 +723,7 @@ export const ScenariosView: React.FC = () => {
                         style={{
                           background: 'none',
                           border: 'none',
-                          color: '#f43f5e',
+                          color: '#ef4444',
                           cursor: 'pointer',
                           padding: 2,
                         }}

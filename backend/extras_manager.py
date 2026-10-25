@@ -37,7 +37,7 @@ DEFAULT_EXTRAS_DATA: Dict[str, Any] = {
             "title": "План на день",
             "content": "1. Проверить меню Дополнительно\n2. Проверить отправку сообщений в Telegram\n3. Запустить таймер на ДЗ",
             "category": "work",
-            "color": "purple",
+            "color": "graphite",
             "pinned": True,
             "created_at": datetime.datetime.now().isoformat(),
             "updated_at": datetime.datetime.now().isoformat()
@@ -123,7 +123,7 @@ def add_task(title: str, description: str = "", priority: str = "medium", catego
     save_extras_data(data)
     return task
 
-def add_note(title: str, content: str, category: str = "general", color: str = "purple", pinned: bool = False) -> Dict[str, Any]:
+def add_note(title: str, content: str, category: str = "general", color: str = "graphite", pinned: bool = False) -> Dict[str, Any]:
     data = load_extras_data()
     now_iso = datetime.datetime.now().isoformat()
     note = {

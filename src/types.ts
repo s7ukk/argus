@@ -186,7 +186,7 @@ export interface NoteItem {
   title: string;
   content: string;
   category?: string;
-  color: 'purple' | 'blue' | 'emerald' | 'amber' | 'rose';
+  color: 'graphite' | 'blue' | 'emerald' | 'amber' | 'silver';
   pinned: boolean;
   created_at: string;
   updated_at: string;

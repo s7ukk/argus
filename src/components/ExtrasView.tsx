@@ -75,7 +75,7 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
   // Note creation state
   const [newNoteTitle, setNewNoteTitle] = useState('');
   const [newNoteContent, setNewNoteContent] = useState('');
-  const [newNoteColor, setNewNoteColor] = useState<'purple' | 'blue' | 'emerald' | 'amber' | 'rose'>('purple');
+  const [newNoteColor, setNewNoteColor] = useState<'graphite' | 'blue' | 'emerald' | 'amber' | 'silver'>('graphite');
   const [newNoteCategory, setNewNoteCategory] = useState('Общее');
   const [isCreatingNote, setIsCreatingNote] = useState(false);
   const [noteSearch, setNoteSearch] = useState('');
@@ -97,7 +97,7 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editNoteTitle, setEditNoteTitle] = useState('');
   const [editNoteContent, setEditNoteContent] = useState('');
-  const [editNoteColor, setEditNoteColor] = useState<'purple' | 'blue' | 'emerald' | 'amber' | 'rose'>('purple');
+  const [editNoteColor, setEditNoteColor] = useState<'graphite' | 'blue' | 'emerald' | 'amber' | 'silver'>('graphite');
   const [viewingNote, setViewingNote] = useState<NoteItem | null>(null);
 
   // Sound chime synthesizer via Web Audio API
@@ -377,7 +377,7 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
     setEditingNoteId(note.id);
     setEditNoteTitle(note.title);
     setEditNoteContent(note.content);
-    setEditNoteColor(note.color || 'purple');
+    setEditNoteColor(note.color || 'graphite');
   };
 
   const handleSaveEditNote = (noteId: string) => {
@@ -498,11 +498,12 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
   }).sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
 
   const noteColorMap = {
-    purple: { bg: 'rgba(255, 255, 255, 0.06)', border: 'rgba(255, 255, 255, 0.2)', dot: 'var(--accent, #ffffff)' },
+    graphite: { bg: 'rgba(255, 255, 255, 0.06)', border: 'rgba(255, 255, 255, 0.2)', dot: 'var(--accent, #ffffff)' },
     blue: { bg: 'rgba(56, 189, 248, 0.12)', border: 'rgba(56, 189, 248, 0.35)', dot: '#38bdf8' },
     emerald: { bg: 'rgba(16, 185, 129, 0.12)', border: 'rgba(16, 185, 129, 0.35)', dot: '#34d399' },
     amber: { bg: 'rgba(245, 158, 11, 0.12)', border: 'rgba(245, 158, 11, 0.35)', dot: '#fbbf24' },
-    rose: { bg: 'rgba(244, 63, 94, 0.12)', border: 'rgba(244, 63, 94, 0.35)', dot: '#fb7185' }
+    rose: { bg: 'rgba(255, 255, 255, 0.12)', border: 'rgba(255, 255, 255, 0.35)', dot: '#ffffff' },
+    silver: { bg: 'rgba(255, 255, 255, 0.12)', border: 'rgba(255, 255, 255, 0.35)', dot: '#ffffff' }
   };
 
   const priorityColor = (p: string) => {
@@ -627,26 +628,39 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
           </div>
         </div>
 
-        {/* Sub-tabs Selector */}
-        <div style={{ display: 'flex', gap: 8, borderBottom: '1px solid rgba(255, 255, 255, 0.06)' }}>
+        {/* Sub-tabs Liquid Glass Capsule Selector */}
+        <div
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 4,
+            padding: '4px',
+            borderRadius: 9999,
+            background: 'rgba(12, 12, 16, 0.75)',
+            backdropFilter: 'blur(24px) saturate(180%)',
+            border: '1px solid rgba(255, 255, 255, 0.09)',
+            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.12)',
+          }}
+        >
           <button
             onClick={() => setSubTab('timers')}
             style={{
-              padding: '10px 18px',
-              border: 'none',
-              background: 'none',
-              color: subTab === 'timers' ? 'var(--accent, #ffffff)' : '#94a3b8',
-              fontSize: 13,
+              padding: '6px 14px',
+              borderRadius: 9999,
+              border: subTab === 'timers' ? '1px solid rgba(255, 255, 255, 0.22)' : '1px solid transparent',
+              background: subTab === 'timers' ? 'rgba(255, 255, 255, 0.14)' : 'transparent',
+              color: subTab === 'timers' ? '#ffffff' : '#94a3b8',
+              fontSize: 12.5,
               fontWeight: subTab === 'timers' ? 600 : 500,
               cursor: 'pointer',
-              borderBottom: subTab === 'timers' ? '2px solid var(--accent, #ffffff)' : '2px solid transparent',
               display: 'flex',
               alignItems: 'center',
-              gap: 8,
-              transition: 'all 0.15s ease'
+              gap: 7,
+              transition: 'all 0.18s ease',
+              boxShadow: subTab === 'timers' ? '0 2px 8px rgba(0, 0, 0, 0.3)' : 'none',
             }}
           >
-            <Clock size={16} />
+            <Clock size={14} />
             Таймеры и напоминания
             {activeRunningTimersCount > 0 && (
               <span
@@ -656,7 +670,7 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
                   borderRadius: 10,
                   padding: '1px 6px',
                   fontSize: 10,
-                  fontWeight: 700
+                  fontWeight: 700,
                 }}
               >
                 {activeRunningTimersCount}
@@ -667,21 +681,22 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
           <button
             onClick={() => setSubTab('tasks')}
             style={{
-              padding: '10px 18px',
-              border: 'none',
-              background: 'none',
-              color: subTab === 'tasks' ? 'var(--accent, #ffffff)' : '#94a3b8',
-              fontSize: 13,
+              padding: '6px 14px',
+              borderRadius: 9999,
+              border: subTab === 'tasks' ? '1px solid rgba(255, 255, 255, 0.22)' : '1px solid transparent',
+              background: subTab === 'tasks' ? 'rgba(255, 255, 255, 0.14)' : 'transparent',
+              color: subTab === 'tasks' ? '#ffffff' : '#94a3b8',
+              fontSize: 12.5,
               fontWeight: subTab === 'tasks' ? 600 : 500,
               cursor: 'pointer',
-              borderBottom: subTab === 'tasks' ? '2px solid var(--accent, #ffffff)' : '2px solid transparent',
               display: 'flex',
               alignItems: 'center',
-              gap: 8,
-              transition: 'all 0.15s ease'
+              gap: 7,
+              transition: 'all 0.18s ease',
+              boxShadow: subTab === 'tasks' ? '0 2px 8px rgba(0, 0, 0, 0.3)' : 'none',
             }}
           >
-            <CheckSquare size={16} />
+            <CheckSquare size={14} />
             Задачи
             <span
               style={{
@@ -689,7 +704,7 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
                 color: '#cbd5e1',
                 borderRadius: 10,
                 padding: '1px 6px',
-                fontSize: 10
+                fontSize: 10,
               }}
             >
               {tasks.length}
@@ -699,21 +714,22 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
           <button
             onClick={() => setSubTab('notes')}
             style={{
-              padding: '10px 18px',
-              border: 'none',
-              background: 'none',
-              color: subTab === 'notes' ? 'var(--accent, #ffffff)' : '#94a3b8',
-              fontSize: 13,
+              padding: '6px 14px',
+              borderRadius: 9999,
+              border: subTab === 'notes' ? '1px solid rgba(255, 255, 255, 0.22)' : '1px solid transparent',
+              background: subTab === 'notes' ? 'rgba(255, 255, 255, 0.14)' : 'transparent',
+              color: subTab === 'notes' ? '#ffffff' : '#94a3b8',
+              fontSize: 12.5,
               fontWeight: subTab === 'notes' ? 600 : 500,
               cursor: 'pointer',
-              borderBottom: subTab === 'notes' ? '2px solid var(--accent, #ffffff)' : '2px solid transparent',
               display: 'flex',
               alignItems: 'center',
-              gap: 8,
-              transition: 'all 0.15s ease'
+              gap: 7,
+              transition: 'all 0.18s ease',
+              boxShadow: subTab === 'notes' ? '0 2px 8px rgba(0, 0, 0, 0.3)' : 'none',
             }}
           >
-            <FileText size={16} />
+            <FileText size={14} />
             Заметки
             <span
               style={{
@@ -721,7 +737,7 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
                 color: '#cbd5e1',
                 borderRadius: 10,
                 padding: '1px 6px',
-                fontSize: 10
+                fontSize: 10,
               }}
             >
               {notes.length}
@@ -950,7 +966,7 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
                         key={timer.id}
                         style={{
                           background: isFinished
-                            ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(30, 27, 75, 0.8) 100%)'
+                            ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(15, 15, 20, 0.8) 100%)'
                             : 'linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, rgba(15, 11, 30, 0.8) 100%)',
                           border: isFinished
                             ? '1px solid rgba(239, 68, 68, 0.5)'
@@ -1711,7 +1727,7 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
                   {/* Color selector */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ fontSize: 12, color: '#94a3b8' }}>Цвет акцента:</span>
-                    {(['purple', 'blue', 'emerald', 'amber', 'rose'] as const).map((colorKey) => (
+                    {(['graphite', 'blue', 'emerald', 'amber', 'silver'] as const).map((colorKey) => (
                       <button
                         key={colorKey}
                         onClick={() => setNewNoteColor(colorKey)}
@@ -1783,7 +1799,7 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
                 </div>
               ) : (
                 filteredNotes.map((note) => {
-                  const styleColor = noteColorMap[note.color] || noteColorMap.purple;
+                  const styleColor = noteColorMap[note.color] || noteColorMap.graphite;
 
                   if (editingNoteId === note.id) {
                     return (
@@ -1842,7 +1858,7 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
 
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            {(['purple', 'blue', 'emerald', 'amber', 'rose'] as const).map((colorKey) => (
+                            {(['graphite', 'blue', 'emerald', 'amber', 'silver'] as const).map((colorKey) => (
                               <button
                                 key={colorKey}
                                 onClick={() => setEditNoteColor(colorKey)}
@@ -2080,7 +2096,7 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 10, height: 10, borderRadius: '50%', background: (noteColorMap[viewingNote.color] || noteColorMap.purple).dot }} />
+                <div style={{ width: 10, height: 10, borderRadius: '50%', background: (noteColorMap[viewingNote.color] || noteColorMap.graphite).dot }} />
                 <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#ffffff', wordBreak: 'break-word' }}>
                   {viewingNote.title}
                 </h3>

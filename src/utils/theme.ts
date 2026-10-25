@@ -9,10 +9,10 @@ export interface ThemePreset {
 export const THEME_PRESETS: ThemePreset[] = [
   { id: 'monochrome', name: 'Obsidian (Монохром)', hex: '#ffffff', rgb: '255, 255, 255' },
   { id: 'silver', name: 'Titanium (Серебро)', hex: '#cbd5e1', rgb: '203, 213, 225' },
-  { id: 'violet', name: 'Amethyst (Фиолетовый)', hex: '#a855f7', rgb: '168, 85, 247' },
+  { id: 'graphite', name: 'Graphite (Графит)', hex: '#71717a', rgb: '113, 113, 122' },
   { id: 'sapphire', name: 'Cyber (Сапфир)', hex: '#38bdf8', rgb: '56, 189, 248' },
   { id: 'emerald', name: 'Matrix (Изумруд)', hex: '#10b981', rgb: '16, 185, 129' },
-  { id: 'rose', name: 'Neon Rose (Розовый)', hex: '#f43f5e', rgb: '244, 63, 94' },
+  { id: 'platinum', name: 'Platinum (Платина)', hex: '#e2e8f0', rgb: '226, 232, 240' },
   { id: 'amber', name: 'Amber Glow (Янтарь)', hex: '#f59e0b', rgb: '245, 158, 11' },
 ];
 

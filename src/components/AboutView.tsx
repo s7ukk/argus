@@ -29,7 +29,7 @@ export const AboutView: React.FC = () => {
         display: 'flex',
         flexDirection: 'column',
         overflowY: 'auto',
-        background: 'rgba(7, 5, 15, 0.65)',
+        background: 'rgba(8, 8, 12, 0.65)',
         position: 'relative',
         userSelect: 'none',
         padding: '28px',

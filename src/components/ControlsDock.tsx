@@ -313,10 +313,10 @@ export const ControlsDock: React.FC<ControlsDockProps> = ({ onTriggerVoice, isLi
             transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
             ...(isListening
               ? {
-                  background: 'linear-gradient(135deg, #e11d48 0%, #f43f5e 100%)',
+                  background: 'linear-gradient(135deg, #dc2626 0%, #ef4444 100%)',
                   color: '#ffffff',
-                  border: '1px solid rgba(244,63,94,0.6)',
-                  boxShadow: '0 0 35px rgba(244, 63, 94, 0.8)',
+                  border: '1px solid rgba(239,68,68,0.6)',
+                  boxShadow: '0 0 35px rgba(239, 68, 68, 0.8)',
                   transform: 'scale(1.04)',
                 }
               : {}),

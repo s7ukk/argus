@@ -102,7 +102,7 @@ export async function verifyKey(keyCode: string): Promise<UserProfile> {
       display_name: cleanUpper === 'TEST' ? 'Tester' : 'Administrator',
       voice_enabled: true,
       voice_speed: 1.0,
-      theme: 'black-purple',
+      theme: 'monochrome',
       expires_at: '2036-01-01T00:00:00+00:00',
       days_left: 3359
     };

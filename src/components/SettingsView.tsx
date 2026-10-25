@@ -212,7 +212,7 @@ export const SettingsView: React.FC = () => {
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
-        background: 'rgba(7, 5, 15, 0.65)',
+        background: 'rgba(8, 8, 12, 0.65)',
         position: 'relative',
         userSelect: 'none',
       }}
@@ -225,7 +225,7 @@ export const SettingsView: React.FC = () => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          background: 'rgba(12, 9, 24, 0.5)',
+          background: 'rgba(12, 12, 16, 0.5)',
           backdropFilter: 'blur(10px)',
         }}
       >
@@ -705,7 +705,7 @@ export const SettingsView: React.FC = () => {
                 cursor: 'pointer',
                 border:
                   settings.voice_provider === 'fish-audio'
-                    ? '1px solid rgba(236, 72, 153, 0.6)'
+                    ? '1px solid rgba(255, 255, 255, 0.2)'
                     : '1px solid rgba(255, 255, 255, 0.06)',
                 background:
                   settings.voice_provider === 'fish-audio'

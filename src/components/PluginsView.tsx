@@ -451,7 +451,7 @@ export const PluginsView: React.FC = () => {
                   fontSize: 10,
                   padding: '1px 4px',
                 }}
-                className="hover:text-purple-400"
+                className="hover:text-white"
               >
                 <Zap size={11} />
               </button>
@@ -477,7 +477,7 @@ export const PluginsView: React.FC = () => {
         height: '100%',
         display: 'flex',
         overflow: 'hidden',
-        background: 'radial-gradient(circle at 15% 15%, rgba(255, 255, 255, 0.04) 0%, transparent 40%), radial-gradient(circle at 85% 85%, rgba(56, 189, 248, 0.06) 0%, transparent 40%), rgba(7, 5, 15, 0.75)',
+        background: 'radial-gradient(circle at 15% 15%, rgba(255, 255, 255, 0.04) 0%, transparent 40%), radial-gradient(circle at 85% 85%, rgba(56, 189, 248, 0.06) 0%, transparent 40%), rgba(8, 8, 12, 0.75)',
         position: 'relative',
         userSelect: 'none',
       }}
@@ -510,7 +510,7 @@ export const PluginsView: React.FC = () => {
         style={{
           width: 330,
           borderRight: '1px solid rgba(255, 255, 255, 0.08)',
-          background: 'rgba(10, 8, 20, 0.65)',
+          background: 'rgba(10, 10, 14, 0.65)',
           backdropFilter: 'blur(16px)',
           display: 'flex',
           flexDirection: 'column',
@@ -726,7 +726,7 @@ export const PluginsView: React.FC = () => {
                       borderLeftWidth: 3,
                       borderLeftColor: isSelected ? accentColor : 'transparent',
                       background: isSelected
-                        ? `linear-gradient(135deg, rgba(${accentRgb}, 0.16) 0%, rgba(20, 15, 35, 0.8) 100%)`
+                        ? `linear-gradient(135deg, rgba(${accentRgb}, 0.16) 0%, rgba(12, 12, 16, 0.8) 100%)`
                         : 'rgba(255, 255, 255, 0.025)',
                       boxShadow: isSelected ? `0 4px 20px rgba(${accentRgb}, 0.2)` : 'none',
                     }}
@@ -852,7 +852,7 @@ export const PluginsView: React.FC = () => {
             style={{
               padding: '14px 24px',
               borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-              background: 'linear-gradient(180deg, rgba(18, 14, 32, 0.85) 0%, rgba(10, 8, 20, 0.75) 100%)',
+              background: 'linear-gradient(180deg, rgba(18, 14, 32, 0.85) 0%, rgba(10, 10, 14, 0.75) 100%)',
               backdropFilter: 'blur(16px)',
               display: 'flex',
               alignItems: 'center',
@@ -891,7 +891,7 @@ export const PluginsView: React.FC = () => {
                         fontWeight: 700,
                         padding: '3px 9px',
                         borderRadius: 999,
-                        background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(147, 51, 234, 0.1) 100%)',
+                        background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.08) 100%)',
                         border: '1px solid rgba(255, 255, 255, 0.2)',
                         color: 'var(--accent, #ffffff)',
                         display: 'inline-flex',
@@ -1000,7 +1000,7 @@ export const PluginsView: React.FC = () => {
               borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
               display: 'flex',
               gap: 24,
-              background: 'rgba(10, 8, 20, 0.65)',
+              background: 'rgba(10, 10, 14, 0.65)',
             }}
           >
             <button
@@ -1059,7 +1059,7 @@ export const PluginsView: React.FC = () => {
                   style={{
                     padding: '18px 22px',
                     borderRadius: 16,
-                    background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.16) 0%, rgba(56, 189, 248, 0.08) 100%)',
+                    background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(56, 189, 248, 0.08) 100%)',
                     border: '1px solid var(--accent-glow, rgba(255, 255, 255, 0.15))',
                     boxShadow: '0 8px 32px rgba(255, 255, 255, 0.06)',
                     display: 'flex',
@@ -1073,7 +1073,7 @@ export const PluginsView: React.FC = () => {
                         width: 46,
                         height: 46,
                         borderRadius: 14,
-                        background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, rgba(147, 51, 234, 0.15) 100%)',
+                        background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.1) 100%)',
                         border: '1px solid rgba(255, 255, 255, 0.25)',
                         display: 'flex',
                         alignItems: 'center',
@@ -1132,7 +1132,7 @@ export const PluginsView: React.FC = () => {
                     style={{
                       padding: 18,
                       borderRadius: 16,
-                      background: 'linear-gradient(135deg, rgba(20, 16, 36, 0.7) 0%, rgba(12, 9, 24, 0.8) 100%)',
+                      background: 'linear-gradient(135deg, rgba(20, 16, 36, 0.7) 0%, rgba(12, 12, 16, 0.8) 100%)',
                       border: '1px solid var(--accent-glow, rgba(255, 255, 255, 0.12))',
                       boxShadow: '0 4px 20px rgba(0, 0, 0, 0.25)',
                       display: 'flex',
@@ -1177,7 +1177,7 @@ export const PluginsView: React.FC = () => {
                           fontWeight: 700,
                           cursor: 'pointer',
                           border: voiceSunderMode === 'toggle' ? '1px solid var(--accent, #ffffff)' : '1px solid rgba(255, 255, 255, 0.08)',
-                          background: voiceSunderMode === 'toggle' ? 'linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, rgba(147, 51, 234, 0.15) 100%)' : 'rgba(255, 255, 255, 0.03)',
+                          background: voiceSunderMode === 'toggle' ? 'linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.1) 100%)' : 'rgba(255, 255, 255, 0.03)',
                           color: voiceSunderMode === 'toggle' ? '#ffffff' : '#94a3b8',
                           boxShadow: voiceSunderMode === 'toggle' ? '0 0 12px var(--accent-glow, rgba(255, 255, 255, 0.12))' : 'none',
                         }}
@@ -1195,7 +1195,7 @@ export const PluginsView: React.FC = () => {
                           fontWeight: 700,
                           cursor: 'pointer',
                           border: voiceSunderMode === 'ptt' ? '1px solid var(--accent, #ffffff)' : '1px solid rgba(255, 255, 255, 0.08)',
-                          background: voiceSunderMode === 'ptt' ? 'linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, rgba(147, 51, 234, 0.15) 100%)' : 'rgba(255, 255, 255, 0.03)',
+                          background: voiceSunderMode === 'ptt' ? 'linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.1) 100%)' : 'rgba(255, 255, 255, 0.03)',
                           color: voiceSunderMode === 'ptt' ? '#ffffff' : '#94a3b8',
                           boxShadow: voiceSunderMode === 'ptt' ? '0 0 12px var(--accent-glow, rgba(255, 255, 255, 0.12))' : 'none',
                         }}
@@ -1266,7 +1266,7 @@ export const PluginsView: React.FC = () => {
                   style={{
                     padding: 18,
                     borderRadius: 16,
-                    background: 'linear-gradient(135deg, rgba(20, 16, 36, 0.6) 0%, rgba(10, 8, 20, 0.8) 100%)',
+                    background: 'linear-gradient(135deg, rgba(20, 16, 36, 0.6) 0%, rgba(10, 10, 14, 0.8) 100%)',
                     border: '1px solid rgba(255, 255, 255, 0.08)',
                     display: 'flex',
                     flexDirection: 'column',
@@ -1389,7 +1389,7 @@ export const PluginsView: React.FC = () => {
                     style={{
                       padding: 16,
                       borderRadius: 14,
-                      background: 'linear-gradient(135deg, rgba(56, 189, 248, 0.1) 0%, rgba(10, 8, 20, 0.8) 100%)',
+                      background: 'linear-gradient(135deg, rgba(56, 189, 248, 0.1) 0%, rgba(10, 10, 14, 0.8) 100%)',
                       border: '1px solid rgba(56, 189, 248, 0.3)',
                     }}
                   >
@@ -1406,7 +1406,7 @@ export const PluginsView: React.FC = () => {
                     style={{
                       padding: 16,
                       borderRadius: 14,
-                      background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(10, 8, 20, 0.8) 100%)',
+                      background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(10, 10, 14, 0.8) 100%)',
                       border: '1px solid rgba(255, 255, 255, 0.15)',
                     }}
                   >
@@ -1423,7 +1423,7 @@ export const PluginsView: React.FC = () => {
                     style={{
                       padding: 16,
                       borderRadius: 14,
-                      background: 'linear-gradient(135deg, rgba(74, 222, 128, 0.1) 0%, rgba(10, 8, 20, 0.8) 100%)',
+                      background: 'linear-gradient(135deg, rgba(74, 222, 128, 0.1) 0%, rgba(10, 10, 14, 0.8) 100%)',
                       border: '1px solid rgba(74, 222, 128, 0.3)',
                     }}
                   >
@@ -1500,7 +1500,7 @@ export const PluginsView: React.FC = () => {
                     style={{
                       padding: 16,
                       borderRadius: 14,
-                      background: 'linear-gradient(135deg, rgba(74, 222, 128, 0.1) 0%, rgba(10, 8, 20, 0.8) 100%)',
+                      background: 'linear-gradient(135deg, rgba(74, 222, 128, 0.1) 0%, rgba(10, 10, 14, 0.8) 100%)',
                       border: '1px solid rgba(74, 222, 128, 0.3)',
                     }}
                   >
@@ -1517,7 +1517,7 @@ export const PluginsView: React.FC = () => {
                     style={{
                       padding: 16,
                       borderRadius: 14,
-                      background: 'linear-gradient(135deg, rgba(248, 113, 113, 0.1) 0%, rgba(10, 8, 20, 0.8) 100%)',
+                      background: 'linear-gradient(135deg, rgba(248, 113, 113, 0.1) 0%, rgba(10, 10, 14, 0.8) 100%)',
                       border: '1px solid rgba(248, 113, 113, 0.3)',
                     }}
                   >
@@ -1534,7 +1534,7 @@ export const PluginsView: React.FC = () => {
                     style={{
                       padding: 16,
                       borderRadius: 14,
-                      background: 'linear-gradient(135deg, rgba(56, 189, 248, 0.1) 0%, rgba(10, 8, 20, 0.8) 100%)',
+                      background: 'linear-gradient(135deg, rgba(56, 189, 248, 0.1) 0%, rgba(10, 10, 14, 0.8) 100%)',
                       border: '1px solid rgba(56, 189, 248, 0.3)',
                     }}
                   >

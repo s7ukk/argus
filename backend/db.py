@@ -113,7 +113,7 @@ async def verify_access_key(key_code: str) -> Dict[str, Any]:
             "display_name": "Tester" if "TEST" in clean_upper else "Administrator",
             "voice_enabled": True,
             "voice_speed": 1.0,
-            "theme": "black-purple",
+            "theme": "monochrome",
             "expires_at": "2036-01-01T00:00:00+00:00",
             "days_left": 3359
         }

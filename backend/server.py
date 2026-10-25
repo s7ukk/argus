@@ -835,7 +835,7 @@ async def add_note_endpoint(payload: Dict[str, Any]):
     title = payload.get("title", "")
     content = payload.get("content", "")
     cat = payload.get("category", "general")
-    color = payload.get("color", "purple")
+    color = payload.get("color", "graphite")
     pinned = payload.get("pinned", False)
     note = extras_mgr.add_note(title, content, cat, color, pinned)
     return {"success": True, "note": note}

@@ -541,29 +541,15 @@ export const App: React.FC = () => {
       <div className="bg-grid" />
       <div className="bg-noise" />
 
-      <Header
-        navDock={
-          themeConfig.navPosition === 'top' && profile ? (
-            <NavDock
-              activeTab={activeTab}
-              onTabChange={setActiveTab}
-              profile={profile}
-              onOpenProfile={() => setIsProfileOpen(true)}
-              position="top"
-            />
-          ) : undefined
-        }
-      />
+      <Header />
 
-      {/* Dynamic Island: ONLY rendered in web browser if Electron overlay is absent */}
-      {!((window as any).electronAPI?.isElectron) && (
-        <DynamicIsland
-          dictationState={dictationState}
-          isAiThinking={loading}
-          isSpeaking={isSpeaking}
-          onStopAi={handleStop}
-        />
-      )}
+      {/* Dynamic Island: Always floating on top */}
+      <DynamicIsland
+        dictationState={dictationState}
+        isAiThinking={loading}
+        isSpeaking={isSpeaking}
+        onStopAi={handleStop}
+      />
 
       {!profile ? (
         <AuthScreen onSuccess={handleAuthSuccess} />
@@ -572,12 +558,27 @@ export const App: React.FC = () => {
           style={{
             flex: 1,
             display: 'flex',
-            flexDirection: 'row',
+            flexDirection: 'column',
             overflow: 'hidden',
             position: 'relative',
             zIndex: 2,
           }}
         >
+          {/* Top NavDock (Sleek floating oval capsule centered below Header) */}
+          {themeConfig.navPosition === 'top' && (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 16px 8px 16px', flexShrink: 0 }}>
+              <NavDock
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+                profile={profile}
+                onOpenProfile={() => setIsProfileOpen(true)}
+                position="top"
+              />
+            </div>
+          )}
+
+          {/* Main Content Row */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'row', overflow: 'hidden', position: 'relative' }}>
           {/* Left NavDock (when position === 'left') */}
           {themeConfig.navPosition === 'left' && (
             <NavDock
@@ -650,6 +651,7 @@ export const App: React.FC = () => {
               position="right"
             />
           )}
+          </div>
 
           <ProfileModal
             isOpen={isProfileOpen}

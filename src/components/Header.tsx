@@ -4,12 +4,10 @@ import { StarburnLogo } from './Icons';
 
 interface HeaderProps {
   subtitleText?: string;
-  navDock?: React.ReactNode;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   subtitleText = "",
-  navDock,
 }) => {
   const [isMac, setIsMac] = useState(false);
 
@@ -39,7 +37,7 @@ export const Header: React.FC<HeaderProps> = ({
     <header
       className="glass drag"
       style={{
-        height: 44,
+        height: 38,
         width: '100%',
         display: 'flex',
         alignItems: 'center',
@@ -48,7 +46,7 @@ export const Header: React.FC<HeaderProps> = ({
         position: 'relative',
         zIndex: 50,
         borderBottom: '1px solid rgba(255, 255, 255, 0.07)',
-        background: 'rgba(8, 6, 16, 0.88)',
+        background: 'rgba(10, 10, 12, 0.88)',
         backdropFilter: 'blur(16px)',
         userSelect: 'none',
         flexShrink: 0,
@@ -109,26 +107,8 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
 
-      {/* Center: Integrated NavDock when position === 'top' */}
-      {navDock ? (
-        <div
-          className="no-drag"
-          style={{
-            position: 'absolute',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            pointerEvents: 'auto',
-            zIndex: 60,
-          }}
-        >
-          {navDock}
-        </div>
-      ) : (
-        <div className="no-drag" style={{ flex: 1 }} />
-      )}
+      {/* Center: Clean Draggable Title Space */}
+      <div className="drag" style={{ flex: 1 }} />
 
       {/* Right: Window Controls (on Windows/Linux) */}
       {!isMac ? (
