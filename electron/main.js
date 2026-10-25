@@ -505,6 +505,26 @@ function registerIpcHandlers() {
     }
   });
 
+  ipcMain.on('stop-active-timer', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('stop-active-timer');
+    }
+    if (dictationHudWindow && !dictationHudWindow.isDestroyed()) {
+      dictationHudWindow.webContents.send('island-timer', null);
+      dictationHudWindow.webContents.send('island-notify', { text: 'Таймер остановлен, сэр', type: 'info', duration: 2200 });
+    }
+  });
+
+  ipcMain.on('cancel-ai-action', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('cancel-ai-action');
+    }
+    if (dictationHudWindow && !dictationHudWindow.isDestroyed()) {
+      dictationHudWindow.webContents.send('island-state', { idle: true });
+      dictationHudWindow.webContents.send('island-notify', { text: 'Генерация остановлена, сэр', type: 'info', duration: 2200 });
+    }
+  });
+
   ipcMain.on('show-island-notification', (event, data) => {
     if (!dictationHudWindow || dictationHudWindow.isDestroyed()) createDictationHudWindow();
     if (dictationHudWindow) {
@@ -663,13 +683,13 @@ function createDictationHudWindow() {
     .hud-pill {
       pointer-events: auto;
       cursor: default;
-      background: rgba(13, 13, 18, 0.94);
+      background: rgba(14, 14, 18, 0.94);
       backdrop-filter: blur(28px);
       -webkit-backdrop-filter: blur(28px);
-      border: 1px solid rgba(255, 255, 255, 0.14);
+      border: 1px solid rgba(255, 255, 255, 0.12);
       box-shadow: 0 16px 36px rgba(0, 0, 0, 0.72), 0 0 1px rgba(255, 255, 255, 0.25);
       border-radius: 9999px;
-      padding: 7px 18px;
+      padding: 8px 18px;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -677,20 +697,26 @@ function createDictationHudWindow() {
       font-size: 13px;
       font-weight: 600;
       letter-spacing: 0.02em;
-      transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
-      width: auto;
-      min-width: 140px;
-      max-width: 480px;
+      width: 220px;
+      box-sizing: border-box;
+      transition: width 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+                  border-radius 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+                  background 0.3s ease,
+                  border-color 0.3s ease,
+                  box-shadow 0.35s ease,
+                  padding 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+      will-change: width, border-radius;
+      transform: translateZ(0);
+      overflow: hidden;
     }
 
-    /* Hover expanded state */
+    /* Hover expanded state with butter-smooth width transition */
     .hud-pill:hover, .hud-pill.is-expanded {
+      width: 450px;
       border-radius: 20px;
       padding: 14px 20px;
-      width: 460px;
-      max-width: 460px;
-      background: rgba(15, 15, 22, 0.97);
-      border-color: rgba(255, 255, 255, 0.24);
+      background: rgba(16, 16, 22, 0.97);
+      border-color: rgba(255, 255, 255, 0.22);
       box-shadow: 0 24px 50px rgba(0, 0, 0, 0.85), 0 0 1px rgba(255, 255, 255, 0.3);
     }
 
@@ -764,29 +790,32 @@ function createDictationHudWindow() {
       animation: soundwave 0.8s ease-in-out infinite;
     }
 
-    /* Expandable Body */
-    .expanded-body {
-      max-height: 0;
+    /* CSS Grid 0fr -> 1fr for silky smooth content height expansion */
+    .expanded-wrapper {
+      display: grid;
+      grid-template-rows: 0fr;
+      transition: grid-template-rows 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+                  opacity 0.25s ease;
       opacity: 0;
-      overflow: hidden;
       width: 100%;
-      transition: max-height 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.22s ease, margin-top 0.22s ease;
-      margin-top: 0;
-      pointer-events: none;
     }
 
-    .hud-pill:hover .expanded-body, .hud-pill.is-expanded .expanded-body {
-      max-height: 150px;
+    .hud-pill:hover .expanded-wrapper,
+    .hud-pill.is-expanded .expanded-wrapper {
+      grid-template-rows: 1fr;
       opacity: 1;
-      margin-top: 12px;
-      pointer-events: auto;
+    }
+
+    .expanded-inner {
+      overflow: hidden;
+      min-height: 0;
     }
 
     .divider {
       height: 1px;
       background: rgba(255, 255, 255, 0.09);
       width: 100%;
-      margin-bottom: 10px;
+      margin: 10px 0;
     }
 
     .details-row {
@@ -797,7 +826,7 @@ function createDictationHudWindow() {
     }
 
     .timer-large {
-      font-size: 24px;
+      font-size: 26px;
       font-weight: 800;
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       color: #ffffff;
@@ -820,6 +849,32 @@ function createDictationHudWindow() {
       color: #cbd5e1;
       font-weight: 600;
       letter-spacing: 0.03em;
+    }
+
+    /* Interactive Action Buttons inside Island */
+    .action-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      color: #ef4444;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      user-select: none;
+    }
+    .action-btn:hover {
+      background: rgba(239, 68, 68, 0.3);
+      border-color: rgba(239, 68, 68, 0.6);
+      transform: translateY(-1px);
+    }
+    .action-btn:active {
+      transform: translateY(0);
     }
   </style>
 </head>
@@ -845,31 +900,50 @@ function createDictationHudWindow() {
       <span class="badge-tag" id="header-tag" style="display:none;">OS</span>
     </div>
 
-    <!-- Expanded content on Hover -->
-    <div class="expanded-body" id="expanded-body">
-      <div class="divider"></div>
-      
-      <!-- Timer details if active -->
-      <div id="expanded-timer-section" style="display:none;margin-bottom:8px;">
-        <div style="display:flex;align-items:baseline;justify-content:space-between;">
-          <span id="exp-timer-title" style="font-size:12px;color:#cbd5e1;font-weight:600;">Активный таймер</span>
-          <span class="timer-large" id="exp-timer-digits">00:00</span>
+    <!-- Smooth Grid Container for Hover Expansion -->
+    <div class="expanded-wrapper" id="expanded-wrapper">
+      <div class="expanded-inner">
+        <div class="divider"></div>
+        
+        <!-- Timer details and cancellation button -->
+        <div id="expanded-timer-section" style="display:none;margin-bottom:8px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div>
+              <div id="exp-timer-title" style="font-size:12px;color:#cbd5e1;font-weight:600;">Активный таймер</div>
+              <div class="timer-large" id="exp-timer-digits">00:00</div>
+            </div>
+            <button class="action-btn" onclick="stopTimerFromIsland(event)" title="Остановить таймер">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+              Остановить
+            </button>
+          </div>
+          <div style="font-size:11px;color:#fbbf24;margin-top:2px;display:flex;align-items:center;gap:5px;">
+            <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#fbbf24;"></span>
+            Отсчет времени выполняется в фоне
+          </div>
         </div>
-        <div style="font-size:11px;color:#fbbf24;margin-top:2px;display:flex;align-items:center;gap:5px;">
-          <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#fbbf24;"></span>
-          Отсчет времени в процессе
-        </div>
-      </div>
 
-      <!-- General status & hint -->
-      <div id="expanded-info-section">
-        <div class="details-row">
-          <span style="font-size:11.5px;color:#cbd5e1;font-weight:600;">Argus AI Butler</span>
-          <span class="badge-tag">На связи • Готов</span>
+        <!-- AI thinking with Cancel action button -->
+        <div id="expanded-thinking-section" style="display:none;margin-bottom:8px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <span style="font-size:12px;color:#cbd5e1;font-weight:600;">Нейросеть генерирует ответ...</span>
+            <button class="action-btn" onclick="cancelAiFromIsland(event)" title="Остановить генерацию">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+              Остановить
+            </button>
+          </div>
         </div>
-        <div class="sub-hint" id="exp-hint">
-          ⌨️ Двойной Ctrl: голосовой ввод в любую программу<br>
-          ⚡ Без задержек • Монохромный дизайн
+
+        <!-- General status & hint -->
+        <div id="expanded-info-section">
+          <div class="details-row">
+            <span style="font-size:11.5px;color:#cbd5e1;font-weight:600;">Argus AI Butler</span>
+            <span class="badge-tag">На связи • Готов</span>
+          </div>
+          <div class="sub-hint" id="exp-hint">
+            ⌨️ Двойной Ctrl: голосовой ввод в любую программу<br>
+            ⚡ Быстрый ответ • Монохромный дизайн
+          </div>
         </div>
       </div>
     </div>
@@ -889,6 +963,24 @@ function createDictationHudWindow() {
     pill.addEventListener('mouseleave', () => {
       try { ipcRenderer.send('hud-mouse-state', false); } catch (e) {}
     });
+
+    function stopTimerFromIsland(e) {
+      if (e) e.stopPropagation();
+      try {
+        ipcRenderer.send('stop-active-timer');
+        activeTimer = null;
+        renderActiveState();
+      } catch (err) {}
+    }
+
+    function cancelAiFromIsland(e) {
+      if (e) e.stopPropagation();
+      try {
+        ipcRenderer.send('cancel-ai-action');
+        isThinking = false;
+        renderActiveState();
+      } catch (err) {}
+    }
 
     const ICONS = {
       check: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
@@ -913,6 +1005,7 @@ function createDictationHudWindow() {
       const text = document.getElementById('text');
       const headerTag = document.getElementById('header-tag');
       const expTimerSec = document.getElementById('expanded-timer-section');
+      const expThinkingSec = document.getElementById('expanded-thinking-section');
       const expTimerTitle = document.getElementById('exp-timer-title');
       const expTimerDigits = document.getElementById('exp-timer-digits');
       const expHint = document.getElementById('exp-hint');
@@ -930,9 +1023,12 @@ function createDictationHudWindow() {
         headerTag.style.display = 'block';
         headerTag.innerText = 'AI';
         expTimerSec.style.display = 'none';
-        expHint.innerText = 'Нейросеть обрабатывает запрос и генерирует структурированный ответ...';
+        expThinkingSec.style.display = 'block';
+        expHint.innerText = 'Нейросеть обрабатывает запрос и формирует ответ...';
         return;
       }
+
+      expThinkingSec.style.display = 'none';
 
       if (isSpeaking) {
         onlineDot.style.display = 'none';
@@ -945,7 +1041,7 @@ function createDictationHudWindow() {
         headerTag.style.display = 'block';
         headerTag.innerText = 'TTS';
         expTimerSec.style.display = 'none';
-        expHint.innerText = 'Голосовой синтез (Дмитрий) озвучивает ответ с чистым звучанием.';
+        expHint.innerText = 'Голосовой синтез (Дмитрий) воспроизводит ответ.';
         return;
       }
 
@@ -962,7 +1058,7 @@ function createDictationHudWindow() {
         expTimerSec.style.display = 'block';
         expTimerTitle.innerText = activeTimer.title || 'Таймер';
         expTimerDigits.innerText = formatTime(activeTimer.remaining_seconds);
-        expHint.innerText = 'Отсчет времени выполняется в фоновом режиме Argus.';
+        expHint.innerText = 'Отсчет времени выполняется в фоне. Нажмите «Остановить» для сброса.';
         return;
       }
 
@@ -994,12 +1090,14 @@ function createDictationHudWindow() {
       const text = document.getElementById('text');
       const headerTag = document.getElementById('header-tag');
       const expTimerSec = document.getElementById('expanded-timer-section');
+      const expThinkingSec = document.getElementById('expanded-thinking-section');
       const expHint = document.getElementById('exp-hint');
 
       onlineDot.style.display = 'none';
       tDots.style.display = 'none';
       wave.style.display = 'none';
       expTimerSec.style.display = 'none';
+      expThinkingSec.style.display = 'none';
 
       if (state.active) {
         isDictating = true;
@@ -1011,7 +1109,7 @@ function createDictationHudWindow() {
         headerTag.innerText = 'REC';
         pill.style.borderColor = 'rgba(239, 68, 68, 0.6)';
         text.innerText = 'Голосовой ввод Argus... (Double-Ctrl)';
-        expHint.innerText = 'Идет запись речи с микрофона. Нажмите Double-Ctrl для вставки текста.';
+        expHint.innerText = 'Идет запись речи с микрофона. Нажмите Double-Ctrl для завершения.';
       } else if (state.success) {
         isDictating = false;
         dot.style.display = 'none';

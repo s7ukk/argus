@@ -127,9 +127,21 @@ def stop_all_audio():
         except Exception:
             pass
 
+def is_code_content(text: str) -> bool:
+    """Detects if text contains programming code or script blocks."""
+    if "```" in text:
+        return True
+    code_signatures = [
+        "package main", "func main", "import (", "#include <", "int main(",
+        "def main(", "class ", "import os", "import sys", "import asyncio",
+        "const express", "require('", "from bs4", "console.log(", "public static void main"
+    ]
+    low = text.lower()
+    return any(sig.lower() in low for sig in code_signatures)
+
 def clean_text_for_speech(text: str) -> str:
-    """Converts LaTeX, code blocks, technical slashes, and paths into clean, natural spoken Russian without reading symbols out loud."""
-    if not text:
+    """Converts text into clean, natural spoken Russian. NEVER reads code scripts out loud."""
+    if not text or not text.strip():
         return ""
 
     if "Автономный AI Агент" in text or "Автономный GUI Агент" in text:
@@ -141,8 +153,23 @@ def clean_text_for_speech(text: str) -> str:
             return f"Действие в {m_act.group(1)} успешно выполнено."
         return "Действие успешно выполнено."
 
-    # 1. Remove markdown code blocks completely so voice doesn't read 50 lines of code
-    t = re.sub(r'```[\s\S]*?```', ' код программы. ', text)
+    # 1. SPECIAL CASE: Code blocks (```...```) - NEVER read code aloud!
+    if "```" in text:
+        parts = text.split("```")
+        before_code = parts[0].strip()
+        clean_intro = re.sub(r'[#*`_~]', '', before_code).strip()
+        clean_intro = re.sub(r'[:—\-]+$', '', clean_intro).strip()
+        if len(clean_intro) >= 8:
+            first_sent = re.split(r'[.!?\n]', clean_intro)[0].strip()
+            if len(first_sent) >= 8:
+                return first_sent + ". Код выведен на экран, сэр."
+        return "Код подготовлен, сэр. Вывел его на экран."
+
+    # 2. Raw code without backticks
+    if is_code_content(text):
+        return "Код программы выведен на экран, сэр."
+
+    t = text
     t = re.sub(r'`[^`]+`', ' код ', t)
 
     # 2. LaTeX math delimiters and environments

@@ -329,17 +329,33 @@ def delete_timer(identifier: str) -> Tuple[bool, Optional[Dict[str, Any]]]:
     """Deletes or stops timer by id or matching title, or clears all if 'all'/'все'."""
     data = load_extras_data()
     timers = data.get("timers", [])
-    ident_lower = identifier.strip().lower()
-    if ident_lower in ["all", "все", "всё"]:
-        data["timers"] = []
-        save_extras_data(data)
-        return True, {"title": "Все таймеры"}
+    ident_lower = identifier.strip().lower() if identifier else ""
+    if not ident_lower or ident_lower in ["all", "все", "всё", "таймер", "таймеры", "активный", "текущий"]:
+        # Find active or first timer
+        if timers:
+            # Stop all active timers or remove the first
+            data["timers"] = []
+            save_extras_data(data)
+            return True, {"title": "Все таймеры"}
+        return True, {"title": "Таймер"}
     for i, tm in enumerate(timers):
         if tm.get("id") == identifier or (ident_lower and ident_lower in tm.get("title", "").lower()):
             removed = timers.pop(i)
             data["timers"] = timers
             save_extras_data(data)
             return True, removed
+    # If no exact match but timers exist, stop the first running timer
+    for i, tm in enumerate(timers):
+        if tm.get("is_running"):
+            removed = timers.pop(i)
+            data["timers"] = timers
+            save_extras_data(data)
+            return True, removed
+    if timers:
+        removed = timers.pop(0)
+        data["timers"] = timers
+        save_extras_data(data)
+        return True, removed
     return False, None
 
 def _stem_ru(w: str) -> str:

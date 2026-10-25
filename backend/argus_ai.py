@@ -1074,11 +1074,27 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         msg = f"Заметка «{n_name}» успешно удалена, сэр." if ok else f"Заметка «{target_n}» не найдена, сэр."
         return {"type": "delete_note", "title": target_n, "message": msg}
 
-    # Timer deletion e.g. "удали таймер", "останови таймер", "отмени таймер", "удали все таймеры"
-    if any(k == c for k in ["удали все таймеры", "удалить все таймеры", "останови все таймеры", "остановить все таймеры", "сбрось все таймеры", "отмени все таймеры", "выключи все таймеры"]):
+    # Stop / Cancel / Delete Timers e.g. "останови таймер", "отмени таймер", "сбрось таймер"
+    stop_timer_triggers = [
+        "удали все таймеры", "удалить все таймеры", "останови все таймеры", "остановить все таймеры",
+        "сбрось все таймеры", "отмени все таймеры", "выключи все таймеры",
+        "останови таймер", "остановить таймер", "стоп таймер", "отмени таймер", "отменить таймер",
+        "выключи таймер", "выключить таймер", "сбрось таймер", "сбросить таймер",
+        "удали таймер", "удалить таймер", "стоп таймеры", "выключить таймеры",
+        "останови отсчет", "остановить отсчет", "сбрось отсчет", "отмени отсчет", "стоп отсчет"
+    ]
+    if any(k in c for k in stop_timer_triggers) or (c.startswith("таймер") and any(w in c for w in ["стоп", "отмена", "отбой", "выкл", "сброс"])):
         ok, found = extras_mgr.delete_timer("all")
-        msg = "Все таймеры успешно остановлены и удалены, сэр."
+        msg = "Таймер успешно остановлен и сброшен, сэр."
         return {"type": "delete_timer", "title": "all", "message": msg}
+
+    # Universal cancellation of active timers on "стоп", "отмена", "отбой"
+    if any(c == w for w in ["стоп", "хватит", "остановись", "прекрати", "отмена", "отбой"]):
+        data = extras_mgr.load_extras_data()
+        running_timers = [t for t in data.get("timers", []) if t.get("is_running") and t.get("remaining_seconds", 0) > 0]
+        if running_timers:
+            extras_mgr.delete_timer("all")
+            return {"type": "delete_timer", "title": "all", "message": "Остановил выполнение и сбросил таймер, сэр."}
 
     m_del_timer = re.match(
         r'^(?:удали|удалить|останови|остановить|отмени|отменить|выключи|выключить|сбрось|сбросить)\s+(?:все\s+|всё\s+)?таймер\w*(?:\s+(.*))?$',
@@ -1087,7 +1103,7 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
     if m_del_timer:
         target_tm = (m_del_timer.group(1) or "all").strip()
         ok, found = extras_mgr.delete_timer(target_tm)
-        msg = "Таймер успешно остановлен и удалён, сэр." if ok else "Активный таймер не найден, сэр."
+        msg = "Таймер успешно остановлен и сброшен, сэр." if ok else "Активный таймер не найден, сэр."
         return {"type": "delete_timer", "title": target_tm, "message": msg}
 
     # List tasks e.g. "покажи задачи", "какие задачи", "список задач", "что по задачам"

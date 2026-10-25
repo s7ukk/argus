@@ -448,6 +448,20 @@ export const App: React.FC = () => {
       }
 
       if (['create_timer', 'delete_timer', 'create_task', 'delete_task', 'complete_task', 'create_note', 'delete_note'].includes(res.action_type || '')) {
+        if (res.action_type === 'delete_timer') {
+          try {
+            const raw = localStorage.getItem('argus_extras_timers');
+            if (raw) {
+              const list: TimerItem[] = JSON.parse(raw);
+              const targetTitle = res.action_data?.title;
+              const updated = (targetTitle && targetTitle !== 'all')
+                ? list.filter((t) => !t.title.toLowerCase().includes(targetTitle.toLowerCase()))
+                : list.map((t) => ({ ...t, is_running: false }));
+              localStorage.setItem('argus_extras_timers', JSON.stringify(updated));
+            }
+          } catch (e) {}
+          (window as any).electronAPI?.updateIslandTimer?.(null);
+        }
         window.dispatchEvent(new CustomEvent('argus_extras_updated'));
       }
     } catch (err: any) {
@@ -557,6 +571,31 @@ export const App: React.FC = () => {
     syncTimer();
     const interval = setInterval(syncTimer, 1000);
     window.addEventListener('argus_extras_updated', syncTimer);
+
+    // Listen for Island action cancellation (stop timer, cancel AI thinking)
+    const handleStopTimer = async () => {
+      try {
+        const raw = localStorage.getItem('argus_extras_timers');
+        if (raw) {
+          const list: TimerItem[] = JSON.parse(raw);
+          const updated = list.map((t) => ({ ...t, is_running: false }));
+          localStorage.setItem('argus_extras_timers', JSON.stringify(updated));
+        }
+      } catch (e) {}
+      (window as any).electronAPI?.updateIslandTimer?.(null);
+      window.dispatchEvent(new CustomEvent('argus_extras_updated'));
+      try {
+        await smartFetch('/api/extras/timer/all', { method: 'DELETE' });
+      } catch (e) {}
+    };
+
+    const handleCancelAi = () => {
+      handleStop();
+    };
+
+    (window as any).electronAPI?.onStopActiveTimer?.(handleStopTimer);
+    (window as any).electronAPI?.onCancelAiAction?.(handleCancelAi);
+
     return () => {
       clearInterval(interval);
       window.removeEventListener('argus_extras_updated', syncTimer);

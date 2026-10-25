@@ -957,7 +957,7 @@ def inspect_action_safety(action: Dict[str, Any], raw_prompt: str = "") -> Optio
             }
 
     # 2. DELETE (Удаление)
-    if act_type in ["delete_file", "delete_folder", "empty_recycle", "delete_note", "delete_task", "delete_timer"]:
+    if act_type in ["delete_file", "delete_folder", "empty_recycle"]:
         if act_type == "delete_file":
             desc = f"Удаление файла: «{action.get('path', 'файл')}»"
         elif act_type == "delete_folder":
