@@ -19,6 +19,7 @@
   "build": {
     "appId": "com.argus.ai",
     "productName": "Argus AI",
+    "electronDist": "node_modules/electron/dist",
     "directories": {
       "output": "release"
     },
