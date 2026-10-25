@@ -60,7 +60,7 @@ export const Header: React.FC<HeaderProps> = ({
           left: 0,
           right: 0,
           height: 1,
-          background: 'linear-gradient(90deg, transparent 0%, rgba(168,85,247,0.6) 30%, rgba(56,189,248,0.5) 70%, transparent 100%)',
+          background: 'linear-gradient(90deg, transparent 0%, var(--accent-glow, rgba(255,255,255,0.4)) 50%, transparent 100%)',
         }}
       />
 
@@ -68,29 +68,27 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="no-drag" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <div
           style={{
-            width: 24,
-            height: 24,
-            borderRadius: 7,
-            background: 'linear-gradient(135deg, rgba(168,85,247,0.35) 0%, rgba(56,189,248,0.2) 100%)',
-            border: '1px solid rgba(168,85,247,0.45)',
+            width: 22,
+            height: 22,
+            borderRadius: 6,
+            background: 'rgba(255, 255, 255, 0.06)',
+            border: '1px solid rgba(255, 255, 255, 0.12)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 0 10px rgba(168,85,247,0.25)',
+            boxShadow: '0 0 10px var(--accent-glow, rgba(255,255,255,0.15))',
           }}
         >
-          <StarburnLogo size={14} />
+          <StarburnLogo size={13} />
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span
             style={{
-              fontSize: 13,
-              fontWeight: 800,
-              letterSpacing: '0.02em',
-              background: 'linear-gradient(135deg, #ffffff 40%, #e9d5ff 75%, #38bdf8 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
+              fontSize: 12.5,
+              fontWeight: 700,
+              letterSpacing: '0.04em',
+              color: '#ffffff',
             }}
           >
             Argus
@@ -98,9 +96,9 @@ export const Header: React.FC<HeaderProps> = ({
           {subtitleText && (
             <span
               style={{
-                fontSize: 10.5,
+                fontSize: 10,
                 fontWeight: 500,
-                color: 'rgba(216, 180, 254, 0.5)',
+                color: 'rgba(255, 255, 255, 0.45)',
               }}
             >
               {subtitleText}
@@ -109,34 +107,8 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
 
-      {/* Center: System Status Telemetry */}
-      <div className="no-drag" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <div
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 5,
-            padding: '2px 8px',
-            borderRadius: 999,
-            background: 'rgba(255, 255, 255, 0.035)',
-            border: '1px solid rgba(255, 255, 255, 0.06)',
-            boxShadow: 'inset 0 0 8px rgba(0,0,0,0.3)',
-          }}
-        >
-          <div
-            style={{
-              width: 5,
-              height: 5,
-              borderRadius: '50%',
-              background: '#34d399',
-              boxShadow: '0 0 8px #34d399',
-            }}
-          />
-          <span style={{ fontSize: 10.5, color: '#cbd5e1', fontWeight: 600 }}>
-            Online
-          </span>
-        </div>
-      </div>
+      {/* Center: Clean space for Dynamic Island / Title */}
+      <div className="no-drag" style={{ flex: 1 }} />
 
       {/* Right: Window Controls (on Windows/Linux) */}
       {!isMac ? (

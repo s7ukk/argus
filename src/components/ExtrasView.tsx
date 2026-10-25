@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { TaskItem, NoteItem, TimerItem, ReminderItem, ExtrasData } from '../types';
 import { smartFetch } from '../api';
+import { Switch } from './Switch';
 
 interface ExtrasViewProps {
   onNotifyTimerFinish?: (timerTitle: string) => void;
@@ -1502,22 +1503,12 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
                         transition: 'all 0.15s ease'
                       }}
                     >
-                      {/* Checkbox */}
-                      <button
-                        onClick={() => handleToggleTask(task.id)}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          cursor: 'pointer',
-                          color: task.completed ? '#10b981' : '#64748b',
-                          padding: 2,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center'
-                        }}
-                      >
-                        {task.completed ? <CheckSquare size={20} /> : <Square size={20} />}
-                      </button>
+                      {/* Apple-style Switch instead of checkbox */}
+                      <Switch
+                        checked={task.completed}
+                        onChange={() => handleToggleTask(task.id)}
+                        size="sm"
+                      />
 
                       {/* Content */}
                       <div style={{ flex: 1, minWidth: 0 }}>

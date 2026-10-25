@@ -49,6 +49,7 @@ import {
   setPluginEntrypoint,
   dictateVoiceSunder
 } from '../api';
+import { Switch } from './Switch';
 
 export const PluginsView: React.FC = () => {
   const [plugins, setPlugins] = useState<PluginInfo[]>([]);
@@ -1247,17 +1248,16 @@ export const PluginsView: React.FC = () => {
                       </button>
                     </div>
 
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginTop: 4 }}>
-                      <input
-                        type="checkbox"
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
+                      <Switch
                         checked={voiceSunderAutoEnter}
-                        onChange={(e) => updateVoiceSunderSetting('autoEnter', e.target.checked)}
-                        style={{ width: 16, height: 16, accentColor: '#38bdf8', cursor: 'pointer' }}
+                        onChange={(checked) => updateVoiceSunderSetting('autoEnter', checked)}
+                        size="sm"
                       />
                       <span style={{ fontSize: 12.5, color: '#cbd5e1', fontWeight: 500 }}>
                         Нажимать Enter после окончания диктовки
                       </span>
-                    </label>
+                    </div>
                   </div>
                 </div>
 

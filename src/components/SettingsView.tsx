@@ -14,9 +14,18 @@ import {
   Cpu,
   Layers,
   KeyRound,
-  ExternalLink
+  ExternalLink,
+  Palette
 } from 'lucide-react';
 import { AppSettings, BrowserInfo } from '../types';
+import { Switch } from './Switch';
+import {
+  THEME_PRESETS,
+  loadThemeConfig,
+  applyThemeConfig,
+  ThemeConfig,
+  NavPosition
+} from '../utils/theme';
 import {
   fetchSettings,
   updateSettings,
@@ -47,6 +56,13 @@ export const SettingsView: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [browsers, setBrowsers] = useState<BrowserInfo[]>([]);
+  const [themeConfig, setThemeConfig] = useState<ThemeConfig>(() => loadThemeConfig());
+
+  const handleUpdateTheme = (updated: Partial<ThemeConfig>) => {
+    const next = { ...themeConfig, ...updated };
+    setThemeConfig(next);
+    applyThemeConfig(next);
+  };
 
   // Fish Audio preview test state
   const [testingFish, setTestingFish] = useState(false);
@@ -283,6 +299,160 @@ export const SettingsView: React.FC = () => {
           width: '100%',
         }}
       >
+        {/* 0. Appearance & Liquid Glass Theme Engine */}
+        <div
+          className="anim-fade-up"
+          style={{
+            gridColumn: '1 / -1',
+            padding: 24,
+            borderRadius: 22,
+            background: 'rgba(12, 12, 16, 0.82)',
+            backdropFilter: 'blur(30px) saturate(190%)',
+            WebkitBackdropFilter: 'blur(30px) saturate(190%)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            boxShadow: '0 14px 40px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.12)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 20,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: '50%',
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--accent, #ffffff)',
+                  boxShadow: '0 0 16px var(--accent-glow, rgba(255, 255, 255, 0.2))',
+                }}
+              >
+                <Palette size={18} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: 16, fontWeight: 700, color: '#ffffff' }}>
+                  Внешний вид & Liquid Glass
+                </h3>
+                <p style={{ fontSize: 12, color: '#94a3b8' }}>
+                  Настройка цветовой палитры, стиля стекла и расположения панели навигации
+                </p>
+              </div>
+            </div>
+
+            {/* Nav Position Switcher */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255, 255, 255, 0.04)', padding: '4px', borderRadius: 9999, border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: '#64748b', padding: '0 8px' }}>Панель меню:</span>
+              {[
+                { pos: 'top' as NavPosition, label: 'Сверху (дефолт)' },
+                { pos: 'left' as NavPosition, label: 'Слева' },
+                { pos: 'right' as NavPosition, label: 'Справа' },
+              ].map((item) => {
+                const isSelected = themeConfig.navPosition === item.pos;
+                return (
+                  <button
+                    key={item.pos}
+                    onClick={() => handleUpdateTheme({ navPosition: item.pos })}
+                    style={{
+                      padding: '5px 12px',
+                      borderRadius: 9999,
+                      border: isSelected ? '1px solid rgba(255, 255, 255, 0.25)' : '1px solid transparent',
+                      background: isSelected ? 'rgba(255, 255, 255, 0.14)' : 'transparent',
+                      color: isSelected ? '#ffffff' : '#94a3b8',
+                      fontSize: 11.5,
+                      fontWeight: isSelected ? 600 : 500,
+                      cursor: 'pointer',
+                      transition: 'all 0.18s ease',
+                    }}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Color Palettes & Custom Picker */}
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#cbd5e1', marginBottom: 10 }}>
+              Цветовая тема приложения:
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+              {THEME_PRESETS.map((preset) => {
+                const isActive = themeConfig.accentColor.toLowerCase() === preset.hex.toLowerCase();
+                return (
+                  <button
+                    key={preset.id}
+                    onClick={() => handleUpdateTheme({ accentColor: preset.hex, presetId: preset.id })}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '7px 14px',
+                      borderRadius: 9999,
+                      background: isActive ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.04)',
+                      border: isActive ? `1.5px solid ${preset.hex}` : '1px solid rgba(255, 255, 255, 0.08)',
+                      boxShadow: isActive ? `0 0 14px rgba(${preset.rgb}, 0.35)` : 'none',
+                      cursor: 'pointer',
+                      color: isActive ? '#ffffff' : '#94a3b8',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 10,
+                        height: 10,
+                        borderRadius: '50%',
+                        background: preset.hex,
+                        boxShadow: `0 0 8px ${preset.hex}`,
+                      }}
+                    />
+                    <span>{preset.name}</span>
+                  </button>
+                );
+              })}
+
+              {/* Custom Color Input */}
+              <label
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '5px 12px',
+                  borderRadius: 9999,
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  cursor: 'pointer',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: '#ffffff',
+                }}
+              >
+                <input
+                  type="color"
+                  value={themeConfig.accentColor}
+                  onChange={(e) => handleUpdateTheme({ accentColor: e.target.value, presetId: 'custom' })}
+                  style={{
+                    width: 20,
+                    height: 20,
+                    borderRadius: '50%',
+                    border: 'none',
+                    cursor: 'pointer',
+                    background: 'transparent',
+                  }}
+                />
+                <span>Палитра цветов</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
         {/* 1. Voice Input & Trigger Words */}
         <div
           className="glass-card"
@@ -761,11 +931,10 @@ export const SettingsView: React.FC = () => {
                 Если на компьютере несколько браузеров, ИИ перечислит их и уточнит ваш выбор
               </div>
             </div>
-            <input
-              type="checkbox"
+            <Switch
               checked={settings.browser_mode === 'ask'}
-              onChange={(e) => setSettings({ ...settings, browser_mode: e.target.checked ? 'ask' : 'default' })}
-              style={{ width: 18, height: 18, accentColor: '#a855f7', cursor: 'pointer' }}
+              onChange={(checked) => setSettings({ ...settings, browser_mode: checked ? 'ask' : 'default' })}
+              size="md"
             />
           </div>
 
@@ -882,11 +1051,10 @@ export const SettingsView: React.FC = () => {
                 ИИ автоматически находит и через pip скачивает недостающие пакеты при падении скрипта
               </div>
             </div>
-            <input
-              type="checkbox"
+            <Switch
               checked={settings.auto_heal_plugins}
-              onChange={(e) => setSettings({ ...settings, auto_heal_plugins: e.target.checked })}
-              style={{ width: 18, height: 18, accentColor: '#4ade80', cursor: 'pointer' }}
+              onChange={(checked) => setSettings({ ...settings, auto_heal_plugins: checked })}
+              size="md"
             />
           </div>
 

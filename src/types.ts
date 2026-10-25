@@ -26,6 +26,9 @@ export interface ChatMessage {
   action_data?: any;
   created_at: string;
   audio_base64?: string;
+  thinking_duration?: string | number;
+  sent_time?: string;
+  response_time?: string;
 }
 
 export interface SystemStats {

@@ -1,12 +1,14 @@
 import React from 'react';
 import { MessageSquare, Boxes, Cpu, Info, Sparkles, User, Settings, Workflow, BookmarkCheck } from 'lucide-react';
 import { UserProfile, NavTab } from '../types';
+import { NavPosition } from '../utils/theme';
 
 interface NavDockProps {
   activeTab: NavTab;
   onTabChange: (tab: NavTab) => void;
   profile: UserProfile;
   onOpenProfile: () => void;
+  position?: NavPosition;
 }
 
 export const NavDock: React.FC<NavDockProps> = ({
@@ -14,159 +16,183 @@ export const NavDock: React.FC<NavDockProps> = ({
   onTabChange,
   profile,
   onOpenProfile,
+  position = 'top',
 }) => {
-  const tabs: { id: NavTab; number: number; label: string; icon: React.ReactNode }[] = [
-    { id: 'chat', number: 1, label: 'Чат', icon: <MessageSquare size={17} /> },
-    { id: 'scenarios', number: 2, label: 'Сценарии', icon: <Workflow size={17} /> },
-    { id: 'plugins', number: 3, label: 'Плагины', icon: <Boxes size={17} /> },
-    { id: 'extras', number: 4, label: 'Дополнительно', icon: <BookmarkCheck size={17} /> },
-    { id: 'system', number: 5, label: 'Система', icon: <Cpu size={17} /> },
-    { id: 'about', number: 6, label: 'О системе', icon: <Info size={17} /> },
-    { id: 'settings', number: 7, label: 'Настройки', icon: <Settings size={17} /> },
+  const tabs: { id: NavTab; label: string; icon: React.ReactNode }[] = [
+    { id: 'chat', label: 'Чат', icon: <MessageSquare size={14} /> },
+    { id: 'scenarios', label: 'Сценарии', icon: <Workflow size={14} /> },
+    { id: 'plugins', label: 'Плагины', icon: <Boxes size={14} /> },
+    { id: 'extras', label: 'Инструменты', icon: <BookmarkCheck size={14} /> },
+    { id: 'system', label: 'Система', icon: <Cpu size={14} /> },
+    { id: 'about', label: 'О системе', icon: <Info size={14} /> },
+    { id: 'settings', label: 'Настройки', icon: <Settings size={14} /> },
   ];
 
+  const isVertical = position === 'left' || position === 'right';
+
   return (
-    <div
+    <nav
+      className="no-drag anim-fade-in"
       style={{
-        width: 68,
-        height: '100%',
-        background: 'rgba(8, 6, 16, 0.95)',
-        backdropFilter: 'blur(20px)',
-        borderRight: '1px solid rgba(255, 255, 255, 0.08)',
+        zIndex: 40,
         display: 'flex',
-        flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '14px 0',
-        zIndex: 30,
         userSelect: 'none',
-        flexShrink: 0,
+        transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+        ...(position === 'top'
+          ? {
+              position: 'relative',
+              justifyContent: 'center',
+              padding: '6px 0 2px 0',
+              width: '100%',
+              flexShrink: 0,
+            }
+          : {
+              height: '100%',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              padding: '12px 6px',
+              flexShrink: 0,
+            }),
       }}
     >
-      {/* Top Logo / Core Icon */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+      {/* ─── FLOATING CAPSULE PILL ─── */}
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: isVertical ? 'column' : 'row',
+          alignItems: 'center',
+          gap: 3,
+          padding: isVertical ? '8px 4px' : '4px 6px',
+          borderRadius: 9999,
+          background: 'rgba(12, 12, 16, 0.82)',
+          backdropFilter: 'blur(30px) saturate(190%)',
+          WebkitBackdropFilter: 'blur(30px) saturate(190%)',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
+          boxShadow: '0 12px 36px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.15), 0 0 20px var(--accent-glow, rgba(255, 255, 255, 0.08))',
+          transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+        }}
+      >
+        {/* Sparkle Core Mini Icon */}
         <button
           onClick={() => onTabChange('chat')}
           style={{
-            width: 44,
-            height: 44,
-            borderRadius: 14,
-            background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.25) 0%, rgba(56, 189, 248, 0.2) 100%)',
-            border: '1px solid rgba(168, 85, 247, 0.4)',
-            boxShadow: '0 0 20px rgba(168, 85, 247, 0.35)',
+            width: 28,
+            height: 28,
+            borderRadius: '50%',
+            background: 'rgba(255, 255, 255, 0.06)',
+            border: '1px solid rgba(255, 255, 255, 0.12)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             cursor: 'pointer',
-            transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+            color: 'var(--accent, #ffffff)',
+            flexShrink: 0,
+            transition: 'all 0.2s ease',
           }}
-          title="Argus Neural Core"
+          title="Argus Core"
         >
-          <Sparkles size={20} color="#c084fc" />
+          <Sparkles size={13} />
         </button>
 
-        {/* Vertical Divider */}
-        <div style={{ width: 32, height: 1, background: 'rgba(255, 255, 255, 0.08)' }} />
+        {/* Subtle Separator */}
+        <div
+          style={{
+            background: 'rgba(255, 255, 255, 0.1)',
+            ...(isVertical
+              ? { width: 18, height: 1, margin: '2px 0' }
+              : { width: 1, height: 18, margin: '0 3px' }),
+          }}
+        />
 
-        {/* Numbered Navigation Tabs matching user's sketch (1, 2, 3, 4) */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {tabs.map((tab) => {
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => onTabChange(tab.id)}
-                style={{
-                  position: 'relative',
-                  width: 48,
-                  height: 48,
-                  borderRadius: 14,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 2,
-                  cursor: 'pointer',
-                  border: isActive
-                    ? '1px solid rgba(168, 85, 247, 0.6)'
-                    : '1px solid rgba(255, 255, 255, 0.06)',
-                  background: isActive
-                    ? 'linear-gradient(135deg, rgba(168, 85, 247, 0.3) 0%, rgba(124, 58, 237, 0.25) 100%)'
-                    : 'rgba(255, 255, 255, 0.03)',
-                  boxShadow: isActive ? '0 0 16px rgba(168, 85, 247, 0.4), inset 0 0 12px rgba(168, 85, 247, 0.2)' : 'none',
-                  color: isActive ? '#ffffff' : '#64748b',
-                  transition: 'all 0.18s ease',
-                }}
-                title={`${tab.number}. ${tab.label}`}
-              >
-                {/* Active Indicator Bar */}
-                {isActive && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      left: -8,
-                      width: 3.5,
-                      height: 22,
-                      borderRadius: '0 4px 4px 0',
-                      background: 'linear-gradient(180deg, #c084fc 0%, #38bdf8 100%)',
-                      boxShadow: '0 0 8px #a855f7',
-                    }}
-                  />
-                )}
+        {/* Tab Buttons (Miniature, no number badges) */}
+        {tabs.map((tab) => {
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => onTabChange(tab.id)}
+              style={{
+                position: 'relative',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: isVertical ? '7px 8px' : '5px 11px',
+                borderRadius: 9999,
+                fontSize: 11.5,
+                fontWeight: isActive ? 600 : 500,
+                letterSpacing: '0.01em',
+                cursor: 'pointer',
+                border: isActive
+                  ? '1px solid rgba(255, 255, 255, 0.22)'
+                  : '1px solid transparent',
+                background: isActive
+                  ? 'linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.05) 100%)'
+                  : 'transparent',
+                color: isActive ? '#ffffff' : '#94a3b8',
+                boxShadow: isActive
+                  ? '0 2px 10px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.2)'
+                  : 'none',
+                transition: 'all 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
+                whiteSpace: 'nowrap',
+              }}
+              onMouseEnter={(e) => {
+                if (!isActive) {
+                  e.currentTarget.style.color = '#ffffff';
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isActive) {
+                  e.currentTarget.style.color = '#94a3b8';
+                  e.currentTarget.style.background = 'transparent';
+                }
+              }}
+              title={tab.label}
+            >
+              <span style={{ color: isActive ? 'var(--accent, #ffffff)' : 'inherit', display: 'flex' }}>
+                {tab.icon}
+              </span>
+              {!isVertical && <span>{tab.label}</span>}
+            </button>
+          );
+        })}
 
-                {/* Number Badge at Top Right */}
-                <span
-                  style={{
-                    position: 'absolute',
-                    top: 3,
-                    right: 5,
-                    fontSize: 9,
-                    fontWeight: 800,
-                    fontFamily: 'ui-monospace, monospace',
-                    color: isActive ? '#c084fc' : '#475569',
-                  }}
-                >
-                  {tab.number}
-                </span>
+        {/* Subtle Separator */}
+        <div
+          style={{
+            background: 'rgba(255, 255, 255, 0.1)',
+            ...(isVertical
+              ? { width: 18, height: 1, margin: '2px 0' }
+              : { width: 1, height: 18, margin: '0 3px' }),
+          }}
+        />
 
-                <div style={{ marginTop: 2 }}>{tab.icon}</div>
-                <span
-                  style={{
-                    fontSize: 9.5,
-                    fontWeight: 700,
-                    letterSpacing: '0.02em',
-                    color: isActive ? '#f1f5f9' : '#64748b',
-                    lineHeight: 1,
-                  }}
-                >
-                  {tab.label}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+        {/* Profile Avatar Miniature Button */}
+        <button
+          onClick={onOpenProfile}
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: '50%',
+            background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.04) 100%)',
+            border: '1px solid rgba(255, 255, 255, 0.2)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            color: '#ffffff',
+            fontSize: 11,
+            fontWeight: 700,
+            flexShrink: 0,
+            boxShadow: '0 0 10px var(--accent-glow, rgba(255, 255, 255, 0.15))',
+            transition: 'all 0.18s ease',
+          }}
+          title={`Профиль: ${profile.display_name || 'Пользователь'}`}
+        >
+          {profile.display_name ? profile.display_name.charAt(0).toUpperCase() : <User size={12} />}
+        </button>
       </div>
-
-      {/* Bottom Profile Shortcut */}
-      <button
-        onClick={onOpenProfile}
-        style={{
-          width: 44,
-          height: 44,
-          borderRadius: 14,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-          background: 'rgba(255, 255, 255, 0.04)',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
-          color: '#94a3b8',
-          transition: 'all 0.2s ease',
-        }}
-        title={`Профиль: ${profile.display_name}`}
-      >
-        <User size={18} />
-      </button>
-    </div>
+    </nav>
   );
 };

@@ -1,9 +1,25 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Send, Mic, Square, CheckCircle2, ArrowUpRight, Volume2, VolumeX, Sun, Lock, Camera, Radio, ShieldAlert, MousePointer, XCircle } from 'lucide-react';
+import {
+  Send,
+  Mic,
+  Square,
+  ArrowUpRight,
+  Volume2,
+  VolumeX,
+  Sun,
+  Lock,
+  Camera,
+  Radio,
+  Clock,
+  Zap,
+  ShieldAlert,
+  Sparkles
+} from 'lucide-react';
 import { smartFetch } from '../api';
 import { ChatMessage, UserProfile } from '../types';
 import { StarburnCore } from './StarburnCore';
 import { StarburnLogo, TelegramIcon, SpotifyIcon } from './Icons';
+import { MarkdownRenderer } from './MarkdownRenderer';
 
 interface ChatViewProps {
   messages: ChatMessage[];
@@ -21,59 +37,6 @@ interface ChatViewProps {
   onFinishStreaming?: () => void;
 }
 
-// ─── SMOOTH TYPEWRITER TEXT COMPONENT ─────────────────────────────
-const TypewriterText: React.FC<{
-  text: string;
-  isStreaming?: boolean;
-  onFinish?: () => void;
-}> = ({ text, isStreaming = false, onFinish }) => {
-  const [displayedLength, setDisplayedLength] = useState(isStreaming ? 0 : text.length);
-
-  useEffect(() => {
-    if (!isStreaming) {
-      setDisplayedLength(text.length);
-      return;
-    }
-
-    if (displayedLength >= text.length) {
-      onFinish?.();
-      return;
-    }
-
-    // Dynamic typing speed: longer text steps by 2-3 characters to keep it responsive (~1.5s total max)
-    const step = text.length > 300 ? 3 : text.length > 80 ? 2 : 1;
-    const timer = setTimeout(() => {
-      setDisplayedLength((prev) => Math.min(text.length, prev + step));
-    }, 18);
-
-    return () => clearTimeout(timer);
-  }, [displayedLength, text, isStreaming, onFinish]);
-
-  const visibleText = isStreaming ? text.slice(0, displayedLength) : text;
-  const isTyping = isStreaming && displayedLength < text.length;
-
-  return (
-    <span>
-      {visibleText}
-      {isTyping && (
-        <span
-          className="anim-dot"
-          style={{
-            display: 'inline-block',
-            width: 7,
-            height: 14,
-            marginLeft: 3,
-            verticalAlign: '-2px',
-            background: 'linear-gradient(180deg, #c084fc 0%, #ec4899 100%)',
-            borderRadius: 3,
-            boxShadow: '0 0 10px rgba(192, 132, 252, 0.8)',
-          }}
-        />
-      )}
-    </span>
-  );
-};
-
 export const ChatView: React.FC<ChatViewProps> = ({
   messages,
   loading,
@@ -90,8 +53,19 @@ export const ChatView: React.FC<ChatViewProps> = ({
   onFinishStreaming,
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
+
+  // Auto-resize textarea dynamically
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      const scrollHeight = textareaRef.current.scrollHeight;
+      // Clamp between 38px and 140px
+      textareaRef.current.style.height = `${Math.min(Math.max(scrollHeight, 38), 140)}px`;
+    }
+  }, [inputText]);
 
   const handlePlayMessageAudio = async (msg: ChatMessage) => {
     if (playingAudioId === msg.id) {
@@ -149,7 +123,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
     }
   };
 
-  const scrollToBottom = (behavior: ScrollBehavior = 'auto') => {
+  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
     messagesEndRef.current?.scrollIntoView({ behavior });
   };
 
@@ -157,20 +131,24 @@ export const ChatView: React.FC<ChatViewProps> = ({
     scrollToBottom('auto');
   }, [messages.length, loading]);
 
-  useEffect(() => {
-    if (streamingMessageId) {
-      scrollToBottom('smooth');
-    }
-  }, [streamingMessageId]);
-
   const quickPrompts = [
-    { label: 'Скриншот экрана', cmd: 'сделай скрин экрана и сохрани на рабочий стол', icon: <Camera size={14} color="#38bdf8" /> },
-    { label: 'Звук 50%', cmd: 'поставь звук на 50%', icon: <Volume2 size={14} color="#c084fc" /> },
-    { label: 'Яркость 80%', cmd: 'установи яркость на 80%', icon: <Sun size={14} color="#fbbf24" /> },
-    { label: 'Telegram', cmd: 'открой телеграм', icon: <TelegramIcon size={15} /> },
-    { label: 'Spotify', cmd: 'включи спотифай', icon: <SpotifyIcon size={15} /> },
-    { label: 'Блокировка ПК', cmd: 'заблокируй компьютер', icon: <Lock size={14} color="#f87171" /> },
+    { label: 'Скриншот экрана', cmd: 'сделай скрин экрана и сохрани на рабочий стол', icon: <Camera size={13} color="var(--accent, #ffffff)" /> },
+    { label: 'Звук 50%', cmd: 'поставь звук на 50%', icon: <Volume2 size={13} color="var(--accent, #ffffff)" /> },
+    { label: 'Яркость 80%', cmd: 'установи яркость на 80%', icon: <Sun size={13} color="var(--accent, #ffffff)" /> },
+    { label: 'Telegram', cmd: 'открой телеграм', icon: <TelegramIcon size={14} /> },
+    { label: 'Spotify', cmd: 'включи спотифай', icon: <SpotifyIcon size={14} /> },
+    { label: 'Блокировка ПК', cmd: 'заблокируй компьютер', icon: <Lock size={13} color="var(--accent, #ffffff)" /> },
   ];
+
+  const formatMessageTime = (dateStr?: string) => {
+    if (!dateStr) return '';
+    try {
+      const d = new Date(dateStr);
+      return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return '';
+    }
+  };
 
   const canStop = loading || isSpeaking || Boolean(streamingMessageId);
 
@@ -186,12 +164,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
         userSelect: 'none',
       }}
     >
-      {/* Scrollable Message List */}
+      {/* ─── SCROLLABLE MESSAGE LIST ─── */}
       <div
         style={{
           flex: 1,
           overflowY: 'auto',
-          padding: '24px 32px',
+          padding: '20px 28px',
           display: 'flex',
           flexDirection: 'column',
           gap: 16,
@@ -204,33 +182,30 @@ export const ChatView: React.FC<ChatViewProps> = ({
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              minHeight: '66vh',
+              minHeight: '64vh',
               maxWidth: 580,
               margin: '0 auto',
               textAlign: 'center',
               gap: 16,
             }}
           >
-            {/* Celestial Core Visualizer */}
-            <StarburnCore isListening={isListening} isSpeaking={isSpeaking} size={170} />
+            {/* Realtime Core Visualizer */}
+            <StarburnCore isListening={isListening} isSpeaking={isSpeaking} size={150} />
 
-            <div style={{ marginTop: -4 }}>
+            <div style={{ marginTop: -2 }}>
               <h2
                 style={{
-                  fontSize: 23,
-                  fontWeight: 800,
+                  fontSize: 22,
+                  fontWeight: 700,
                   color: '#ffffff',
                   letterSpacing: '-0.02em',
                   marginBottom: 6,
-                  background: 'linear-gradient(135deg, #ffffff 40%, #e9d5ff 75%, #f472b6 100%)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
                 }}
               >
                 {profile.display_name ? `${profile.display_name}, ` : ''}Argus готов к работе
               </h2>
               <p style={{ fontSize: 13, color: '#94a3b8', maxWidth: 440, lineHeight: 1.5 }}>
-                Управляйте компьютером голосом и текстом: звук, экран, приложения, сайты или живой диалог.
+                Управляйте компьютером голосом и текстом: приложения, задачи, заметки, код или живой диалог.
               </p>
             </div>
 
@@ -241,7 +216,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 gridTemplateColumns: 'repeat(3, 1fr)',
                 gap: 8,
                 width: '100%',
-                marginTop: 4,
+                marginTop: 6,
               }}
             >
               {quickPrompts.map((p, idx) => (
@@ -249,26 +224,36 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   key={idx}
                   onClick={() => { if (!loading) onQuickAction(p.cmd); }}
                   disabled={loading}
-                  className="glass-card"
                   style={{
-                    padding: '10px 12px',
+                    padding: '9px 12px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     cursor: loading ? 'not-allowed' : 'pointer',
                     opacity: loading ? 0.6 : 1,
                     textAlign: 'left',
-                    borderRadius: 14,
-                    border: '1px solid rgba(255, 255, 255, 0.06)',
+                    borderRadius: 9999,
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
                     background: 'rgba(255, 255, 255, 0.03)',
-                    transition: 'all 0.18s ease',
+                    backdropFilter: 'blur(16px)',
+                    transition: 'all 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.25)';
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.07)';
+                    e.currentTarget.style.transform = 'translateY(-1px) scale(1.02)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';
+                    e.currentTarget.style.transform = 'none';
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7, overflow: 'hidden' }}>
                     <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>{p.icon}</div>
                     <span
                       style={{
-                        fontSize: 12,
+                        fontSize: 11.5,
                         fontWeight: 600,
                         color: '#f1f5f9',
                         overflow: 'hidden',
@@ -279,7 +264,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                       {p.label}
                     </span>
                   </div>
-                  <ArrowUpRight size={12} color="#64748b" style={{ flexShrink: 0 }} />
+                  <ArrowUpRight size={11} color="#64748b" style={{ flexShrink: 0 }} />
                 </button>
               ))}
             </div>
@@ -287,7 +272,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
         ) : (
           messages.map((msg) => {
             const isUser = msg.role === 'user';
-            const isStreamingThis = !isUser && msg.id === streamingMessageId;
+            const sentTimeStr = msg.sent_time || formatMessageTime(msg.created_at);
+            const respTimeStr = msg.response_time || formatMessageTime(msg.created_at);
 
             return (
               <div
@@ -297,7 +283,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   display: 'flex',
                   alignItems: 'flex-start',
                   gap: 10,
-                  maxWidth: 720,
+                  maxWidth: 780,
                   width: '100%',
                   alignSelf: isUser ? 'flex-end' : 'flex-start',
                   flexDirection: isUser ? 'row-reverse' : 'row',
@@ -306,88 +292,76 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 {/* Avatar Badge */}
                 <div
                   style={{
-                    width: 32,
-                    height: 32,
+                    width: 30,
+                    height: 30,
                     borderRadius: '50%',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     flexShrink: 0,
-                    fontSize: 12,
+                    fontSize: 11.5,
                     fontWeight: 700,
                     background: isUser
-                      ? 'linear-gradient(135deg, #8b5cf6 0%, #d946ef 100%)'
-                      : 'linear-gradient(135deg, rgba(139, 92, 246, 0.3) 0%, rgba(217, 70, 239, 0.15) 100%)',
-                    border: isUser
-                      ? '1.5px solid rgba(255, 255, 255, 0.3)'
-                      : '1.5px solid rgba(168, 85, 247, 0.45)',
+                      ? 'linear-gradient(135deg, rgba(255, 255, 255, 0.25) 0%, rgba(255, 255, 255, 0.08) 100%)'
+                      : 'rgba(255, 255, 255, 0.06)',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
                     color: '#ffffff',
-                    boxShadow: isUser ? '0 4px 14px rgba(139, 92, 246, 0.35)' : '0 2px 10px rgba(0,0,0,0.3)',
+                    boxShadow: '0 2px 10px rgba(0, 0, 0, 0.35)',
                   }}
                 >
                   {isUser ? (
                     profile.display_name ? profile.display_name.charAt(0).toUpperCase() : 'U'
                   ) : (
-                    <StarburnLogo size={18} />
+                    <StarburnLogo size={15} />
                   )}
                 </div>
 
-                {/* Message Capsule */}
+                {/* Message Bubble & Metadata */}
                 <div
                   style={{
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: 6,
-                    maxWidth: '82%',
+                    gap: 5,
+                    maxWidth: '85%',
                     alignItems: isUser ? 'flex-end' : 'flex-start',
                     userSelect: 'text',
                   }}
                 >
                   <div
                     style={{
-                      padding: '11px 17px',
-                      borderRadius: isUser ? '20px 20px 5px 20px' : '20px 20px 20px 5px',
+                      padding: '12px 18px',
+                      borderRadius: isUser ? '20px 20px 6px 20px' : '20px 20px 20px 6px',
                       fontSize: 13.5,
-                      lineHeight: 1.58,
-                      whiteSpace: 'pre-wrap',
-                      wordBreak: 'break-word',
+                      lineHeight: 1.6,
                       ...(isUser
                         ? {
-                            background: 'linear-gradient(135deg, #7c3aed 0%, #9333ea 50%, #c026d3 100%)',
+                            background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.06) 100%)',
                             color: '#ffffff',
-                            boxShadow: '0 4px 18px rgba(124, 58, 237, 0.32)',
-                            border: '1px solid rgba(255, 255, 255, 0.18)',
+                            border: '1px solid rgba(255, 255, 255, 0.16)',
+                            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
+                            backdropFilter: 'blur(20px)',
+                            whiteSpace: 'pre-wrap',
+                            wordBreak: 'break-word',
                           }
                         : {
-                            background: 'rgba(22, 17, 40, 0.72)',
-                            border: '1px solid rgba(168, 85, 247, 0.22)',
-                            backdropFilter: 'blur(20px)',
+                            background: 'rgba(12, 12, 16, 0.78)',
+                            border: '1px solid rgba(255, 255, 255, 0.08)',
+                            backdropFilter: 'blur(28px) saturate(190%)',
                             color: '#f8fafc',
-                            boxShadow: '0 6px 24px rgba(0, 0, 0, 0.35)',
+                            boxShadow: '0 8px 30px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
                           }),
                     }}
                   >
                     {isUser ? (
                       msg.content
                     ) : (
-                      <TypewriterText
-                        text={msg.content}
-                        isStreaming={isStreamingThis}
-                        onFinish={onFinishStreaming}
-                      />
+                      <MarkdownRenderer content={msg.content} />
                     )}
                   </div>
 
-                  {/* Interactive Wizard & Options Buttons */}
+                  {/* Wizard / Suggested Options Buttons */}
                   {msg.action_data?.options && Array.isArray(msg.action_data.options) && msg.action_data.options.length > 0 && (
-                    <div
-                      style={{
-                        display: 'flex',
-                        flexWrap: 'wrap',
-                        gap: 8,
-                        marginTop: 4,
-                      }}
-                    >
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
                       {msg.action_data.options.map((opt: any, optIdx: number) => {
                         const optLabel = typeof opt === 'string' ? opt : (opt.label || opt.name);
                         const optCmd = typeof opt === 'string' ? opt : (opt.cmd || opt.name || opt.label);
@@ -400,29 +374,26 @@ export const ChatView: React.FC<ChatViewProps> = ({
                               display: 'inline-flex',
                               alignItems: 'center',
                               gap: 6,
-                              padding: '8px 16px',
-                              borderRadius: 12,
-                              background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.28) 0%, rgba(217, 70, 239, 0.22) 100%)',
-                              border: '1px solid rgba(168, 85, 247, 0.5)',
+                              padding: '6px 14px',
+                              borderRadius: 9999,
+                              background: 'rgba(255, 255, 255, 0.06)',
+                              border: '1px solid rgba(255, 255, 255, 0.14)',
                               color: '#ffffff',
-                              fontSize: 13,
+                              fontSize: 12,
                               fontWeight: 600,
                               cursor: loading ? 'not-allowed' : 'pointer',
-                              opacity: loading ? 0.6 : 1,
-                              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                              boxShadow: '0 4px 14px rgba(0, 0, 0, 0.3)',
+                              transition: 'all 0.18s ease',
+                              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
                             }}
                             onMouseEnter={(e) => {
-                              e.currentTarget.style.background = 'linear-gradient(135deg, rgba(139, 92, 246, 0.5) 0%, rgba(217, 70, 239, 0.4) 100%)';
-                              e.currentTarget.style.borderColor = 'rgba(192, 132, 252, 0.85)';
-                              e.currentTarget.style.transform = 'translateY(-2px)';
-                              e.currentTarget.style.boxShadow = '0 6px 20px rgba(168, 85, 247, 0.4)';
+                              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.12)';
+                              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.3)';
+                              e.currentTarget.style.transform = 'translateY(-1px)';
                             }}
                             onMouseLeave={(e) => {
-                              e.currentTarget.style.background = 'linear-gradient(135deg, rgba(139, 92, 246, 0.28) 0%, rgba(217, 70, 239, 0.22) 100%)';
-                              e.currentTarget.style.borderColor = 'rgba(168, 85, 247, 0.5)';
-                              e.currentTarget.style.transform = 'translateY(0)';
-                              e.currentTarget.style.boxShadow = '0 4px 14px rgba(0, 0, 0, 0.3)';
+                              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
+                              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.14)';
+                              e.currentTarget.style.transform = 'none';
                             }}
                           >
                             <span>{optLabel}</span>
@@ -432,92 +403,96 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     </div>
                   )}
 
-                  {/* Assistant Actions Bar: Listen / Replay Voice + System Action Badge */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
-                    {msg.role === 'assistant' && (
-                      <button
-                        onClick={() => handlePlayMessageAudio(msg)}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 5,
-                          padding: '3px 9px',
-                          borderRadius: 8,
-                          background: playingAudioId === msg.id ? 'rgba(168, 85, 247, 0.25)' : 'rgba(255, 255, 255, 0.04)',
-                          border: `1px solid ${playingAudioId === msg.id ? 'rgba(168, 85, 247, 0.5)' : 'rgba(255, 255, 255, 0.08)'}`,
-                          color: playingAudioId === msg.id ? '#c084fc' : '#94a3b8',
-                          fontSize: 11,
-                          fontWeight: 500,
-                          cursor: 'pointer',
-                          transition: 'all 0.15s ease'
-                        }}
-                        title={playingAudioId === msg.id ? 'Остановить воспроизведение' : 'Озвучить ответ голосом Дмитрия'}
-                      >
-                        {playingAudioId === msg.id ? <VolumeX size={12} /> : <Volume2 size={12} />}
-                        <span>{playingAudioId === msg.id ? 'Остановить' : 'Озвучить'}</span>
-                      </button>
-                    )}
-
-                    {msg.action_type && (
-                      <div
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 6,
-                          padding: '3px 10px',
-                          borderRadius: 9999,
-                          background: msg.action_type === 'confirmation_required' 
-                            ? 'rgba(245, 158, 11, 0.15)' 
-                            : msg.action_type === 'cancelled'
-                            ? 'rgba(239, 68, 68, 0.15)'
-                            : msg.action_type === 'computer_use_task' || msg.action_type === 'click_button' || msg.action_type === 'mouse_click'
-                            ? 'rgba(168, 85, 247, 0.15)'
-                            : 'rgba(16, 185, 129, 0.12)',
-                          border: `1px solid ${
-                            msg.action_type === 'confirmation_required'
-                              ? 'rgba(245, 158, 11, 0.4)'
-                              : msg.action_type === 'cancelled'
-                              ? 'rgba(239, 68, 68, 0.4)'
-                              : msg.action_type === 'computer_use_task' || msg.action_type === 'click_button' || msg.action_type === 'mouse_click'
-                              ? 'rgba(168, 85, 247, 0.4)'
-                              : 'rgba(16, 185, 129, 0.3)'
-                          }`,
-                          color: msg.action_type === 'confirmation_required'
-                            ? '#fbbf24'
-                            : msg.action_type === 'cancelled'
-                            ? '#f87171'
-                            : msg.action_type === 'computer_use_task' || msg.action_type === 'click_button' || msg.action_type === 'mouse_click'
-                            ? '#c084fc'
-                            : '#34d399',
-                          fontSize: 10.5,
-                          fontFamily: 'ui-monospace, monospace',
-                          fontWeight: 600,
-                          boxShadow: '0 0 12px rgba(0, 0, 0, 0.2)',
-                        }}
-                      >
-                        {msg.action_type === 'confirmation_required' ? (
-                          <ShieldAlert size={12} />
-                        ) : msg.action_type === 'cancelled' ? (
-                          <XCircle size={12} />
-                        ) : msg.action_type === 'computer_use_task' || msg.action_type === 'click_button' || msg.action_type === 'mouse_click' ? (
-                          <MousePointer size={12} />
-                        ) : (
-                          <CheckCircle2 size={12} />
-                        )}
-                        <span>
-                          {msg.action_type === 'confirmation_required'
-                            ? 'Подтверждение безопасности'
-                            : msg.action_type === 'cancelled'
-                            ? 'Действие отменено'
-                            : msg.action_type === 'computer_use_task'
-                            ? 'Управление компьютером'
-                            : msg.action_type === 'click_button'
-                            ? 'Клик по интерфейсу'
-                            : msg.action_type === 'mouse_click'
-                            ? 'Действие мыши'
-                            : msg.action_type}
-                        </span>
+                  {/* Bottom Message Metadata: Timestamps & Thinking Duration (NO raw technical badges) */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '0 4px',
+                      fontSize: 10.5,
+                      color: '#64748b',
+                      userSelect: 'none',
+                    }}
+                  >
+                    {isUser ? (
+                      /* User message sent time */
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <Clock size={10} />
+                        <span>{sentTimeStr}</span>
                       </div>
+                    ) : (
+                      /* Assistant metadata */
+                      <>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <Clock size={10} />
+                          <span>{respTimeStr}</span>
+                        </div>
+
+                        {msg.thinking_duration && (
+                          <div
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 3,
+                              padding: '1px 6px',
+                              borderRadius: 9999,
+                              background: 'rgba(255, 255, 255, 0.04)',
+                              border: '1px solid rgba(255, 255, 255, 0.08)',
+                              color: 'var(--accent, #ffffff)',
+                              fontSize: 10,
+                              fontWeight: 600,
+                            }}
+                            title="Время размышления нейросети"
+                          >
+                            <Zap size={9} />
+                            <span>{msg.thinking_duration}с</span>
+                          </div>
+                        )}
+
+                        {/* Audio playback button */}
+                        <button
+                          onClick={() => handlePlayMessageAudio(msg)}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            padding: '2px 8px',
+                            borderRadius: 6,
+                            background: playingAudioId === msg.id ? 'rgba(255, 255, 255, 0.12)' : 'transparent',
+                            border: `1px solid ${playingAudioId === msg.id ? 'rgba(255, 255, 255, 0.25)' : 'transparent'}`,
+                            color: playingAudioId === msg.id ? '#ffffff' : '#94a3b8',
+                            fontSize: 10.5,
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                          }}
+                          title={playingAudioId === msg.id ? 'Остановить воспроизведение' : 'Озвучить ответ'}
+                        >
+                          {playingAudioId === msg.id ? <VolumeX size={11} /> : <Volume2 size={11} />}
+                          <span>{playingAudioId === msg.id ? 'Остановить' : 'Озвучить'}</span>
+                        </button>
+
+                        {/* Only safety confirmation is shown, technical tags like general / delete_note are hidden */}
+                        {msg.action_type === 'confirmation_required' && (
+                          <div
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4,
+                              padding: '2px 8px',
+                              borderRadius: 9999,
+                              background: 'rgba(245, 158, 11, 0.12)',
+                              border: '1px solid rgba(245, 158, 11, 0.3)',
+                              color: '#fbbf24',
+                              fontSize: 10.5,
+                              fontWeight: 600,
+                            }}
+                          >
+                            <ShieldAlert size={11} />
+                            <span>Требуется подтверждение</span>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
@@ -534,46 +509,47 @@ export const ChatView: React.FC<ChatViewProps> = ({
               display: 'flex',
               alignItems: 'center',
               gap: 10,
-              maxWidth: 360,
+              maxWidth: 320,
             }}
           >
             <div
               style={{
-                width: 30,
-                height: 30,
+                width: 28,
+                height: 28,
                 borderRadius: '50%',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                background: 'rgba(124, 58, 237, 0.25)',
-                border: '1px solid rgba(168, 85, 247, 0.4)',
+                background: 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
               }}
             >
-              <StarburnLogo size={16} />
+              <StarburnLogo size={14} />
             </div>
             <div
               style={{
-                padding: '8px 14px',
+                padding: '7px 14px',
                 borderRadius: 9999,
-                background: 'rgba(22, 17, 40, 0.72)',
-                border: '1px solid rgba(168, 85, 247, 0.2)',
+                background: 'rgba(12, 12, 16, 0.8)',
+                backdropFilter: 'blur(20px)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
                 display: 'flex',
                 alignItems: 'center',
-                gap: 8,
-                fontSize: 12,
-                color: '#d8b4fe',
+                gap: 7,
+                fontSize: 11.5,
+                color: '#e2e8f0',
               }}
             >
               <span
                 className="anim-dot"
                 style={{
-                  width: 6,
-                  height: 6,
+                  width: 5,
+                  height: 5,
                   borderRadius: '50%',
-                  background: '#c084fc',
+                  background: 'var(--accent, #ffffff)',
                 }}
               />
-              <span>Argus думает и выполняет...</span>
+              <span>Argus анализирует запрос...</span>
             </div>
           </div>
         )}
@@ -581,10 +557,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* ─── ULTRA-THIN SLEEK FLOATING PILL INPUT BAR ─────────────────── */}
+      {/* ─── SLEEK MULTI-LINE LIQUID GLASS INPUT CAPSULE ─── */}
       <div
         style={{
-          padding: '10px 24px 18px 24px',
+          padding: '8px 24px 18px 24px',
           position: 'relative',
           display: 'flex',
           justifyContent: 'center',
@@ -594,21 +570,21 @@ export const ChatView: React.FC<ChatViewProps> = ({
         <div
           style={{
             width: '100%',
-            maxWidth: 740,
-            minHeight: 46,
-            padding: '4px 6px 4px 14px',
-            borderRadius: 9999, // Perfect smooth pill
-            background: 'rgba(14, 11, 28, 0.82)',
-            backdropFilter: 'blur(24px)',
+            maxWidth: 720,
+            borderRadius: 22,
+            background: 'rgba(12, 12, 16, 0.82)',
+            backdropFilter: 'blur(32px) saturate(190%)',
+            WebkitBackdropFilter: 'blur(32px) saturate(190%)',
             display: 'flex',
-            alignItems: 'center',
+            alignItems: 'flex-end',
             gap: 8,
+            padding: '6px 8px 6px 14px',
             border: isListening
-              ? '1px solid rgba(244, 63, 94, 0.6)'
-              : '1px solid rgba(168, 85, 247, 0.28)',
+              ? '1px solid rgba(239, 68, 68, 0.6)'
+              : '1px solid rgba(255, 255, 255, 0.1)',
             boxShadow: isListening
-              ? '0 0 28px rgba(244, 63, 94, 0.35), 0 8px 30px rgba(0, 0, 0, 0.5)'
-              : '0 8px 32px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05) inset',
+              ? '0 0 24px rgba(239, 68, 68, 0.35), 0 12px 36px rgba(0, 0, 0, 0.6)'
+              : '0 12px 40px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.12)',
             transition: 'all 0.22s ease',
           }}
         >
@@ -616,8 +592,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
           <button
             onClick={onToggleVoice}
             style={{
-              width: 34,
-              height: 34,
+              width: 32,
+              height: 32,
               borderRadius: '50%',
               border: 'none',
               cursor: 'pointer',
@@ -625,23 +601,24 @@ export const ChatView: React.FC<ChatViewProps> = ({
               alignItems: 'center',
               justifyContent: 'center',
               flexShrink: 0,
-              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+              marginBottom: 2,
+              transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
               ...(isListening
                 ? {
-                    background: 'linear-gradient(135deg, #e11d48 0%, #f43f5e 100%)',
+                    background: '#ef4444',
                     color: '#ffffff',
-                    boxShadow: '0 0 18px rgba(244, 63, 94, 0.7)',
-                    transform: 'scale(1.08)',
+                    boxShadow: '0 0 16px rgba(239, 68, 68, 0.7)',
+                    transform: 'scale(1.06)',
                   }
                 : {
-                    background: 'rgba(255, 255, 255, 0.06)',
-                    color: '#c084fc',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    color: '#94a3b8',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
                   }),
             }}
             title={isListening ? 'Остановить голосовой ввод' : 'Голосовой ввод'}
           >
-            <Mic size={16} />
+            <Mic size={15} />
           </button>
 
           {/* Voice Speaking Active Indicator */}
@@ -650,42 +627,44 @@ export const ChatView: React.FC<ChatViewProps> = ({
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: 5,
-                padding: '3px 9px',
+                gap: 4,
+                padding: '3px 8px',
                 borderRadius: 9999,
-                background: 'rgba(251, 191, 36, 0.15)',
-                border: '1px solid rgba(251, 191, 36, 0.35)',
-                color: '#fde047',
-                fontSize: 10.5,
+                background: 'rgba(255, 255, 255, 0.08)',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+                color: '#ffffff',
+                fontSize: 10,
                 fontWeight: 600,
                 flexShrink: 0,
+                marginBottom: 4,
               }}
             >
-              <Radio size={11} className="anim-dot" />
-              <span>Озвучивание...</span>
+              <Radio size={10} className="anim-dot" />
+              <span>Голос...</span>
             </div>
           )}
 
-          {/* Clean Compact Input Field */}
-          <input
-            type="text"
+          {/* Multi-line Textarea Auto-Growing */}
+          <textarea
+            ref={textareaRef}
+            rows={1}
             value={inputText}
             disabled={loading}
             onChange={(e) => onInputChange(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                if (!loading) {
+                if (!loading && inputText.trim()) {
                   onSendMessage();
                 }
               }
             }}
             placeholder={
               loading
-                ? 'Идёт обработка запроса, сэр... Пожалуйста, подождите...'
+                ? 'Обработка запроса...'
                 : isListening
-                ? 'Слушаю ваш голос... Произнесите команду...'
-                : 'Спросите Argus или отдайте команду (звук, скриншот, яркость, программы)...'
+                ? 'Слушаю вас... Говорите...'
+                : 'Сообщение для Argus... (Shift+Enter для новой строки)'
             }
             style={{
               flex: 1,
@@ -694,9 +673,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
               outline: 'none',
               color: loading ? 'rgba(255, 255, 255, 0.45)' : '#ffffff',
               cursor: loading ? 'not-allowed' : 'text',
-              fontSize: 13.5,
+              fontSize: 13,
+              lineHeight: 1.5,
               padding: '6px 4px',
+              resize: 'none',
+              maxHeight: 140,
+              minHeight: 34,
               userSelect: 'text',
+              fontFamily: 'inherit',
             }}
           />
 
@@ -705,8 +689,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
             <button
               onClick={onStop}
               style={{
-                width: 34,
-                height: 34,
+                width: 32,
+                height: 32,
                 borderRadius: '50%',
                 border: 'none',
                 cursor: 'pointer',
@@ -714,24 +698,25 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 alignItems: 'center',
                 justifyContent: 'center',
                 flexShrink: 0,
-                background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                marginBottom: 2,
+                background: '#ef4444',
                 color: '#ffffff',
-                boxShadow: '0 0 16px rgba(239, 68, 68, 0.55)',
+                boxShadow: '0 0 14px rgba(239, 68, 68, 0.5)',
                 transition: 'all 0.18s ease',
               }}
               title="Остановить ответ"
             >
-              <Square size={13} fill="#ffffff" />
+              <Square size={12} fill="#ffffff" />
             </button>
           )}
 
-          {/* Sleek Circular Send Button */}
+          {/* Sleek Send Button */}
           <button
             onClick={onSendMessage}
             disabled={!inputText.trim() || loading}
             style={{
-              width: 34,
-              height: 34,
+              width: 32,
+              height: 32,
               borderRadius: '50%',
               border: 'none',
               cursor: (!inputText.trim() || loading) ? 'not-allowed' : 'pointer',
@@ -739,16 +724,17 @@ export const ChatView: React.FC<ChatViewProps> = ({
               alignItems: 'center',
               justifyContent: 'center',
               flexShrink: 0,
+              marginBottom: 2,
               background: (!inputText.trim() || loading)
-                ? 'rgba(255, 255, 255, 0.05)'
-                : 'linear-gradient(135deg, #a855f7 0%, #ec4899 100%)',
-              color: (!inputText.trim() || loading) ? '#64748b' : '#ffffff',
-              boxShadow: (!inputText.trim() || loading) ? 'none' : '0 0 16px rgba(168, 85, 247, 0.45)',
-              transition: 'all 0.18s ease',
+                ? 'rgba(255, 255, 255, 0.04)'
+                : 'linear-gradient(135deg, var(--accent, #ffffff) 0%, rgba(220, 220, 230, 0.9) 100%)',
+              color: (!inputText.trim() || loading) ? '#475569' : '#09090b',
+              boxShadow: (!inputText.trim() || loading) ? 'none' : '0 2px 14px var(--accent-glow, rgba(255, 255, 255, 0.3))',
+              transition: 'all 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
             }}
-            title={loading ? 'Идёт обработка запроса, сэр...' : 'Отправить (Enter)'}
+            title={loading ? 'Идет обработка...' : 'Отправить (Enter)'}
           >
-            <Send size={14} />
+            <Send size={13} />
           </button>
         </div>
       </div>

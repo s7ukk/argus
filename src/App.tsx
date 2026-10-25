@@ -12,6 +12,8 @@ import { ExtrasView } from './components/ExtrasView';
 import { SystemView } from './components/SystemView';
 import { AboutView } from './components/AboutView';
 import { SettingsView } from './components/SettingsView';
+import { DynamicIsland } from './components/DynamicIsland';
+import { loadThemeConfig, applyThemeConfig, ThemeConfig } from './utils/theme';
 import { UserProfile, ChatSession, ChatMessage, NavTab } from './types';
 import {
   verifyKey,
@@ -50,6 +52,7 @@ export const App: React.FC = () => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
   const [dictationState, setDictationState] = useState<{ active: boolean; text?: string; success?: boolean } | null>(null);
+  const [themeConfig, setThemeConfig] = useState<ThemeConfig>(() => loadThemeConfig());
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const voiceAssistantRef = useRef<VoiceAssistant | null>(null);
@@ -134,6 +137,12 @@ export const App: React.FC = () => {
       pollDoubleCtrl();
     }
 
+    applyThemeConfig(loadThemeConfig());
+    const handleThemeChanged = (e: any) => {
+      if (e.detail) setThemeConfig(e.detail);
+    };
+    window.addEventListener('argus_theme_changed', handleThemeChanged);
+
     const handleSettingsUpdated = (e: any) => {
       const updated = e.detail;
       if (updated && voiceAssistantRef.current) {
@@ -150,6 +159,7 @@ export const App: React.FC = () => {
       isDictationSubscribed = false;
       window.removeEventListener('argus_dictation_state', handleDictationState);
       window.removeEventListener('argus_settings_updated', handleSettingsUpdated);
+      window.removeEventListener('argus_theme_changed', handleThemeChanged);
       voiceAssistantRef.current?.stopWakeWordMonitoring();
       voiceAssistantRef.current?.stopListening();
       voiceAssistantRef.current?.stopSpeaking();
@@ -325,11 +335,14 @@ export const App: React.FC = () => {
 
     // 1. Instantly clear input field and append user message in UI (0ms delay)
     setInputText('');
+    const startTime = performance.now();
+    const sentTime = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
     const tempMsg: ChatMessage = {
       id: 'temp-' + Date.now(),
       role: 'user',
       content: textToSend,
-      created_at: new Date().toISOString()
+      created_at: new Date().toISOString(),
+      sent_time: sentTime
     };
     setMessages((prev) => [...prev, tempMsg]);
     setLoading(true);
@@ -380,6 +393,10 @@ export const App: React.FC = () => {
         }
       }
 
+      const endTime = performance.now();
+      const thinkingDuration = ((endTime - startTime) / 1000).toFixed(1);
+      const responseTime = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+
       const asstMsg: ChatMessage = {
         id: res.message_id || 'asst-' + Date.now(),
         role: 'assistant',
@@ -387,7 +404,9 @@ export const App: React.FC = () => {
         action_type: res.action_type,
         action_data: res.action_data,
         audio_base64: res.audio_base64,
-        created_at: res.created_at || new Date().toISOString()
+        created_at: res.created_at || new Date().toISOString(),
+        thinking_duration: thinkingDuration,
+        response_time: responseTime
       };
       setMessages((prev) => [...prev, asstMsg]);
       setStreamingMessageId(asstMsg.id);
@@ -513,63 +532,96 @@ export const App: React.FC = () => {
 
       <Header />
 
+      {/* Dynamic Island Floating Capsule under Header */}
+      <DynamicIsland
+        dictationState={dictationState}
+        isAiThinking={loading}
+        isSpeaking={isSpeaking}
+        onStopAi={handleStop}
+      />
+
       {!profile ? (
         <AuthScreen onSuccess={handleAuthSuccess} />
       ) : (
-        <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative', zIndex: 2 }}>
-          {/* Left Vertical Dock with Numbered Tabs (1, 2, 3, 4, 5) */}
-          <NavDock
-            activeTab={activeTab}
-            onTabChange={setActiveTab}
-            profile={profile}
-            onOpenProfile={() => setIsProfileOpen(true)}
-          />
-
-          {/* Active View Switching */}
-          {activeTab === 'chat' && (
-            <>
-              <Sidebar
-                chats={chats}
-                activeChatId={activeChatId}
-                onSelectChat={handleSelectChat}
-                onCreateChat={handleCreateChat}
-                onDeleteChat={handleDeleteChat}
-                onRenameChat={handleRenameChat}
-                profile={profile}
-                onOpenProfile={() => setIsProfileOpen(true)}
-                isCollapsed={isSidebarCollapsed}
-                onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-              />
-              <ChatView
-                messages={messages}
-                loading={loading}
-                inputText={inputText}
-                onInputChange={setInputText}
-                onSendMessage={() => handleSend()}
-                isListening={isListening}
-                onToggleVoice={() => voiceAssistantRef.current?.toggleListening()}
-                isSpeaking={isSpeaking}
-                profile={profile}
-                onQuickAction={(cmd) => {
-                  if (loading) return;
-                  setInputText(cmd);
-                  handleSend(cmd);
-                }}
-                streamingMessageId={streamingMessageId}
-                onStop={handleStop}
-                onFinishStreaming={() => setStreamingMessageId(null)}
-              />
-            </>
+        <div
+          style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: themeConfig.navPosition === 'top' ? 'column' : 'row',
+            overflow: 'hidden',
+            position: 'relative',
+            zIndex: 2,
+          }}
+        >
+          {/* Top or Left NavDock */}
+          {themeConfig.navPosition !== 'right' && (
+            <NavDock
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+              profile={profile}
+              onOpenProfile={() => setIsProfileOpen(true)}
+              position={themeConfig.navPosition}
+            />
           )}
 
-          {activeTab === 'scenarios' && <ScenariosView />}
-          {activeTab === 'plugins' && <PluginsView />}
-          <div style={{ flex: 1, display: activeTab === 'extras' ? 'flex' : 'none', overflow: 'hidden' }}>
-            <ExtrasView />
+          {/* Main Content Area */}
+          <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
+            {activeTab === 'chat' && (
+              <>
+                <Sidebar
+                  chats={chats}
+                  activeChatId={activeChatId}
+                  onSelectChat={handleSelectChat}
+                  onCreateChat={handleCreateChat}
+                  onDeleteChat={handleDeleteChat}
+                  onRenameChat={handleRenameChat}
+                  profile={profile}
+                  onOpenProfile={() => setIsProfileOpen(true)}
+                  isCollapsed={isSidebarCollapsed}
+                  onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                />
+                <ChatView
+                  messages={messages}
+                  loading={loading}
+                  inputText={inputText}
+                  onInputChange={setInputText}
+                  onSendMessage={() => handleSend()}
+                  isListening={isListening}
+                  onToggleVoice={() => voiceAssistantRef.current?.toggleListening()}
+                  isSpeaking={isSpeaking}
+                  profile={profile}
+                  onQuickAction={(cmd) => {
+                    if (loading) return;
+                    setInputText(cmd);
+                    handleSend(cmd);
+                  }}
+                  streamingMessageId={streamingMessageId}
+                  onStop={handleStop}
+                  onFinishStreaming={() => setStreamingMessageId(null)}
+                />
+              </>
+            )}
+
+            {activeTab === 'scenarios' && <ScenariosView />}
+            {activeTab === 'plugins' && <PluginsView />}
+            <div style={{ flex: 1, display: activeTab === 'extras' ? 'flex' : 'none', overflow: 'hidden' }}>
+              <ExtrasView />
+            </div>
+            {activeTab === 'system' && <SystemView />}
+            {activeTab === 'about' && <AboutView />}
+            {activeTab === 'settings' && <SettingsView />}
           </div>
-          {activeTab === 'system' && <SystemView />}
-          {activeTab === 'about' && <AboutView />}
-          {activeTab === 'settings' && <SettingsView />}
+
+          {/* Right NavDock */}
+          {themeConfig.navPosition === 'right' && (
+            <NavDock
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+              profile={profile}
+              onOpenProfile={() => setIsProfileOpen(true)}
+              position="right"
+            />
+          )}
 
           <ProfileModal
             isOpen={isProfileOpen}
@@ -578,59 +630,6 @@ export const App: React.FC = () => {
             onProfileUpdated={setProfile}
             onLogout={handleLogout}
           />
-
-          {/* System-Wide Double-Ctrl Dictation Floating HUD */}
-          {dictationState && (
-            <div
-              style={{
-                position: 'fixed',
-                top: 28,
-                left: '50%',
-                transform: 'translateX(-50%)',
-                zIndex: 99999,
-                background: 'rgba(15, 23, 42, 0.94)',
-                backdropFilter: 'blur(20px)',
-                border: dictationState.active
-                  ? '1px solid rgba(168, 85, 247, 0.7)'
-                  : dictationState.success
-                  ? '1px solid rgba(34, 197, 94, 0.7)'
-                  : '1px solid rgba(239, 68, 68, 0.7)',
-                boxShadow: '0 12px 36px rgba(0, 0, 0, 0.5), 0 0 24px rgba(168, 85, 247, 0.3)',
-                borderRadius: 30,
-                padding: '10px 24px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-                color: '#ffffff',
-                fontSize: 13,
-                fontWeight: 600,
-                letterSpacing: '0.02em',
-                pointerEvents: 'none',
-                transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
-              }}
-            >
-              {dictationState.active ? (
-                <>
-                  <span
-                    style={{
-                      display: 'inline-block',
-                      width: 10,
-                      height: 10,
-                      borderRadius: '50%',
-                      background: '#ef4444',
-                      boxShadow: '0 0 12px #ef4444'
-                    }}
-                  />
-                  <span>🎙️ Голосовой ввод Argus: говорите текст в активное окно... (Double-Ctrl)</span>
-                </>
-              ) : dictationState.success ? (
-                <>
-                  <span style={{ color: '#22c55e', fontSize: 16, fontWeight: 700 }}>✓</span>
-                  <span>Вставлено в активное поле: «{dictationState.text}»</span>
-                </>
-              ) : null}
-            </div>
-          )}
         </div>
       )}
     </div>
