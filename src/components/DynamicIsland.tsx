@@ -244,7 +244,7 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
               </>
             ) : dictationState?.success ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ color: '#4ade80', fontSize: 13, fontWeight: 800 }}>✓</span>
+                <Check size={13} color="#4ade80" />
                 <span style={{ fontSize: 11.5, fontWeight: 600, color: '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 260 }}>
                   «{dictationState.text}»
                 </span>

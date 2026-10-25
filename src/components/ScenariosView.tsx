@@ -71,7 +71,7 @@ export const ScenariosView: React.FC = () => {
       setRunningId(s.id);
       setRunResult(null);
       const res = await runScenario(s.id);
-      setRunResult({ id: s.id, message: res.summary || 'Сценарий успешно выполнен!' });
+      setRunResult({ id: s.id, message: res.summary || 'Сценарий успешно выполнен !' });
       setTimeout(() => setRunResult(null), 6000);
     } catch (e: any) {
       setRunResult({ id: s.id, message: `Ошибка: ${e.message || 'Сбой выполнения'}` });

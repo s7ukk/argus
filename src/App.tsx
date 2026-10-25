@@ -61,6 +61,17 @@ export const App: React.FC = () => {
   const profileRef = useRef<UserProfile | null>(null);
   profileRef.current = profile;
 
+  // Synchronize AI thinking state with OS-level floating Dynamic Island
+  useEffect(() => {
+    if ((window as any).electronAPI?.updateIslandState) {
+      if (loading) {
+        (window as any).electronAPI.updateIslandState({ thinking: true });
+      } else {
+        (window as any).electronAPI.updateIslandState({ idle: true });
+      }
+    }
+  }, [loading]);
+
   useEffect(() => {
     voiceAssistantRef.current = new VoiceAssistant(
       (transcript) => {
@@ -532,13 +543,15 @@ export const App: React.FC = () => {
 
       <Header />
 
-      {/* Dynamic Island Floating Capsule under Header */}
-      <DynamicIsland
-        dictationState={dictationState}
-        isAiThinking={loading}
-        isSpeaking={isSpeaking}
-        onStopAi={handleStop}
-      />
+      {/* Dynamic Island: ONLY rendered in web browser if Electron overlay is absent */}
+      {!((window as any).electronAPI?.isElectron) && (
+        <DynamicIsland
+          dictationState={dictationState}
+          isAiThinking={loading}
+          isSpeaking={isSpeaking}
+          onStopAi={handleStop}
+        />
+      )}
 
       {!profile ? (
         <AuthScreen onSuccess={handleAuthSuccess} />

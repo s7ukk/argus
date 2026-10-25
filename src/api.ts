@@ -484,7 +484,7 @@ export async function testFishAudio(apiKey: string, modelId?: string, text?: str
   return res.json();
 }
 
-export async function testEdgeTTS(voice: string, speed = 1.0, text = 'Привет! Я голосовой ассистент Аргус. Голос успешно настроен.'): Promise<any> {
+export async function testEdgeTTS(voice: string, speed = 1.0, text = 'Привет ! Я голосовой ассистент Аргус. Голос успешно настроен.'): Promise<any> {
   const rateStr = speed >= 1.0 ? `+${Math.round((speed - 1.0) * 100)}%` : `${Math.round((speed - 1.0) * 100)}%`;
   const res = await smartFetch('/api/voice/tts', {
     method: 'POST',

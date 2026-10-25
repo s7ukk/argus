@@ -63,7 +63,7 @@ export const SettingsView: React.FC = () => {
     setThemeConfig(next);
     applyThemeConfig(next);
     window.dispatchEvent(new CustomEvent('argus_island_notify', {
-      detail: { text: '✦ Тема интерфейса обновлена', type: 'info', duration: 2000 }
+      detail: { text: 'Тема интерфейса обновлена', type: 'info', duration: 2000 }
     }));
   };
 
@@ -109,7 +109,7 @@ export const SettingsView: React.FC = () => {
       localStorage.setItem('argus_settings', JSON.stringify(settings));
       window.dispatchEvent(new CustomEvent('argus_settings_updated', { detail: settings }));
       window.dispatchEvent(new CustomEvent('argus_island_notify', {
-        detail: { text: '✓ Настройки успешно сохранены!', type: 'success' }
+        detail: { text: 'Настройки успешно сохранены !', type: 'success' }
       }));
       setSavedSuccess(true);
       setTimeout(() => setSavedSuccess(false), 2400);
@@ -127,7 +127,7 @@ export const SettingsView: React.FC = () => {
       const res = await testEdgeTTS(
         settings.edge_voice,
         settings.voice_speed,
-        'Здравствуйте! Голосовой синтез Аргус работает отлично. Выбранный голос настроен.'
+        'Здравствуйте ! Голосовой синтез Аргус работает отлично. Выбранный голос настроен.'
       );
       if (res && res.audio_base64) {
         const cleanB64 = res.audio_base64.replace(/\s+/g, '');
@@ -152,7 +152,7 @@ export const SettingsView: React.FC = () => {
       const res = await testFishAudio(
         settings.fish_api_key.trim(),
         settings.fish_model_id.trim() || undefined,
-        'Здравствуйте! Голосовой синтез Argus через API Fish Audio работает превосходно.'
+        'Здравствуйте ! Голосовой синтез Argus через API Fish Audio работает превосходно.'
       );
       if (res && res.audio_base64) {
         const cleanB64 = res.audio_base64.replace(/\s+/g, '');
@@ -287,7 +287,7 @@ export const SettingsView: React.FC = () => {
           }}
         >
           {savedSuccess ? <Check size={16} color="#4ade80" /> : <Settings size={15} />}
-          <span>{savedSuccess ? 'Сохранено!' : saving ? 'Сохранение...' : 'Сохранить настройки'}</span>
+          <span>{savedSuccess ? 'Сохранено !' : saving ? 'Сохранение...' : 'Сохранить настройки'}</span>
         </button>
       </div>
 
@@ -601,7 +601,7 @@ export const SettingsView: React.FC = () => {
                         transition: 'all 0.15s ease',
                       }}
                     >
-                      {isSelected ? '✓ ' : '+ '}
+                      {isSelected ? '• ' : '+ '}
                       {tw}
                     </button>
                   );
@@ -695,7 +695,7 @@ export const SettingsView: React.FC = () => {
                 fontSize: 12.5,
               }}
             >
-              ⚡ Neural Edge-TTS (Бесплатно)
+              Neural Edge-TTS (Бесплатно)
             </button>
             <button
               onClick={() => setSettings({ ...settings, voice_provider: 'fish-audio' })}
@@ -716,7 +716,7 @@ export const SettingsView: React.FC = () => {
                 fontSize: 12.5,
               }}
             >
-              🐟 Fish Audio API (Клонирование)
+              Fish Audio API (Клонирование)
             </button>
           </div>
 

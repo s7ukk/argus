@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   hideDictationHud: () => ipcRenderer.send('hide-dictation-hud'),
   showIslandNotification: (data) => ipcRenderer.send('show-island-notification', data),
   hideIsland: () => ipcRenderer.send('hide-island'),
+  updateIslandState: (state) => ipcRenderer.send('update-island-state', state),
   isElectron: true,
   isMac: process.platform === 'darwin',
   platform: process.platform

@@ -77,7 +77,7 @@ export const PluginsView: React.FC = () => {
     setTestDictationStatus('Печать в активное окно...');
     try {
       await dictateVoiceSunder('Тестовый ввод текста через официальный плагин Argus Voice Sunder.', voiceSunderAutoEnter);
-      setTestDictationStatus('Успешно введено!');
+      setTestDictationStatus('Успешно введено !');
       setTimeout(() => setTestDictationStatus(null), 3000);
     } catch (e: any) {
       setTestDictationStatus('Ошибка ввода');
@@ -1619,7 +1619,7 @@ export const PluginsView: React.FC = () => {
                             }}
                           >
                             {fileSavedNotice ? <Check size={12} color="#4ade80" /> : <Save size={12} />}
-                            <span>{fileSavedNotice ? 'Сохранено!' : savingFile ? 'Сохранение...' : 'Сохранить'}</span>
+                            <span>{fileSavedNotice ? 'Сохранено !' : savingFile ? 'Сохранение...' : 'Сохранить'}</span>
                           </button>
                         </div>
                       </div>

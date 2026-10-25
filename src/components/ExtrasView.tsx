@@ -131,7 +131,7 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
 
   // Immediate Voice Speech Alert using user's chosen voice & speed
   const speakVoiceAlert = async (title: string) => {
-    const phrase = `Время вышло, сэр! Пора выполнять: ${title}.`;
+    const phrase = `Время вышло, сэр ! Пора выполнять: ${title}.`;
     
     // Read user's chosen voice and speed from settings
     let selectedVoice = 'ru-RU-DmitryNeural';
@@ -181,7 +181,7 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
 
     // Dispatch Dynamic Island notification
     window.dispatchEvent(new CustomEvent('argus_island_notify', {
-      detail: { text: `⏰ Время вышло: ${title}!`, type: 'timer' }
+      detail: { text: `Время вышло: ${title} !`, type: 'timer' }
     }));
   };
 
@@ -249,7 +249,7 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
               playAlarmSound();
               speakVoiceAlert(t.title);
               window.dispatchEvent(new CustomEvent('argus_island_notify', {
-                detail: { text: `⏰ Время вышло: ${t.title}!`, type: 'timer' }
+                detail: { text: `Время вышло: ${t.title} !`, type: 'timer' }
               }));
               if (onNotifyTimerFinish) {
                 onNotifyTimerFinish(t.title);
@@ -774,7 +774,7 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
                       e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';
                     }}
                   >
-                    <span style={{ color: 'var(--accent, #ffffff)', fontSize: 13 }}>⏱️ {preset.mins} мин</span>
+                    <span style={{ color: 'var(--accent, #ffffff)', fontSize: 13 }}>{preset.mins} мин</span>
                     <span style={{ color: '#94a3b8', fontSize: 11, fontWeight: 400 }}>{preset.title}</span>
                   </button>
                 ))}
@@ -1028,7 +1028,7 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
                                 fontWeight: 600
                               }}
                             >
-                              Время вышло!
+                              Время вышло !
                             </span>
                           )}
                         </div>
@@ -1211,11 +1211,11 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
                       outline: 'none'
                     }}
                   >
-                    <option value="study">🎓 Учеба / ДЗ</option>
-                    <option value="work">💼 Работа</option>
-                    <option value="personal">🏠 Личное</option>
-                    <option value="health">🏃 Здоровье</option>
-                    <option value="other">💡 Другое</option>
+                    <option value="study">Учеба / ДЗ</option>
+                    <option value="work">Работа</option>
+                    <option value="personal">Личное</option>
+                    <option value="health">Здоровье</option>
+                    <option value="other">Другое</option>
                   </select>
                 </div>
 
@@ -1431,11 +1431,11 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
                                 outline: 'none'
                               }}
                             >
-                              <option value="study">🎓 Учеба / ДЗ</option>
-                              <option value="work">💼 Работа</option>
-                              <option value="personal">🏠 Личное</option>
-                              <option value="health">🏃 Здоровье</option>
-                              <option value="other">💡 Другое</option>
+                              <option value="study">Учеба / ДЗ</option>
+                              <option value="work">Работа</option>
+                              <option value="personal">Личное</option>
+                              <option value="health">Здоровье</option>
+                              <option value="other">Другое</option>
                             </select>
                           </div>
                           <div style={{ display: 'flex', gap: 6 }}>
@@ -1537,7 +1537,7 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
                           borderRadius: 6
                         }}
                       >
-                        {task.category === 'study' ? '🎓 Учеба' : task.category === 'work' ? '💼 Работа' : '💡 Общее'}
+                        {task.category === 'study' ? 'Учеба' : task.category === 'work' ? 'Работа' : 'Общее'}
                       </span>
 
                       {/* Edit Button */}
@@ -2152,7 +2152,7 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
                   }}
                 >
                   {copiedNoteId === viewingNote.id ? <Check size={14} /> : <Copy size={14} />}
-                  {copiedNoteId === viewingNote.id ? 'Скопировано!' : 'Копировать'}
+                  {copiedNoteId === viewingNote.id ? 'Скопировано !' : 'Копировать'}
                 </button>
                 <button
                   onClick={() => {

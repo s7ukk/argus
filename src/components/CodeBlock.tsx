@@ -149,7 +149,7 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ language, code }) => {
           title="Скопировать весь код в буфер"
         >
           {copied ? <Check size={12} /> : <Copy size={12} />}
-          <span>{copied ? 'Скопировано!' : 'Скопировать'}</span>
+          <span>{copied ? 'Скопировано !' : 'Скопировать'}</span>
         </button>
       </div>
 
