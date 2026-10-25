@@ -64,7 +64,7 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ language, code }) => {
           parts.push(<span key={partIdx++} style={{ color: '#86efac' }}>{match[1]}</span>);
         } else if (match[2]) {
           // Keyword
-          parts.push(<span key={partIdx++} style={{ color: '#c084fc', fontWeight: 600 }}>{match[2]}</span>);
+          parts.push(<span key={partIdx++} style={{ color: 'var(--accent, #ffffff)', fontWeight: 600 }}>{match[2]}</span>);
         } else if (match[3]) {
           // Number
           parts.push(<span key={partIdx++} style={{ color: '#f59e0b' }}>{match[3]}</span>);

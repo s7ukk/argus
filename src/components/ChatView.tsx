@@ -13,12 +13,12 @@ import {
   Clock,
   Zap,
   ShieldAlert,
-  Sparkles
+  PanelLeft
 } from 'lucide-react';
 import { smartFetch } from '../api';
 import { ChatMessage, UserProfile } from '../types';
 import { StarburnCore } from './StarburnCore';
-import { StarburnLogo, TelegramIcon, SpotifyIcon } from './Icons';
+import { TelegramIcon, SpotifyIcon } from './Icons';
 import { MarkdownRenderer } from './MarkdownRenderer';
 
 interface ChatViewProps {
@@ -35,6 +35,8 @@ interface ChatViewProps {
   streamingMessageId?: string | null;
   onStop?: () => void;
   onFinishStreaming?: () => void;
+  isSidebarCollapsed?: boolean;
+  onToggleSidebar?: () => void;
 }
 
 export const ChatView: React.FC<ChatViewProps> = ({
@@ -48,9 +50,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
   isSpeaking,
   profile,
   onQuickAction,
-  streamingMessageId,
   onStop,
-  onFinishStreaming,
+  isSidebarCollapsed,
+  onToggleSidebar,
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -62,8 +64,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
       const scrollHeight = textareaRef.current.scrollHeight;
-      // Clamp between 38px and 140px
-      textareaRef.current.style.height = `${Math.min(Math.max(scrollHeight, 38), 140)}px`;
+      // Clamp between 26px and 140px
+      textareaRef.current.style.height = `${Math.min(Math.max(scrollHeight, 26), 140)}px`;
     }
   }, [inputText]);
 
@@ -150,7 +152,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
     }
   };
 
-  const canStop = loading || isSpeaking || Boolean(streamingMessageId);
+  // Stop button ONLY shows while actively generating or speaking
+  const canStop = loading || isSpeaking;
 
   return (
     <div
@@ -164,6 +167,43 @@ export const ChatView: React.FC<ChatViewProps> = ({
         userSelect: 'none',
       }}
     >
+      {/* Sidebar toggle button (when sidebar is collapsed) */}
+      {isSidebarCollapsed && onToggleSidebar && (
+        <button
+          onClick={onToggleSidebar}
+          style={{
+            position: 'absolute',
+            top: 14,
+            left: 14,
+            zIndex: 35,
+            width: 32,
+            height: 32,
+            borderRadius: 10,
+            background: 'rgba(12, 12, 16, 0.85)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            backdropFilter: 'blur(16px)',
+            color: '#94a3b8',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            transition: 'all 0.18s ease',
+            boxShadow: '0 4px 14px rgba(0, 0, 0, 0.4)',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color = '#ffffff';
+            e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.25)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = '#94a3b8';
+            e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+          }}
+          title="Развернуть диалоги"
+        >
+          <PanelLeft size={16} />
+        </button>
+      )}
+
       {/* ─── SCROLLABLE MESSAGE LIST ─── */}
       <div
         style={{
@@ -301,9 +341,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     flexShrink: 0,
                     fontSize: 11.5,
                     fontWeight: 700,
-                    background: isUser
-                      ? 'linear-gradient(135deg, rgba(255, 255, 255, 0.25) 0%, rgba(255, 255, 255, 0.08) 100%)'
-                      : 'rgba(255, 255, 255, 0.06)',
+                    background: 'rgba(255, 255, 255, 0.08)',
                     border: '1px solid rgba(255, 255, 255, 0.15)',
                     color: '#ffffff',
                     boxShadow: '0 2px 10px rgba(0, 0, 0, 0.35)',
@@ -312,7 +350,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   {isUser ? (
                     profile.display_name ? profile.display_name.charAt(0).toUpperCase() : 'U'
                   ) : (
-                    <StarburnLogo size={15} />
+                    <span style={{ fontSize: 13, fontWeight: 800 }}>A</span>
                   )}
                 </div>
 
@@ -335,16 +373,16 @@ export const ChatView: React.FC<ChatViewProps> = ({
                       lineHeight: 1.6,
                       ...(isUser
                         ? {
-                            background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.06) 100%)',
+                            background: 'rgba(255, 255, 255, 0.1)',
                             color: '#ffffff',
-                            border: '1px solid rgba(255, 255, 255, 0.16)',
+                            border: '1px solid rgba(255, 255, 255, 0.18)',
                             boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
                             backdropFilter: 'blur(20px)',
                             whiteSpace: 'pre-wrap',
                             wordBreak: 'break-word',
                           }
                         : {
-                            background: 'rgba(12, 12, 16, 0.78)',
+                            background: 'rgba(12, 12, 16, 0.8)',
                             border: '1px solid rgba(255, 255, 255, 0.08)',
                             backdropFilter: 'blur(28px) saturate(190%)',
                             color: '#f8fafc',
@@ -466,7 +504,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                             cursor: 'pointer',
                             transition: 'all 0.15s ease',
                           }}
-                          title={playingAudioId === msg.id ? 'Остановить воспроизведение' : 'Озвучить ответ'}
+                          title={playingAudioId === msg.id ? 'Остановить воспроизведение' : 'Озвучить ответ Дмитрием'}
                         >
                           {playingAudioId === msg.id ? <VolumeX size={11} /> : <Volume2 size={11} />}
                           <span>{playingAudioId === msg.id ? 'Остановить' : 'Озвучить'}</span>
@@ -501,56 +539,67 @@ export const ChatView: React.FC<ChatViewProps> = ({
           })
         )}
 
-        {/* Loading Indicator */}
+        {/* ─── 3 RUNNING DOTS + Thinking... INDICATOR ─── */}
         {loading && (
           <div
             className="anim-fade-in"
             style={{
-              display: 'flex',
+              display: 'inline-flex',
               alignItems: 'center',
               gap: 10,
-              maxWidth: 320,
+              padding: '8px 18px',
+              borderRadius: 9999,
+              background: 'rgba(12, 12, 16, 0.85)',
+              backdropFilter: 'blur(28px)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.12)',
+              width: 'fit-content',
             }}
           >
-            <div
-              style={{
-                width: 28,
-                height: 28,
-                borderRadius: '50%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: 'rgba(255, 255, 255, 0.06)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
-              }}
-            >
-              <StarburnLogo size={14} />
-            </div>
-            <div
-              style={{
-                padding: '7px 14px',
-                borderRadius: 9999,
-                background: 'rgba(12, 12, 16, 0.8)',
-                backdropFilter: 'blur(20px)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 7,
-                fontSize: 11.5,
-                color: '#e2e8f0',
-              }}
-            >
+            {/* 3 Running / Place-Swapping Dots */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, width: 26, position: 'relative' }}>
               <span
-                className="anim-dot"
+                className="anim-dot-run-1"
                 style={{
                   width: 5,
                   height: 5,
                   borderRadius: '50%',
                   background: 'var(--accent, #ffffff)',
+                  boxShadow: '0 0 6px var(--accent, #ffffff)',
                 }}
               />
-              <span>Argus анализирует запрос...</span>
+              <span
+                className="anim-dot-run-2"
+                style={{
+                  width: 5,
+                  height: 5,
+                  borderRadius: '50%',
+                  background: 'var(--accent, #ffffff)',
+                  opacity: 0.8,
+                }}
+              />
+              <span
+                className="anim-dot-run-3"
+                style={{
+                  width: 5,
+                  height: 5,
+                  borderRadius: '50%',
+                  background: 'var(--accent, #ffffff)',
+                  opacity: 0.6,
+                }}
+              />
             </div>
+            <span
+              style={{
+                fontSize: 12.5,
+                fontWeight: 600,
+                color: '#ffffff',
+                letterSpacing: '0.02em',
+                fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+              }}
+            >
+              Thinking...
+            </span>
           </div>
         )}
 
@@ -571,13 +620,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
           style={{
             width: '100%',
             maxWidth: 720,
-            borderRadius: 22,
+            borderRadius: 24,
             background: 'rgba(12, 12, 16, 0.82)',
             backdropFilter: 'blur(32px) saturate(190%)',
             WebkitBackdropFilter: 'blur(32px) saturate(190%)',
             display: 'flex',
-            alignItems: 'flex-end',
-            gap: 8,
+            alignItems: 'center',
+            gap: 10,
             padding: '6px 8px 6px 14px',
             border: isListening
               ? '1px solid rgba(239, 68, 68, 0.6)'
@@ -601,7 +650,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
               alignItems: 'center',
               justifyContent: 'center',
               flexShrink: 0,
-              marginBottom: 2,
               transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
               ...(isListening
                 ? {
@@ -636,7 +684,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 fontSize: 10,
                 fontWeight: 600,
                 flexShrink: 0,
-                marginBottom: 4,
               }}
             >
               <Radio size={10} className="anim-dot" />
@@ -644,7 +691,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
             </div>
           )}
 
-          {/* Multi-line Textarea Auto-Growing */}
+          {/* Multi-line Textarea Auto-Growing with Crisp Typography */}
           <textarea
             ref={textareaRef}
             rows={1}
@@ -661,7 +708,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
             }}
             placeholder={
               loading
-                ? 'Обработка запроса...'
+                ? 'Thinking...'
                 : isListening
                 ? 'Слушаю вас... Говорите...'
                 : 'Сообщение для Argus... (Shift+Enter для новой строки)'
@@ -674,17 +721,18 @@ export const ChatView: React.FC<ChatViewProps> = ({
               color: loading ? 'rgba(255, 255, 255, 0.45)' : '#ffffff',
               cursor: loading ? 'not-allowed' : 'text',
               fontSize: 13,
-              lineHeight: 1.5,
+              lineHeight: 1.45,
               padding: '6px 4px',
               resize: 'none',
               maxHeight: 140,
-              minHeight: 34,
+              minHeight: 24,
               userSelect: 'text',
               fontFamily: 'inherit',
+              boxSizing: 'border-box',
             }}
           />
 
-          {/* Circular Stop Button (Visible while generating or speaking) */}
+          {/* Circular Stop Button (Visible ONLY while generating or speaking) */}
           {canStop && (
             <button
               onClick={onStop}
@@ -698,7 +746,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 alignItems: 'center',
                 justifyContent: 'center',
                 flexShrink: 0,
-                marginBottom: 2,
                 background: '#ef4444',
                 color: '#ffffff',
                 boxShadow: '0 0 14px rgba(239, 68, 68, 0.5)',
@@ -724,7 +771,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
               alignItems: 'center',
               justifyContent: 'center',
               flexShrink: 0,
-              marginBottom: 2,
               background: (!inputText.trim() || loading)
                 ? 'rgba(255, 255, 255, 0.04)'
                 : 'linear-gradient(135deg, var(--accent, #ffffff) 0%, rgba(220, 220, 230, 0.9) 100%)',
@@ -732,7 +778,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
               boxShadow: (!inputText.trim() || loading) ? 'none' : '0 2px 14px var(--accent-glow, rgba(255, 255, 255, 0.3))',
               transition: 'all 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
             }}
-            title={loading ? 'Идет обработка...' : 'Отправить (Enter)'}
+            title={loading ? 'Thinking...' : 'Отправить (Enter)'}
           >
             <Send size={13} />
           </button>

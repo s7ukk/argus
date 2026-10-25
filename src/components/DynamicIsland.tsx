@@ -1,6 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { Play, Pause, Square, Sparkles, Clock, CheckCircle2, Mic, Radio, Volume2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Play, Pause, Square, Sparkles, Clock, Check, Mic, Bell, Info } from 'lucide-react';
 import { TimerItem } from '../types';
+
+export interface IslandNotification {
+  id: string;
+  text: string;
+  type?: 'success' | 'info' | 'alert' | 'timer';
+  duration?: number;
+}
 
 interface DynamicIslandProps {
   dictationState: { active: boolean; text?: string; success?: boolean } | null;
@@ -16,8 +23,10 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
   onStopAi,
 }) => {
   const [activeTimer, setActiveTimer] = useState<TimerItem | null>(null);
+  const [notification, setNotification] = useState<IslandNotification | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const [hovered, setHovered] = useState(false);
+  const notifyTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Poll / Listen for active running timers from localStorage
   useEffect(() => {
@@ -42,6 +51,43 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
     return () => {
       clearInterval(interval);
       window.removeEventListener('argus_extras_updated', checkTimers);
+    };
+  }, []);
+
+  // Listen for in-app notifications/settings toasts to show right in Dynamic Island!
+  useEffect(() => {
+    const handleIslandNotify = (e: any) => {
+      const detail = e.detail;
+      if (!detail || !detail.text) return;
+
+      if (notifyTimerRef.current) clearTimeout(notifyTimerRef.current);
+
+      const notif: IslandNotification = {
+        id: 'notif-' + Date.now(),
+        text: detail.text,
+        type: detail.type || 'info',
+        duration: detail.duration || 3200,
+      };
+
+      setNotification(notif);
+
+      try {
+        (window as any).electronAPI?.showIslandNotification?.({
+          text: detail.text,
+          type: detail.type || 'info',
+          duration: detail.duration || 3200,
+        });
+      } catch {}
+
+      notifyTimerRef.current = setTimeout(() => {
+        setNotification(null);
+      }, notif.duration);
+    };
+
+    window.addEventListener('argus_island_notify', handleIslandNotify);
+    return () => {
+      window.removeEventListener('argus_island_notify', handleIslandNotify);
+      if (notifyTimerRef.current) clearTimeout(notifyTimerRef.current);
     };
   }, []);
 
@@ -87,23 +133,23 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  // Determine priority state to display:
-  // 1. Dictation (Double-Ctrl)
-  // 2. Active Running Timer
-  // 3. AI Thinking / Speaking
-  // 4. Idle (subtle core status)
+  // Determine priority states:
+  // 1. Toast Notification / Settings / Timer finished
+  // 2. Double-Ctrl Dictation HUD
+  // 3. Active Running Timer
+  // 4. AI Thinking / Speaking
+  const hasNotif = Boolean(notification);
   const hasDictation = Boolean(dictationState);
   const hasTimer = Boolean(activeTimer && activeTimer.remaining_seconds > 0);
   const hasAiAction = isAiThinking || isSpeaking;
 
-  // If nothing active and not hovered/expanded, remain invisible or ultra-subtle
-  const isVisible = hasDictation || hasTimer || hasAiAction;
+  const isVisible = hasNotif || hasDictation || hasTimer || hasAiAction;
 
   if (!isVisible) {
     return null;
   }
 
-  const showExpanded = (isExpanded || hovered) && (hasTimer || hasAiAction);
+  const showExpanded = (isExpanded || hovered) && (hasTimer || hasAiAction) && !hasNotif && !hasDictation;
 
   return (
     <div
@@ -112,38 +158,66 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
       onClick={() => setIsExpanded(!isExpanded)}
       style={{
         position: 'fixed',
-        top: 44, // Cleanly below the 38px titlebar
+        top: 10,
         left: '50%',
         transform: 'translateX(-50%)',
-        zIndex: 900,
-        minWidth: showExpanded ? 340 : hasDictation ? 320 : hasTimer ? 210 : 170,
-        height: showExpanded ? 76 : 32,
+        zIndex: 9999999, // Float on top of EVERYTHING
+        minWidth: showExpanded
+          ? 340
+          : hasNotif
+          ? 280
+          : hasDictation
+          ? 340
+          : hasTimer
+          ? 200
+          : 170,
+        height: showExpanded ? 76 : 34,
         borderRadius: showExpanded ? 24 : 9999,
-        background: 'rgba(8, 8, 12, 0.88)',
-        backdropFilter: 'blur(32px) saturate(190%)',
-        WebkitBackdropFilter: 'blur(32px) saturate(190%)',
-        border: hasDictation && dictationState?.active
-          ? '1px solid rgba(239, 68, 68, 0.6)'
+        background: 'rgba(8, 8, 12, 0.92)',
+        backdropFilter: 'blur(36px) saturate(200%)',
+        WebkitBackdropFilter: 'blur(36px) saturate(200%)',
+        border: hasNotif && notification?.type === 'success'
+          ? '1px solid rgba(74, 222, 128, 0.45)'
+          : hasNotif && notification?.type === 'timer'
+          ? '1px solid rgba(251, 191, 36, 0.5)'
+          : hasDictation && dictationState?.active
+          ? '1px solid rgba(239, 68, 68, 0.65)'
           : hasDictation && dictationState?.success
-          ? '1px solid rgba(34, 197, 94, 0.6)'
-          : '1px solid rgba(255, 255, 255, 0.12)',
+          ? '1px solid rgba(74, 222, 128, 0.65)'
+          : '1px solid rgba(255, 255, 255, 0.14)',
         boxShadow: hasDictation && dictationState?.active
-          ? '0 12px 36px rgba(0, 0, 0, 0.7), 0 0 20px rgba(239, 68, 68, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.2)'
-          : '0 12px 36px rgba(0, 0, 0, 0.7), 0 0 20px var(--accent-glow, rgba(255, 255, 255, 0.15)), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
+          ? '0 16px 40px rgba(0, 0, 0, 0.75), 0 0 24px rgba(239, 68, 68, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)'
+          : '0 16px 44px rgba(0, 0, 0, 0.75), 0 0 20px var(--accent-glow, rgba(255, 255, 255, 0.12)), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
         padding: showExpanded ? '10px 18px' : '0 14px',
         cursor: (hasTimer || hasAiAction) ? 'pointer' : 'default',
-        transition: 'all 0.34s cubic-bezier(0.16, 1, 0.3, 1)',
+        transition: 'all 0.32s cubic-bezier(0.16, 1, 0.3, 1)',
         userSelect: 'none',
         overflow: 'hidden',
       }}
     >
-      {/* ─── COMPACT PILL MODE ─── */}
-      {!showExpanded && (
+      {/* ─── 1. NOTIFICATIONS / SETTINGS POPUP DISPLAY ─── */}
+      {hasNotif && !showExpanded ? (
+        <div className="anim-fade-in" style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', justifyContent: 'center' }}>
+          {notification?.type === 'success' ? (
+            <div style={{ width: 18, height: 18, borderRadius: '50%', background: 'rgba(74, 222, 128, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Check size={11} color="#4ade80" />
+            </div>
+          ) : notification?.type === 'timer' ? (
+            <Bell size={13} color="#fbbf24" className="anim-dot" />
+          ) : (
+            <Info size={13} color="var(--accent, #ffffff)" />
+          )}
+          <span style={{ fontSize: 12, fontWeight: 600, color: '#ffffff', letterSpacing: '0.01em', whiteSpace: 'nowrap' }}>
+            {notification?.text}
+          </span>
+        </div>
+      ) : !showExpanded ? (
+        /* ─── 2. COMPACT PILL MODE ─── */
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, width: '100%' }}>
-          {/* DICTATION STATE */}
+          {/* DICTATION (DOUBLE-CTRL) STATE */}
           {hasDictation ? (
             dictationState?.active ? (
               <>
@@ -159,19 +233,19 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
                     className="anim-dot"
                   />
                   <span style={{ fontSize: 11.5, fontWeight: 700, color: '#ffffff', letterSpacing: '0.02em' }}>
-                    Голосовой ввод...
+                    Голосовой ввод... (Double-Ctrl)
                   </span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                   <span style={{ width: 2.5, height: 10, background: '#ef4444', borderRadius: 2 }} className="anim-dot" />
-                  <span style={{ width: 2.5, height: 15, background: '#ef4444', borderRadius: 2 }} className="anim-dot" />
-                  <span style={{ width: 2.5, height: 8, background: '#ef4444', borderRadius: 2 }} className="anim-dot" />
+                  <span style={{ width: 2.5, height: 16, background: '#ef4444', borderRadius: 2 }} className="anim-dot" />
+                  <span style={{ width: 2.5, height: 9, background: '#ef4444', borderRadius: 2 }} className="anim-dot" />
                 </div>
               </>
             ) : dictationState?.success ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ color: '#22c55e', fontSize: 13, fontWeight: 800 }}>✓</span>
-                <span style={{ fontSize: 11.5, fontWeight: 600, color: '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 240 }}>
+                <span style={{ color: '#4ade80', fontSize: 13, fontWeight: 800 }}>✓</span>
+                <span style={{ fontSize: 11.5, fontWeight: 600, color: '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 260 }}>
                   «{dictationState.text}»
                 </span>
               </div>
@@ -220,12 +294,50 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
               </span>
             </>
           ) : hasAiAction ? (
-            /* AI THINKING / SPEAKING PILL */
+            /* AI THINKING (3 RUNNING DOTS) OR SPEAKING */
             <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                <Sparkles size={12} color="var(--accent, #ffffff)" className="anim-dot" />
-                <span style={{ fontSize: 11.5, fontWeight: 600, color: '#e2e8f0' }}>
-                  {isSpeaking ? 'Озвучивание...' : 'Argus думает...'}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {/* 3 Running / Place-Swapping Dots */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 3, width: 20, position: 'relative' }}>
+                  <span
+                    className="anim-dot-run-1"
+                    style={{
+                      width: 4.5,
+                      height: 4.5,
+                      borderRadius: '50%',
+                      background: 'var(--accent, #ffffff)',
+                    }}
+                  />
+                  <span
+                    className="anim-dot-run-2"
+                    style={{
+                      width: 4.5,
+                      height: 4.5,
+                      borderRadius: '50%',
+                      background: 'var(--accent, #ffffff)',
+                      opacity: 0.8,
+                    }}
+                  />
+                  <span
+                    className="anim-dot-run-3"
+                    style={{
+                      width: 4.5,
+                      height: 4.5,
+                      borderRadius: '50%',
+                      background: 'var(--accent, #ffffff)',
+                      opacity: 0.6,
+                    }}
+                  />
+                </div>
+                <span
+                  style={{
+                    fontSize: 11.5,
+                    fontWeight: 600,
+                    color: '#ffffff',
+                    fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+                  }}
+                >
+                  {isSpeaking ? 'Озвучивание...' : 'Thinking...'}
                 </span>
               </div>
               {onStopAi && (
@@ -250,21 +362,21 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
             </>
           ) : null}
         </div>
-      )}
+      ) : null}
 
-      {/* ─── EXPANDED INTERACTIVE CARD MODE ─── */}
+      {/* ─── 3. EXPANDED INTERACTIVE CARD MODE ─── */}
       {showExpanded && (
         <div className="anim-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {hasTimer && activeTimer ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
               <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                <span style={{ fontSize: 10.5, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   Таймер активности
                 </span>
                 <span style={{ fontSize: 13, fontWeight: 700, color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {activeTimer.title}
                 </span>
-                <span style={{ fontSize: 17, fontWeight: 800, fontFamily: 'ui-monospace, monospace', color: 'var(--accent, #ffffff)' }}>
+                <span style={{ fontSize: 16, fontWeight: 800, fontFamily: 'ui-monospace, monospace', color: 'var(--accent, #ffffff)' }}>
                   {formatTimerTime(activeTimer.remaining_seconds)}
                 </span>
               </div>
@@ -317,7 +429,7 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
                 <Sparkles size={16} color="var(--accent, #ffffff)" className="anim-dot" />
                 <div>
                   <div style={{ fontSize: 12.5, fontWeight: 700, color: '#ffffff' }}>
-                    {isSpeaking ? 'Argus отвечает голосом' : 'Нейросеть генерирует ответ'}
+                    {isSpeaking ? 'Argus отвечает голосом' : 'Thinking...'}
                   </div>
                   <div style={{ fontSize: 11, color: '#94a3b8' }}>
                     Нажмите «Остановить» для прерывания

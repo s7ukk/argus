@@ -230,6 +230,27 @@ input[type=range]::-webkit-slider-thumb:hover {
 @keyframes pulseDot { 0%,100% { opacity:1; transform: scale(1); } 50% { opacity:0.4; transform: scale(0.85); } }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* ─── 3 Running / Place-Swapping Dots Animation ────── */
+@keyframes runDot1 {
+  0%, 100% { transform: translateX(0); }
+  33% { transform: translateX(6px); }
+  66% { transform: translateX(12px); }
+}
+@keyframes runDot2 {
+  0%, 100% { transform: translateX(0); }
+  33% { transform: translateX(-6px); }
+  66% { transform: translateX(6px); }
+}
+@keyframes runDot3 {
+  0%, 100% { transform: translateX(0); }
+  33% { transform: translateX(-6px); }
+  66% { transform: translateX(-12px); }
+}
+
+.anim-dot-run-1 { animation: runDot1 0.9s infinite ease-in-out; }
+.anim-dot-run-2 { animation: runDot2 0.9s infinite ease-in-out; }
+.anim-dot-run-3 { animation: runDot3 0.9s infinite ease-in-out; }
+
 .anim-fade-up { animation: fadeUp 0.22s cubic-bezier(0.16, 1, 0.3, 1) both; }
 .anim-fade-in { animation: fadeIn 0.18s ease both; }
 .anim-scale-up { animation: scaleUp 0.22s cubic-bezier(0.16, 1, 0.3, 1) both; }

@@ -277,7 +277,7 @@ export const App: React.FC = () => {
 
   const handleAuthSuccess = (newProfile: UserProfile) => {
     setProfile(newProfile);
-    confetti({ particleCount: 90, spread: 80, origin: { y: 0.6 }, colors: ['#a855f7', '#7c3aed', '#c084fc', '#e879f9'] });
+    confetti({ particleCount: 90, spread: 80, origin: { y: 0.6 }, colors: ['var(--accent, #ffffff)', 'var(--accent, #ffffff)', 'var(--accent, #ffffff)', '#ffffff'] });
     loadChats(newProfile.key_code);
   };
 
@@ -367,8 +367,8 @@ export const App: React.FC = () => {
     abortControllerRef.current = controller;
 
     try {
-      const shouldRequestAudio = activeProf.voice_enabled !== false;
-      const res = await sendChatMessage(targetChatId, activeProf.key_code, textToSend, shouldRequestAudio, controller.signal);
+      // Decouple TTS so chat text response returns immediately in <0.8s; Dmitry TTS streams concurrently in background
+      const res = await sendChatMessage(targetChatId, activeProf.key_code, textToSend, false, controller.signal);
 
       // Start audio playback IMMEDIATELY at the exact moment the text begins rendering
       if (voiceAssistantRef.current && activeProf.voice_enabled !== false) {
@@ -409,7 +409,7 @@ export const App: React.FC = () => {
         response_time: responseTime
       };
       setMessages((prev) => [...prev, asstMsg]);
-      setStreamingMessageId(asstMsg.id);
+      setStreamingMessageId(null);
 
       // Client-Side Action Execution Guarantee (Only for remote Cloud server responses)
       if (res.action_type && (res as any).is_cloud) {
@@ -519,7 +519,7 @@ export const App: React.FC = () => {
   if (checkingAuth) {
     return (
       <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', background:'#07050f' }}>
-        <div style={{ width:28, height:28, border:'2px solid rgba(139,92,246,0.2)', borderTopColor:'#8b5cf6', borderRadius:'50%' }} className="anim-spin" />
+        <div style={{ width:28, height:28, border:'2px solid rgba(255, 255, 255, 0.1)', borderTopColor:'var(--accent, #ffffff)', borderRadius:'50%' }} className="anim-spin" />
       </div>
     );
   }
@@ -598,6 +598,8 @@ export const App: React.FC = () => {
                   streamingMessageId={streamingMessageId}
                   onStop={handleStop}
                   onFinishStreaming={() => setStreamingMessageId(null)}
+                  isSidebarCollapsed={isSidebarCollapsed}
+                  onToggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
                 />
               </>
             )}

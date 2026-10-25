@@ -382,7 +382,7 @@ export const PluginsView: React.FC = () => {
               }}
               className="hover:bg-white/5"
             >
-              {isExp ? <ChevronDown size={14} color="#a855f7" /> : <ChevronRight size={14} color="#64748b" />}
+              {isExp ? <ChevronDown size={14} color="var(--accent, #ffffff)" /> : <ChevronRight size={14} color="#64748b" />}
               <Folder size={14} color="#38bdf8" />
               <span style={{ fontWeight: 600 }}>{item.name}</span>
             </div>
@@ -407,8 +407,8 @@ export const PluginsView: React.FC = () => {
             borderRadius: 6,
             cursor: 'pointer',
             fontSize: 12,
-            background: isSelected ? 'rgba(168, 85, 247, 0.2)' : 'transparent',
-            border: isSelected ? '1px solid rgba(168, 85, 247, 0.4)' : '1px solid transparent',
+            background: isSelected ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+            border: isSelected ? '1px solid rgba(255, 255, 255, 0.2)' : '1px solid transparent',
             color: isSelected ? '#ffffff' : '#94a3b8',
           }}
           className="hover:bg-white/5"
@@ -477,7 +477,7 @@ export const PluginsView: React.FC = () => {
         height: '100%',
         display: 'flex',
         overflow: 'hidden',
-        background: 'radial-gradient(circle at 15% 15%, rgba(168, 85, 247, 0.08) 0%, transparent 40%), radial-gradient(circle at 85% 85%, rgba(56, 189, 248, 0.06) 0%, transparent 40%), rgba(7, 5, 15, 0.75)',
+        background: 'radial-gradient(circle at 15% 15%, rgba(255, 255, 255, 0.04) 0%, transparent 40%), radial-gradient(circle at 85% 85%, rgba(56, 189, 248, 0.06) 0%, transparent 40%), rgba(7, 5, 15, 0.75)',
         position: 'relative',
         userSelect: 'none',
       }}
@@ -534,13 +534,13 @@ export const PluginsView: React.FC = () => {
                 width: 34,
                 height: 34,
                 borderRadius: 11,
-                background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.35) 0%, rgba(56, 189, 248, 0.25) 100%)',
-                border: '1px solid rgba(168, 85, 247, 0.45)',
+                background: 'linear-gradient(135deg, var(--accent-glow, rgba(255, 255, 255, 0.15)) 0%, rgba(56, 189, 248, 0.25) 100%)',
+                border: '1px solid var(--accent-glow, rgba(255, 255, 255, 0.2))',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#c084fc',
-                boxShadow: '0 0 16px rgba(168, 85, 247, 0.35)',
+                color: 'var(--accent, #ffffff)',
+                boxShadow: '0 0 16px var(--accent-glow, rgba(255, 255, 255, 0.15))',
               }}
             >
               <Boxes size={18} />
@@ -548,7 +548,7 @@ export const PluginsView: React.FC = () => {
             <div>
               <div style={{ fontSize: 14, fontWeight: 800, color: '#ffffff', letterSpacing: '0.01em' }}>Плагины Argus</div>
               <div style={{ fontSize: 11, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#a855f7' }} />
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent, #ffffff)' }} />
                 <span>{section === 'official' ? `${officialPlugins.length} официальных` : `${customPlugins.length} пользовательских`}</span>
               </div>
             </div>
@@ -565,10 +565,10 @@ export const PluginsView: React.FC = () => {
               display: 'flex',
               alignItems: 'center',
               gap: 5,
-              background: 'linear-gradient(135deg, #a855f7 0%, #38bdf8 100%)',
+              background: 'linear-gradient(135deg, var(--accent, #ffffff) 0%, #38bdf8 100%)',
               color: '#ffffff',
               border: '1px solid rgba(255, 255, 255, 0.3)',
-              boxShadow: '0 4px 16px rgba(168, 85, 247, 0.4)',
+              boxShadow: '0 4px 16px rgba(255, 255, 255, 0.2)',
               cursor: 'pointer',
             }}
           >
@@ -604,13 +604,13 @@ export const PluginsView: React.FC = () => {
               alignItems: 'center',
               justifyContent: 'center',
               gap: 6,
-              border: section === 'official' ? '1px solid rgba(168, 85, 247, 0.6)' : '1px solid rgba(255, 255, 255, 0.05)',
-              background: section === 'official' ? 'linear-gradient(135deg, rgba(168, 85, 247, 0.25) 0%, rgba(139, 92, 246, 0.15) 100%)' : 'rgba(255, 255, 255, 0.02)',
+              border: section === 'official' ? '1px solid rgba(255, 255, 255, 0.3)' : '1px solid rgba(255, 255, 255, 0.05)',
+              background: section === 'official' ? 'linear-gradient(135deg, var(--accent-glow, rgba(255, 255, 255, 0.12)) 0%, rgba(255, 255, 255, 0.08) 100%)' : 'rgba(255, 255, 255, 0.02)',
               color: section === 'official' ? '#ffffff' : '#94a3b8',
-              boxShadow: section === 'official' ? '0 0 18px rgba(168, 85, 247, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2)' : 'none',
+              boxShadow: section === 'official' ? '0 0 18px rgba(255, 255, 255, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.2)' : 'none',
             }}
           >
-            <ShieldCheck size={14} color={section === 'official' ? '#c084fc' : '#94a3b8'} />
+            <ShieldCheck size={14} color={section === 'official' ? 'var(--accent, #ffffff)' : '#94a3b8'} />
             <span>Официальные</span>
             <span
               style={{
@@ -618,8 +618,8 @@ export const PluginsView: React.FC = () => {
                 fontWeight: 800,
                 padding: '1px 6px',
                 borderRadius: 99,
-                background: section === 'official' ? 'rgba(168, 85, 247, 0.35)' : 'rgba(255, 255, 255, 0.08)',
-                color: section === 'official' ? '#f3e8ff' : '#64748b',
+                background: section === 'official' ? 'var(--accent-glow, rgba(255, 255, 255, 0.15))' : 'rgba(255, 255, 255, 0.08)',
+                color: section === 'official' ? '#ffffff' : '#64748b',
               }}
             >
               {officialPlugins.length}
@@ -707,7 +707,7 @@ export const PluginsView: React.FC = () => {
               {activePluginsList.map((p) => {
                 const isSelected = selectedPlugin?.id === p.id;
                 const isRunning = p.status === 'running' || p.is_official;
-                const accentColor = p.id === 'voice_sunder' ? '#c084fc' : p.id === 'web_automator' ? '#38bdf8' : p.id === 'system_optimizer' ? '#4ade80' : '#f59e0b';
+                const accentColor = p.id === 'voice_sunder' ? 'var(--accent, #ffffff)' : p.id === 'web_automator' ? '#38bdf8' : p.id === 'system_optimizer' ? '#4ade80' : '#f59e0b';
                 const accentRgb = p.id === 'voice_sunder' ? '192, 132, 252' : p.id === 'web_automator' ? '56, 189, 248' : p.id === 'system_optimizer' ? '74, 222, 128' : '245, 158, 11';
 
                 return (
@@ -891,15 +891,15 @@ export const PluginsView: React.FC = () => {
                         fontWeight: 700,
                         padding: '3px 9px',
                         borderRadius: 999,
-                        background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.18) 0%, rgba(147, 51, 234, 0.1) 100%)',
-                        border: '1px solid rgba(168, 85, 247, 0.4)',
-                        color: '#c084fc',
+                        background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(147, 51, 234, 0.1) 100%)',
+                        border: '1px solid rgba(255, 255, 255, 0.2)',
+                        color: 'var(--accent, #ffffff)',
                         display: 'inline-flex',
                         alignItems: 'center',
                         gap: 5,
                       }}
                     >
-                      <ShieldCheck size={12} color="#c084fc" />
+                      <ShieldCheck size={12} color="var(--accent, #ffffff)" />
                       <span>Argus Core Built-in</span>
                     </span>
                   ) : (
@@ -1010,7 +1010,7 @@ export const PluginsView: React.FC = () => {
                 padding: '12px 4px',
                 background: 'transparent',
                 border: 'none',
-                borderBottom: activeTab === 'ide' ? '2px solid #a855f7' : '2px solid transparent',
+                borderBottom: activeTab === 'ide' ? '2px solid var(--accent, #ffffff)' : '2px solid transparent',
                 color: activeTab === 'ide' ? '#ffffff' : '#94a3b8',
                 fontSize: 13,
                 fontWeight: 700,
@@ -1018,11 +1018,11 @@ export const PluginsView: React.FC = () => {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 7,
-                boxShadow: activeTab === 'ide' ? '0 2px 10px rgba(168, 85, 247, 0.3)' : 'none',
+                boxShadow: activeTab === 'ide' ? '0 2px 10px rgba(255, 255, 255, 0.15)' : 'none',
                 transition: 'all 0.18s ease',
               }}
             >
-              <Code2 size={15} color={activeTab === 'ide' ? '#c084fc' : '#94a3b8'} />
+              <Code2 size={15} color={activeTab === 'ide' ? 'var(--accent, #ffffff)' : '#94a3b8'} />
               <span>{selectedPlugin.is_official ? 'Параметры и управление' : 'Структура проекта (IDE)'}</span>
             </button>
             <button
@@ -1060,8 +1060,8 @@ export const PluginsView: React.FC = () => {
                     padding: '18px 22px',
                     borderRadius: 16,
                     background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.16) 0%, rgba(56, 189, 248, 0.08) 100%)',
-                    border: '1px solid rgba(168, 85, 247, 0.35)',
-                    boxShadow: '0 8px 32px rgba(168, 85, 247, 0.12)',
+                    border: '1px solid var(--accent-glow, rgba(255, 255, 255, 0.15))',
+                    boxShadow: '0 8px 32px rgba(255, 255, 255, 0.06)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
@@ -1073,13 +1073,13 @@ export const PluginsView: React.FC = () => {
                         width: 46,
                         height: 46,
                         borderRadius: 14,
-                        background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.3) 0%, rgba(147, 51, 234, 0.15) 100%)',
-                        border: '1px solid rgba(168, 85, 247, 0.5)',
+                        background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, rgba(147, 51, 234, 0.15) 100%)',
+                        border: '1px solid rgba(255, 255, 255, 0.25)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        color: '#c084fc',
-                        boxShadow: '0 0 16px rgba(168, 85, 247, 0.35)',
+                        color: 'var(--accent, #ffffff)',
+                        boxShadow: '0 0 16px var(--accent-glow, rgba(255, 255, 255, 0.15))',
                       }}
                     >
                       <Mic size={24} />
@@ -1133,7 +1133,7 @@ export const PluginsView: React.FC = () => {
                       padding: 18,
                       borderRadius: 16,
                       background: 'linear-gradient(135deg, rgba(20, 16, 36, 0.7) 0%, rgba(12, 9, 24, 0.8) 100%)',
-                      border: '1px solid rgba(168, 85, 247, 0.25)',
+                      border: '1px solid var(--accent-glow, rgba(255, 255, 255, 0.12))',
                       boxShadow: '0 4px 20px rgba(0, 0, 0, 0.25)',
                       display: 'flex',
                       flexDirection: 'column',
@@ -1142,8 +1142,8 @@ export const PluginsView: React.FC = () => {
                   >
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                        <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(168, 85, 247, 0.2)', border: '1px solid rgba(168, 85, 247, 0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <Keyboard size={15} color="#c084fc" />
+                        <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(255, 255, 255, 0.1)', border: '1px solid var(--accent-glow, rgba(255, 255, 255, 0.15))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <Keyboard size={15} color="var(--accent, #ffffff)" />
                         </div>
                         <span style={{ fontSize: 13.5, fontWeight: 800, color: '#ffffff' }}>Горячая клавиша</span>
                       </div>
@@ -1152,13 +1152,13 @@ export const PluginsView: React.FC = () => {
                           padding: '5px 12px',
                           borderRadius: 8,
                           background: 'rgba(0, 0, 0, 0.6)',
-                          border: '1px solid rgba(168, 85, 247, 0.5)',
-                          color: '#e9d5ff',
+                          border: '1px solid rgba(255, 255, 255, 0.25)',
+                          color: '#ffffff',
                           fontFamily: 'monospace',
                           fontSize: 12,
                           fontWeight: 800,
                           letterSpacing: '0.04em',
-                          boxShadow: '0 0 10px rgba(168, 85, 247, 0.2)',
+                          boxShadow: '0 0 10px rgba(255, 255, 255, 0.1)',
                         }}
                       >
                         {voiceSunderHotkey}
@@ -1176,10 +1176,10 @@ export const PluginsView: React.FC = () => {
                           fontSize: 12,
                           fontWeight: 700,
                           cursor: 'pointer',
-                          border: voiceSunderMode === 'toggle' ? '1px solid #a855f7' : '1px solid rgba(255, 255, 255, 0.08)',
-                          background: voiceSunderMode === 'toggle' ? 'linear-gradient(135deg, rgba(168, 85, 247, 0.3) 0%, rgba(147, 51, 234, 0.15) 100%)' : 'rgba(255, 255, 255, 0.03)',
+                          border: voiceSunderMode === 'toggle' ? '1px solid var(--accent, #ffffff)' : '1px solid rgba(255, 255, 255, 0.08)',
+                          background: voiceSunderMode === 'toggle' ? 'linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, rgba(147, 51, 234, 0.15) 100%)' : 'rgba(255, 255, 255, 0.03)',
                           color: voiceSunderMode === 'toggle' ? '#ffffff' : '#94a3b8',
-                          boxShadow: voiceSunderMode === 'toggle' ? '0 0 12px rgba(168, 85, 247, 0.25)' : 'none',
+                          boxShadow: voiceSunderMode === 'toggle' ? '0 0 12px var(--accent-glow, rgba(255, 255, 255, 0.12))' : 'none',
                         }}
                       >
                         Клик (Toggle)
@@ -1194,10 +1194,10 @@ export const PluginsView: React.FC = () => {
                           fontSize: 12,
                           fontWeight: 700,
                           cursor: 'pointer',
-                          border: voiceSunderMode === 'ptt' ? '1px solid #a855f7' : '1px solid rgba(255, 255, 255, 0.08)',
-                          background: voiceSunderMode === 'ptt' ? 'linear-gradient(135deg, rgba(168, 85, 247, 0.3) 0%, rgba(147, 51, 234, 0.15) 100%)' : 'rgba(255, 255, 255, 0.03)',
+                          border: voiceSunderMode === 'ptt' ? '1px solid var(--accent, #ffffff)' : '1px solid rgba(255, 255, 255, 0.08)',
+                          background: voiceSunderMode === 'ptt' ? 'linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, rgba(147, 51, 234, 0.15) 100%)' : 'rgba(255, 255, 255, 0.03)',
                           color: voiceSunderMode === 'ptt' ? '#ffffff' : '#94a3b8',
-                          boxShadow: voiceSunderMode === 'ptt' ? '0 0 12px rgba(168, 85, 247, 0.25)' : 'none',
+                          boxShadow: voiceSunderMode === 'ptt' ? '0 0 12px var(--accent-glow, rgba(255, 255, 255, 0.12))' : 'none',
                         }}
                       >
                         Push-to-Talk
@@ -1283,12 +1283,12 @@ export const PluginsView: React.FC = () => {
                       style={{
                         padding: '12px 14px',
                         borderRadius: 12,
-                        background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.1) 0%, rgba(0, 0, 0, 0.4) 100%)',
-                        border: '1px solid rgba(168, 85, 247, 0.3)',
+                        background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(0, 0, 0, 0.4) 100%)',
+                        border: '1px solid rgba(255, 255, 255, 0.15)',
                       }}
                     >
-                      <div style={{ fontSize: 11.5, fontWeight: 800, color: '#c084fc', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <Zap size={13} color="#c084fc" />
+                      <div style={{ fontSize: 11.5, fontWeight: 800, color: 'var(--accent, #ffffff)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <Zap size={13} color="var(--accent, #ffffff)" />
                         Обычный ввод
                       </div>
                       <div style={{ fontSize: 12, color: '#e2e8f0', marginTop: 4, fontWeight: 500 }}>«Аргус, напиши [текст]»</div>
@@ -1333,7 +1333,7 @@ export const PluginsView: React.FC = () => {
                   style={{
                     padding: '18px 22px',
                     borderRadius: 16,
-                    background: 'linear-gradient(135deg, rgba(56, 189, 248, 0.16) 0%, rgba(168, 85, 247, 0.08) 100%)',
+                    background: 'linear-gradient(135deg, rgba(56, 189, 248, 0.16) 0%, rgba(255, 255, 255, 0.04) 100%)',
                     border: '1px solid rgba(56, 189, 248, 0.35)',
                     boxShadow: '0 8px 32px rgba(56, 189, 248, 0.12)',
                     display: 'flex',
@@ -1406,13 +1406,13 @@ export const PluginsView: React.FC = () => {
                     style={{
                       padding: 16,
                       borderRadius: 14,
-                      background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.1) 0%, rgba(10, 8, 20, 0.8) 100%)',
-                      border: '1px solid rgba(168, 85, 247, 0.3)',
+                      background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(10, 8, 20, 0.8) 100%)',
+                      border: '1px solid rgba(255, 255, 255, 0.15)',
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                      <Layers size={15} color="#c084fc" />
-                      <div style={{ fontSize: 13, fontWeight: 800, color: '#c084fc' }}>Вкладки и навигация</div>
+                      <Layers size={15} color="var(--accent, #ffffff)" />
+                      <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--accent, #ffffff)' }}>Вкладки и навигация</div>
                     </div>
                     <p style={{ fontSize: 12, color: '#cbd5e1', lineHeight: 1.5 }}>
                       «Закрой вкладку», «Новая вкладка», «Обнови страницу»
@@ -1607,9 +1607,9 @@ export const PluginsView: React.FC = () => {
                             style={{
                               padding: '4px 10px',
                               borderRadius: 6,
-                              background: 'rgba(168, 85, 247, 0.2)',
-                              border: '1px solid rgba(168, 85, 247, 0.4)',
-                              color: '#c084fc',
+                              background: 'rgba(255, 255, 255, 0.1)',
+                              border: '1px solid rgba(255, 255, 255, 0.2)',
+                              color: 'var(--accent, #ffffff)',
                               fontSize: 11.5,
                               fontWeight: 700,
                               cursor: 'pointer',
@@ -1674,7 +1674,7 @@ export const PluginsView: React.FC = () => {
                 <span>Консоль вывода процесса Python</span>
                 <button
                   onClick={() => loadPluginLogs(selectedPlugin.id)}
-                  style={{ background: 'transparent', border: 'none', color: '#c084fc', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                  style={{ background: 'transparent', border: 'none', color: 'var(--accent, #ffffff)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
                 >
                   <RefreshCw size={12} /> Обновить
                 </button>
@@ -1732,7 +1732,7 @@ export const PluginsView: React.FC = () => {
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <Boxes size={20} color="#c084fc" />
+                <Boxes size={20} color="var(--accent, #ffffff)" />
                 <h3 style={{ fontSize: 16, fontWeight: 800, color: '#ffffff' }}>Загрузить пользовательский плагин</h3>
               </div>
               <button
@@ -1756,8 +1756,8 @@ export const PluginsView: React.FC = () => {
                   style={{
                     padding: '8px',
                     borderRadius: 10,
-                    border: uploadMode === m.id ? '1px solid #a855f7' : '1px solid rgba(255, 255, 255, 0.08)',
-                    background: uploadMode === m.id ? 'rgba(168, 85, 247, 0.2)' : 'rgba(255, 255, 255, 0.02)',
+                    border: uploadMode === m.id ? '1px solid var(--accent, #ffffff)' : '1px solid rgba(255, 255, 255, 0.08)',
+                    background: uploadMode === m.id ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.02)',
                     color: uploadMode === m.id ? '#ffffff' : '#94a3b8',
                     fontSize: 12,
                     fontWeight: 700,

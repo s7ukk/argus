@@ -26,8 +26,8 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   Briefcase: <Briefcase size={20} color="#38bdf8" />,
   Gamepad2: <Gamepad2 size={20} color="#f43f5e" />,
   Coffee: <Coffee size={20} color="#fbbf24" />,
-  Sparkles: <Sparkles size={20} color="#c084fc" />,
-  Workflow: <Workflow size={20} color="#a855f7" />,
+  Sparkles: <Sparkles size={20} color="var(--accent, #ffffff)" />,
+  Workflow: <Workflow size={20} color="var(--accent, #ffffff)" />,
 };
 
 export const ScenariosView: React.FC = () => {
@@ -195,14 +195,14 @@ export const ScenariosView: React.FC = () => {
                 width: 36,
                 height: 36,
                 borderRadius: 10,
-                background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.3) 0%, rgba(56, 189, 248, 0.2) 100%)',
-                border: '1px solid rgba(168, 85, 247, 0.4)',
+                background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, rgba(56, 189, 248, 0.2) 100%)',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
               }}
             >
-              <Workflow size={20} color="#c084fc" />
+              <Workflow size={20} color="var(--accent, #ffffff)" />
             </div>
             <h1 style={{ fontSize: 22, fontWeight: 700, color: '#ffffff', margin: 0 }}>
               Сценарии & Автоматизация
@@ -224,13 +224,13 @@ export const ScenariosView: React.FC = () => {
             gap: 8,
             padding: '10px 18px',
             borderRadius: 12,
-            background: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)',
+            background: 'linear-gradient(135deg, var(--accent, #ffffff) 0%, var(--accent, #ffffff) 100%)',
             border: 'none',
             color: '#ffffff',
             fontSize: 13,
             fontWeight: 600,
             cursor: 'pointer',
-            boxShadow: '0 0 16px rgba(168, 85, 247, 0.4)',
+            boxShadow: '0 0 16px rgba(255, 255, 255, 0.2)',
             transition: 'all 0.2s ease',
           }}
         >
@@ -242,7 +242,7 @@ export const ScenariosView: React.FC = () => {
       {/* Scenarios Grid */}
       {loading ? (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 260 }}>
-          <Loader2 className="animate-spin" size={32} color="#a855f7" />
+          <Loader2 className="animate-spin" size={32} color="var(--accent, #ffffff)" />
         </div>
       ) : (
         <div
@@ -265,9 +265,9 @@ export const ScenariosView: React.FC = () => {
                   borderRadius: 18,
                   background: 'rgba(15, 12, 28, 0.65)',
                   border: isRunning
-                    ? '1px solid rgba(168, 85, 247, 0.8)'
+                    ? '1px solid rgba(255, 255, 255, 0.4)'
                     : '1px solid rgba(255, 255, 255, 0.08)',
-                  boxShadow: isRunning ? '0 0 24px rgba(168, 85, 247, 0.35)' : 'none',
+                  boxShadow: isRunning ? '0 0 24px var(--accent-glow, rgba(255, 255, 255, 0.15))' : 'none',
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'space-between',
@@ -291,11 +291,11 @@ export const ScenariosView: React.FC = () => {
                           justifyContent: 'center',
                         }}
                       >
-                        {ICON_MAP[s.icon || 'Sparkles'] || <Sparkles size={20} color="#c084fc" />}
+                        {ICON_MAP[s.icon || 'Sparkles'] || <Sparkles size={20} color="var(--accent, #ffffff)" />}
                       </div>
                       <div>
                         <div style={{ fontSize: 16, fontWeight: 700, color: '#ffffff' }}>{s.name}</div>
-                        <div style={{ fontSize: 11, color: s.is_builtin ? '#38bdf8' : '#a855f7', fontWeight: 600 }}>
+                        <div style={{ fontSize: 11, color: s.is_builtin ? '#38bdf8' : 'var(--accent, #ffffff)', fontWeight: 600 }}>
                           {s.is_builtin ? 'Базовый сценарий' : 'Пользовательский'}
                         </div>
                       </div>
@@ -341,10 +341,10 @@ export const ScenariosView: React.FC = () => {
                             gap: 4,
                             padding: '3px 8px',
                             borderRadius: 6,
-                            background: 'rgba(168, 85, 247, 0.12)',
-                            border: '1px solid rgba(168, 85, 247, 0.25)',
+                            background: 'rgba(255, 255, 255, 0.06)',
+                            border: '1px solid var(--accent-glow, rgba(255, 255, 255, 0.12))',
                             fontSize: 11.5,
-                            color: '#c084fc',
+                            color: 'var(--accent, #ffffff)',
                             fontFamily: 'ui-monospace, monospace',
                           }}
                         >
@@ -379,7 +379,7 @@ export const ScenariosView: React.FC = () => {
                           >
                             {st.type === 'volume_set' && <Volume2 size={12} color="#38bdf8" />}
                             {st.type === 'launch_app' && <AppWindow size={12} color="#4ade80" />}
-                            {st.type === 'play_music' && <Music size={12} color="#f472b6" />}
+                            {st.type === 'play_music' && <Music size={12} color="#cbd5e1" />}
                             {st.type === 'open_url' && <ExternalLink size={12} color="#fbbf24" />}
                             {st.type === 'brightness_set' && <Sun size={12} color="#fb923c" />}
                             <span>{st.label || st.type}</span>
@@ -418,9 +418,9 @@ export const ScenariosView: React.FC = () => {
                       padding: '10px',
                       borderRadius: 12,
                       background: isRunning
-                        ? 'rgba(168, 85, 247, 0.25)'
-                        : 'linear-gradient(135deg, rgba(168, 85, 247, 0.8) 0%, rgba(124, 58, 237, 0.9) 100%)',
-                      border: '1px solid rgba(168, 85, 247, 0.4)',
+                        ? 'var(--accent-glow, rgba(255, 255, 255, 0.12))'
+                        : 'linear-gradient(135deg, rgba(255, 255, 255, 0.4) 0%, rgba(124, 58, 237, 0.9) 100%)',
+                      border: '1px solid rgba(255, 255, 255, 0.2)',
                       color: '#ffffff',
                       fontSize: 13,
                       fontWeight: 600,
@@ -475,14 +475,14 @@ export const ScenariosView: React.FC = () => {
               overflowY: 'auto',
               borderRadius: 20,
               background: 'rgba(15, 12, 28, 0.95)',
-              border: '1px solid rgba(168, 85, 247, 0.4)',
-              boxShadow: '0 0 35px rgba(168, 85, 247, 0.25)',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+              boxShadow: '0 0 35px var(--accent-glow, rgba(255, 255, 255, 0.12))',
               padding: 26,
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <Workflow size={22} color="#c084fc" />
+                <Workflow size={22} color="var(--accent, #ffffff)" />
                 <h2 style={{ fontSize: 18, fontWeight: 700, color: '#ffffff', margin: 0 }}>
                   Новый сценарий автоматизации
                 </h2>
@@ -630,7 +630,7 @@ export const ScenariosView: React.FC = () => {
                         borderRadius: 6,
                         background: 'rgba(244, 114, 182, 0.15)',
                         border: '1px solid rgba(244, 114, 182, 0.3)',
-                        color: '#f472b6',
+                        color: '#cbd5e1',
                         fontSize: 11,
                         cursor: 'pointer',
                       }}
@@ -673,7 +673,7 @@ export const ScenariosView: React.FC = () => {
                       padding: '8px 12px',
                       borderRadius: 8,
                       background: 'rgba(255, 255, 255, 0.05)',
-                      border: '1px solid rgba(168, 85, 247, 0.35)',
+                      border: '1px solid var(--accent-glow, rgba(255, 255, 255, 0.15))',
                       color: '#ffffff',
                       fontSize: 12,
                       outline: 'none',
@@ -685,7 +685,7 @@ export const ScenariosView: React.FC = () => {
                     style={{
                       padding: '8px 12px',
                       borderRadius: 8,
-                      background: 'linear-gradient(135deg, #a855f7, #6366f1)',
+                      background: 'linear-gradient(135deg, var(--accent, #ffffff), #6366f1)',
                       border: 'none',
                       color: '#ffffff',
                       fontSize: 11.5,
@@ -757,13 +757,13 @@ export const ScenariosView: React.FC = () => {
                   style={{
                     padding: '9px 20px',
                     borderRadius: 10,
-                    background: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)',
+                    background: 'linear-gradient(135deg, var(--accent, #ffffff) 0%, var(--accent, #ffffff) 100%)',
                     border: 'none',
                     color: '#ffffff',
                     fontSize: 13,
                     fontWeight: 600,
                     cursor: creating ? 'wait' : 'pointer',
-                    boxShadow: '0 0 16px rgba(168, 85, 247, 0.4)',
+                    boxShadow: '0 0 16px rgba(255, 255, 255, 0.2)',
                   }}
                 >
                   {creating ? 'Сохранение...' : 'Сохранить сценарий'}

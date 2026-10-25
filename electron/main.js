@@ -492,6 +492,25 @@ function registerIpcHandlers() {
     try { dictationHudWindow?.hide(); } catch (e) {}
   });
 
+  ipcMain.on('show-island-notification', (event, data) => {
+    if (!dictationHudWindow || dictationHudWindow.isDestroyed()) createDictationHudWindow();
+    if (dictationHudWindow) {
+      try {
+        const primaryDisplay = screen.getPrimaryDisplay();
+        const { width } = primaryDisplay.workAreaSize;
+        dictationHudWindow.setPosition(Math.round((width - 520) / 2), 25);
+      } catch (e) {}
+      dictationHudWindow.setAlwaysOnTop(true, 'screen-saver', 1);
+      dictationHudWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+      dictationHudWindow.showInactive();
+      dictationHudWindow.webContents.send('island-notify', data);
+    }
+  });
+
+  ipcMain.on('hide-island', () => {
+    try { dictationHudWindow?.hide(); } catch (e) {}
+  });
+
   if (ipcHandlersRegistered) return;
   ipcHandlersRegistered = true;
 
@@ -549,7 +568,7 @@ function createDictationHudWindow() {
   const isMac = process.platform === 'darwin';
   
   dictationHudWindow = new BrowserWindow({
-    width: 460,
+    width: 520,
     height: 60,
     frame: false,
     transparent: true,
@@ -571,7 +590,7 @@ function createDictationHudWindow() {
   try {
     const primaryDisplay = screen.getPrimaryDisplay();
     const { width } = primaryDisplay.workAreaSize;
-    dictationHudWindow.setPosition(Math.round((width - 460) / 2), 35);
+    dictationHudWindow.setPosition(Math.round((width - 520) / 2), 25);
   } catch (e) {}
 
   const html = `<!DOCTYPE html>
@@ -591,11 +610,13 @@ function createDictationHudWindow() {
       overflow: hidden;
     }
     .hud-pill {
-      background: rgba(15, 23, 42, 0.96);
-      border: 1px solid rgba(168, 85, 247, 0.7);
-      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7), 0 0 24px rgba(168, 85, 247, 0.35);
+      background: rgba(10, 10, 14, 0.94);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.75), 0 0 1px rgba(255, 255, 255, 0.25);
       border-radius: 30px;
-      padding: 10px 22px;
+      padding: 10px 24px;
       display: flex;
       align-items: center;
       gap: 12px;
@@ -603,10 +624,11 @@ function createDictationHudWindow() {
       font-size: 13px;
       font-weight: 600;
       letter-spacing: 0.02em;
+      transition: all 0.25s ease;
     }
     .dot {
-      width: 10px;
-      height: 10px;
+      width: 9px;
+      height: 9px;
       border-radius: 50%;
       background: #ef4444;
       box-shadow: 0 0 10px #ef4444;
@@ -625,21 +647,50 @@ function createDictationHudWindow() {
   </div>
   <script>
     const { ipcRenderer } = require('electron');
+    let hideTimeout = null;
+
     ipcRenderer.on('hud-update', (event, state) => {
+      if (hideTimeout) clearTimeout(hideTimeout);
       const pill = document.getElementById('pill');
       const dot = document.getElementById('dot');
       const text = document.getElementById('text');
       if (state.active) {
+        dot.style.display = 'block';
         dot.style.background = '#ef4444';
         dot.style.boxShadow = '0 0 10px #ef4444';
-        dot.style.display = 'block';
-        pill.style.border = '1px solid rgba(168, 85, 247, 0.7)';
+        pill.style.borderColor = 'rgba(255, 255, 255, 0.18)';
         text.innerText = '🎙️ Голосовой ввод Argus: говорите текст... (Double-Ctrl)';
       } else if (state.success) {
         dot.style.display = 'none';
-        pill.style.border = '1px solid rgba(34, 197, 94, 0.8)';
-        text.innerHTML = '<span style="color:#22c55e;font-size:15px;margin-right:4px;">✓</span> Вставлено: «' + (state.text || '') + '»';
+        pill.style.borderColor = 'rgba(74, 222, 128, 0.5)';
+        text.innerHTML = '<span style="color:#4ade80;font-size:14px;margin-right:6px;">✓</span> Вставлено: «' + (state.text || '') + '»';
       }
+    });
+
+    ipcRenderer.on('island-notify', (event, data) => {
+      if (hideTimeout) clearTimeout(hideTimeout);
+      const pill = document.getElementById('pill');
+      const dot = document.getElementById('dot');
+      const text = document.getElementById('text');
+      dot.style.display = 'none';
+
+      if (data.type === 'success') {
+        pill.style.borderColor = 'rgba(74, 222, 128, 0.5)';
+        text.innerHTML = '<span style="color:#4ade80;font-size:14px;margin-right:6px;">✓</span> ' + (data.text || '');
+      } else if (data.type === 'alert') {
+        pill.style.borderColor = 'rgba(239, 68, 68, 0.5)';
+        text.innerHTML = '<span style="color:#ef4444;font-size:14px;margin-right:6px;">⚠</span> ' + (data.text || '');
+      } else if (data.type === 'timer') {
+        pill.style.borderColor = 'rgba(251, 191, 36, 0.5)';
+        text.innerHTML = '<span style="color:#fbbf24;font-size:14px;margin-right:6px;">⏱️</span> ' + (data.text || '');
+      } else {
+        pill.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+        text.innerHTML = '<span style="color:#ffffff;font-size:14px;margin-right:6px;">✦</span> ' + (data.text || '');
+      }
+
+      hideTimeout = setTimeout(() => {
+        try { ipcRenderer.send('hide-dictation-hud'); } catch (e) {}
+      }, data.duration || 2800);
     });
   </script>
 </body>

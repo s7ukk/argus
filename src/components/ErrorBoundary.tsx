@@ -111,7 +111,7 @@ export class ErrorBoundary extends (React.Component as any) {
                 gap: 8,
                 padding: '10px 20px',
                 borderRadius: 10,
-                background: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)',
+                background: 'linear-gradient(135deg, var(--accent, #ffffff) 0%, var(--accent, #ffffff) 100%)',
                 color: '#ffffff',
                 border: 'none',
                 fontSize: 13,

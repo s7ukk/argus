@@ -62,6 +62,9 @@ export const SettingsView: React.FC = () => {
     const next = { ...themeConfig, ...updated };
     setThemeConfig(next);
     applyThemeConfig(next);
+    window.dispatchEvent(new CustomEvent('argus_island_notify', {
+      detail: { text: '✦ Тема интерфейса обновлена', type: 'info', duration: 2000 }
+    }));
   };
 
   // Fish Audio preview test state
@@ -105,6 +108,9 @@ export const SettingsView: React.FC = () => {
       // Synchronize in localStorage for instant frontend access
       localStorage.setItem('argus_settings', JSON.stringify(settings));
       window.dispatchEvent(new CustomEvent('argus_settings_updated', { detail: settings }));
+      window.dispatchEvent(new CustomEvent('argus_island_notify', {
+        detail: { text: '✓ Настройки успешно сохранены!', type: 'success' }
+      }));
       setSavedSuccess(true);
       setTimeout(() => setSavedSuccess(false), 2400);
     } catch (e: any) {
@@ -193,7 +199,7 @@ export const SettingsView: React.FC = () => {
   if (loading) {
     return (
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ width: 28, height: 28, border: '2px solid rgba(168,85,247,0.2)', borderTopColor: '#c084fc', borderRadius: '50%' }} className="anim-spin" />
+        <div style={{ width: 28, height: 28, border: '2px solid rgba(255, 255, 255, 0.1)', borderTopColor: 'var(--accent, #ffffff)', borderRadius: '50%' }} className="anim-spin" />
       </div>
     );
   }
@@ -229,12 +235,12 @@ export const SettingsView: React.FC = () => {
               width: 38,
               height: 38,
               borderRadius: 12,
-              background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.25) 0%, rgba(56, 189, 248, 0.2) 100%)',
-              border: '1px solid rgba(168, 85, 247, 0.35)',
+              background: 'linear-gradient(135deg, var(--accent-glow, rgba(255, 255, 255, 0.12)) 0%, rgba(56, 189, 248, 0.2) 100%)',
+              border: '1px solid var(--accent-glow, rgba(255, 255, 255, 0.15))',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#c084fc',
+              color: 'var(--accent, #ffffff)',
             }}
           >
             <Settings size={20} />
@@ -250,9 +256,9 @@ export const SettingsView: React.FC = () => {
                   fontWeight: 700,
                   padding: '2px 8px',
                   borderRadius: 99,
-                  background: 'rgba(168, 85, 247, 0.12)',
-                  border: '1px solid rgba(168, 85, 247, 0.3)',
-                  color: '#c084fc',
+                  background: 'rgba(255, 255, 255, 0.06)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  color: 'var(--accent, #ffffff)',
                   textTransform: 'uppercase',
                 }}
               >
@@ -277,7 +283,7 @@ export const SettingsView: React.FC = () => {
             display: 'flex',
             alignItems: 'center',
             gap: 8,
-            boxShadow: '0 0 16px rgba(168, 85, 247, 0.3)',
+            boxShadow: '0 0 16px rgba(255, 255, 255, 0.15)',
           }}
         >
           {savedSuccess ? <Check size={16} color="#4ade80" /> : <Settings size={15} />}
@@ -652,12 +658,12 @@ export const SettingsView: React.FC = () => {
                 width: 32,
                 height: 32,
                 borderRadius: 10,
-                background: 'rgba(168, 85, 247, 0.15)',
-                border: '1px solid rgba(168, 85, 247, 0.3)',
+                background: 'rgba(255, 255, 255, 0.08)',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#c084fc',
+                color: 'var(--accent, #ffffff)',
               }}
             >
               <Volume2 size={17} />
@@ -678,11 +684,11 @@ export const SettingsView: React.FC = () => {
                 cursor: 'pointer',
                 border:
                   settings.voice_provider === 'edge-tts'
-                    ? '1px solid rgba(168, 85, 247, 0.6)'
+                    ? '1px solid rgba(255, 255, 255, 0.3)'
                     : '1px solid rgba(255, 255, 255, 0.06)',
                 background:
                   settings.voice_provider === 'edge-tts'
-                    ? 'rgba(168, 85, 247, 0.18)'
+                    ? 'rgba(255, 255, 255, 0.08)'
                     : 'rgba(255, 255, 255, 0.02)',
                 color: settings.voice_provider === 'edge-tts' ? '#ffffff' : '#94a3b8',
                 fontWeight: 700,
@@ -703,7 +709,7 @@ export const SettingsView: React.FC = () => {
                     : '1px solid rgba(255, 255, 255, 0.06)',
                 background:
                   settings.voice_provider === 'fish-audio'
-                    ? 'rgba(236, 72, 153, 0.18)'
+                    ? 'rgba(255, 255, 255, 0.08)'
                     : 'rgba(255, 255, 255, 0.02)',
                 color: settings.voice_provider === 'fish-audio' ? '#ffffff' : '#94a3b8',
                 fontWeight: 700,
@@ -786,7 +792,7 @@ export const SettingsView: React.FC = () => {
                   rel="noreferrer"
                   style={{
                     fontSize: 11.5,
-                    color: '#c084fc',
+                    color: 'var(--accent, #ffffff)',
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: 4,
@@ -862,7 +868,7 @@ export const SettingsView: React.FC = () => {
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                   <label style={{ fontSize: 12, fontWeight: 600, color: '#cbd5e1' }}>Скорость воспроизведения</label>
-                  <span style={{ fontSize: 12, color: '#c084fc', fontWeight: 700 }}>{settings.voice_speed}x</span>
+                  <span style={{ fontSize: 12, color: 'var(--accent, #ffffff)', fontWeight: 700 }}>{settings.voice_speed}x</span>
                 </div>
                 <input
                   type="range"
@@ -871,7 +877,7 @@ export const SettingsView: React.FC = () => {
                   step="0.05"
                   value={settings.voice_speed}
                   onChange={(e) => setSettings({ ...settings, voice_speed: parseFloat(e.target.value) })}
-                  style={{ width: '100%', accentColor: '#a855f7' }}
+                  style={{ width: '100%', accentColor: 'var(--accent, #ffffff)' }}
                 />
               </div>
             </div>

@@ -119,7 +119,7 @@ export const SystemView: React.FC = () => {
               width: 38,
               height: 38,
               borderRadius: 12,
-              background: 'linear-gradient(135deg, rgba(56, 189, 248, 0.25) 0%, rgba(168, 85, 247, 0.2) 100%)',
+              background: 'linear-gradient(135deg, rgba(56, 189, 248, 0.25) 0%, rgba(255, 255, 255, 0.1) 100%)',
               border: '1px solid rgba(56, 189, 248, 0.35)',
               display: 'flex',
               alignItems: 'center',
@@ -175,9 +175,9 @@ export const SystemView: React.FC = () => {
             zIndex: 50,
             padding: '8px 16px',
             borderRadius: 12,
-            background: 'rgba(168, 85, 247, 0.2)',
-            border: '1px solid rgba(168, 85, 247, 0.4)',
-            color: '#e9d5ff',
+            background: 'rgba(255, 255, 255, 0.1)',
+            border: '1px solid rgba(255, 255, 255, 0.2)',
+            color: '#ffffff',
             fontSize: 12.5,
             fontWeight: 600,
             display: 'flex',
@@ -186,7 +186,7 @@ export const SystemView: React.FC = () => {
             backdropFilter: 'blur(10px)',
           }}
         >
-          <CheckCircle size={15} color="#c084fc" />
+          <CheckCircle size={15} color="var(--accent, #ffffff)" />
           <span>{notification}</span>
         </div>
       )}
@@ -233,7 +233,7 @@ export const SystemView: React.FC = () => {
                   height: '100%',
                   width: `${stats?.cpu?.percent ?? 0}%`,
                   borderRadius: 99,
-                  background: 'linear-gradient(90deg, #38bdf8 0%, #a855f7 100%)',
+                  background: 'linear-gradient(90deg, #38bdf8 0%, var(--accent, #ffffff) 100%)',
                   transition: 'width 0.4s ease',
                 }}
               />
@@ -255,7 +255,7 @@ export const SystemView: React.FC = () => {
               <span style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>
                 Память (RAM)
               </span>
-              <Database size={18} color="#c084fc" />
+              <Database size={18} color="var(--accent, #ffffff)" />
             </div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
               <span style={{ fontSize: 32, fontWeight: 800, color: '#ffffff' }}>
@@ -271,7 +271,7 @@ export const SystemView: React.FC = () => {
                   height: '100%',
                   width: `${stats?.memory?.percent ?? 0}%`,
                   borderRadius: 99,
-                  background: 'linear-gradient(90deg, #a855f7 0%, #ec4899 100%)',
+                  background: 'linear-gradient(90deg, var(--accent, #ffffff) 0%, #cbd5e1 100%)',
                   transition: 'width 0.4s ease',
                 }}
               />
@@ -468,7 +468,7 @@ export const SystemView: React.FC = () => {
                 cursor: 'pointer',
               }}
             >
-              <Lock size={16} color="#c084fc" />
+              <Lock size={16} color="var(--accent, #ffffff)" />
               <span>Заблокировать ПК</span>
             </button>
           </div>

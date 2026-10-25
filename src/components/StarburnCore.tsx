@@ -6,22 +6,12 @@ interface StarburnCoreProps {
   size?: number;
 }
 
-interface Particle {
-  x: number;
-  y: number;
-  radius: number;
-  alpha: number;
-  speed: number;
-  angle: number;
-  dist: number;
-}
-
 export const StarburnCore: React.FC<StarburnCoreProps> = ({
   isListening,
   isSpeaking,
-  size = 240
+  size = 180,
 }) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -33,28 +23,23 @@ export const StarburnCore: React.FC<StarburnCoreProps> = ({
     let angle = 0;
     let pulse = 0;
 
-    // Generate orbiting celestial dust particles
-    const particleCount = 42;
-    const particles: Particle[] = [];
-    for (let i = 0; i < particleCount; i++) {
-      particles.push({
-        x: 0,
-        y: 0,
-        radius: Math.random() * 1.8 + 0.6,
-        alpha: Math.random() * 0.7 + 0.3,
-        speed: (Math.random() * 0.015 + 0.005) * (Math.random() > 0.5 ? 1 : -1),
-        angle: Math.random() * Math.PI * 2,
-        dist: Math.random() * (size * 0.42) + 20
-      });
-    }
+    // Dust particles
+    const particleCount = 28;
+    const particles = Array.from({ length: particleCount }, () => ({
+      angle: Math.random() * Math.PI * 2,
+      dist: 22 + Math.random() * 56,
+      speed: 0.005 + Math.random() * 0.012,
+      radius: 0.8 + Math.random() * 1.6,
+      alpha: 0.2 + Math.random() * 0.6,
+    }));
 
     const render = () => {
       ctx.clearRect(0, 0, size, size);
       const cx = size / 2;
       const cy = size / 2;
 
-      angle += 0.018;
-      pulse += 0.035;
+      angle += 0.016;
+      pulse += 0.032;
 
       const dynamicAmp = isSpeaking
         ? 1 + Math.sin(pulse * 3.5) * 0.16
@@ -62,22 +47,22 @@ export const StarburnCore: React.FC<StarburnCoreProps> = ({
         ? 1 + Math.sin(pulse * 2.2) * 0.1
         : 1 + Math.sin(pulse) * 0.035;
 
-      // 1. Nebula Cosmic Cloud Glow
+      // 1. Nebula Cosmic Cloud Glow (Pure Silver/Monochrome or red/gold when active)
       const nebula = ctx.createRadialGradient(cx, cy, 10, cx, cy, (size / 2) * dynamicAmp);
       if (isListening) {
-        nebula.addColorStop(0, 'rgba(244, 63, 94, 0.45)');
-        nebula.addColorStop(0.4, 'rgba(225, 29, 72, 0.2)');
-        nebula.addColorStop(0.8, 'rgba(168, 85, 247, 0.08)');
+        nebula.addColorStop(0, 'rgba(239, 68, 68, 0.45)');
+        nebula.addColorStop(0.4, 'rgba(220, 38, 38, 0.2)');
+        nebula.addColorStop(0.8, 'rgba(255, 255, 255, 0.04)');
         nebula.addColorStop(1, 'rgba(0, 0, 0, 0)');
       } else if (isSpeaking) {
-        nebula.addColorStop(0, 'rgba(251, 191, 36, 0.55)');
-        nebula.addColorStop(0.3, 'rgba(244, 63, 94, 0.35)');
-        nebula.addColorStop(0.7, 'rgba(168, 85, 247, 0.18)');
+        nebula.addColorStop(0, 'rgba(245, 158, 11, 0.55)');
+        nebula.addColorStop(0.3, 'rgba(239, 68, 68, 0.35)');
+        nebula.addColorStop(0.7, 'rgba(255, 255, 255, 0.08)');
         nebula.addColorStop(1, 'rgba(0, 0, 0, 0)');
       } else {
-        nebula.addColorStop(0, 'rgba(168, 85, 247, 0.35)');
-        nebula.addColorStop(0.45, 'rgba(124, 58, 237, 0.16)');
-        nebula.addColorStop(0.8, 'rgba(56, 189, 248, 0.05)');
+        nebula.addColorStop(0, 'rgba(255, 255, 255, 0.18)');
+        nebula.addColorStop(0.45, 'rgba(226, 232, 240, 0.08)');
+        nebula.addColorStop(0.8, 'rgba(255, 255, 255, 0.03)');
         nebula.addColorStop(1, 'rgba(0, 0, 0, 0)');
       }
 
@@ -92,10 +77,10 @@ export const StarburnCore: React.FC<StarburnCoreProps> = ({
         const px = cx + Math.cos(p.angle) * p.dist * dynamicAmp;
         const py = cy + Math.sin(p.angle) * p.dist * dynamicAmp;
         ctx.fillStyle = isListening
-          ? `rgba(253, 164, 175, ${p.alpha})`
+          ? `rgba(254, 202, 202, ${p.alpha})`
           : isSpeaking
           ? `rgba(253, 230, 138, ${p.alpha})`
-          : `rgba(216, 180, 254, ${p.alpha})`;
+          : `rgba(241, 245, 249, ${p.alpha})`;
         ctx.beginPath();
         ctx.arc(px, py, p.radius, 0, Math.PI * 2);
         ctx.fill();
@@ -108,11 +93,11 @@ export const StarburnCore: React.FC<StarburnCoreProps> = ({
       ctx.beginPath();
       ctx.arc(0, 0, 78 * dynamicAmp, 0, Math.PI * 2);
       ctx.strokeStyle = isListening
-        ? 'rgba(244, 63, 94, 0.75)'
+        ? 'rgba(239, 68, 68, 0.75)'
         : isSpeaking
-        ? 'rgba(251, 191, 36, 0.8)'
-        : 'rgba(168, 85, 247, 0.55)';
-      ctx.lineWidth = 1.6;
+        ? 'rgba(245, 158, 11, 0.8)'
+        : 'rgba(255, 255, 255, 0.45)';
+      ctx.lineWidth = 1.4;
       ctx.setLineDash([12, 16, 3, 12]);
       ctx.stroke();
       ctx.restore();
@@ -124,9 +109,11 @@ export const StarburnCore: React.FC<StarburnCoreProps> = ({
       ctx.beginPath();
       ctx.arc(0, 0, 58 * dynamicAmp, 0, Math.PI * 2);
       ctx.strokeStyle = isListening
-        ? 'rgba(251, 113, 133, 0.7)'
-        : 'rgba(192, 132, 252, 0.65)';
-      ctx.lineWidth = 1.4;
+        ? 'rgba(252, 165, 165, 0.7)'
+        : isSpeaking
+        ? 'rgba(253, 230, 138, 0.75)'
+        : 'rgba(203, 213, 225, 0.55)';
+      ctx.lineWidth = 1.2;
       ctx.setLineDash([6, 10, 18, 6]);
       ctx.stroke();
       ctx.restore();
@@ -145,11 +132,11 @@ export const StarburnCore: React.FC<StarburnCoreProps> = ({
         ctx.moveTo(0, 0);
         ctx.lineTo(rx, ry);
         ctx.strokeStyle = isListening
-          ? 'rgba(244, 63, 94, 0.85)'
+          ? 'rgba(239, 68, 68, 0.85)'
           : isSpeaking
-          ? 'rgba(251, 191, 36, 0.9)'
-          : 'rgba(232, 121, 249, 0.75)';
-        ctx.lineWidth = i % 2 === 0 ? 2 : 1;
+          ? 'rgba(245, 158, 11, 0.9)'
+          : 'rgba(255, 255, 255, 0.6)';
+        ctx.lineWidth = i % 2 === 0 ? 1.8 : 1;
         ctx.stroke();
       }
       ctx.restore();
@@ -157,9 +144,9 @@ export const StarburnCore: React.FC<StarburnCoreProps> = ({
       // 6. Supernova Core Orb
       const coreGrad = ctx.createRadialGradient(cx, cy, 2, cx, cy, 26 * dynamicAmp);
       coreGrad.addColorStop(0, '#ffffff');
-      coreGrad.addColorStop(0.3, isListening ? '#f43f5e' : isSpeaking ? '#fbbf24' : '#c084fc');
-      coreGrad.addColorStop(0.7, isListening ? '#be123c' : isSpeaking ? '#e11d48' : '#7c3aed');
-      coreGrad.addColorStop(1, '#3b0764');
+      coreGrad.addColorStop(0.3, isListening ? '#f87171' : isSpeaking ? '#fde047' : '#e2e8f0');
+      coreGrad.addColorStop(0.7, isListening ? '#dc2626' : isSpeaking ? '#f59e0b' : '#64748b');
+      coreGrad.addColorStop(1, '#09090b');
 
       ctx.fillStyle = coreGrad;
       ctx.beginPath();
@@ -183,12 +170,23 @@ export const StarburnCore: React.FC<StarburnCoreProps> = ({
   }, [isListening, isSpeaking, size]);
 
   return (
-    <div className="relative flex items-center justify-center select-none pointer-events-none">
+    <div
+      style={{
+        position: 'relative',
+        width: size,
+        height: size,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        userSelect: 'none',
+        pointerEvents: 'none',
+      }}
+    >
       <canvas
         ref={canvasRef}
         width={size}
         height={size}
-        className="drop-shadow-[0_0_40px_rgba(168,85,247,0.45)]"
+        style={{ width: size, height: size }}
       />
     </div>
   );

@@ -39,6 +39,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         voice_enabled: voiceEnabled,
       });
       setSavedSuccess(true);
+      window.dispatchEvent(new CustomEvent('argus_island_notify', {
+        detail: { text: '✓ Профиль успешно сохранен!', type: 'success' }
+      }));
       setTimeout(() => setSavedSuccess(false), 2200);
     } catch (err) {
       console.error(err);

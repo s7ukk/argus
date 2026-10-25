@@ -6,13 +6,13 @@ export const StarburnLogo: React.FC<Props> = ({ size = 24, className = '', style
   <svg width={size} height={size} viewBox="0 0 32 32" fill="none" className={className} style={style}>
     <defs>
       <radialGradient id="sg1" cx="50%" cy="50%" r="50%">
-        <stop offset="0%" stopColor="#e879f9" />
-        <stop offset="45%" stopColor="#a855f7" />
+        <stop offset="0%" stopColor="#ffffff" />
+        <stop offset="45%" stopColor="var(--accent, #ffffff)" />
         <stop offset="100%" stopColor="#6d28d9" />
       </radialGradient>
       <radialGradient id="sg2" cx="50%" cy="30%" r="60%">
         <stop offset="0%" stopColor="#ffffff" stopOpacity="0.9" />
-        <stop offset="100%" stopColor="#a855f7" stopOpacity="0" />
+        <stop offset="100%" stopColor="var(--accent, #ffffff)" stopOpacity="0" />
       </radialGradient>
     </defs>
     <circle cx="16" cy="16" r="14" fill="url(#sg1)" opacity="0.15" />

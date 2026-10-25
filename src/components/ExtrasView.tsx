@@ -179,28 +179,10 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
       console.warn('Backend TTS error, falling back to Web Speech Synthesis:', err);
     }
 
-    // Fallback: If Web Speech Synthesis is needed, strictly use a male Russian voice or Dmitry
-    if ('speechSynthesis' in window) {
-      const utt = new SpeechSynthesisUtterance(phrase);
-      utt.lang = 'ru-RU';
-      utt.rate = Math.min(1.5, Math.max(0.8, speedVal));
-      try {
-        const voices = window.speechSynthesis.getVoices();
-        const maleRu = voices.find(v => 
-          v.lang.startsWith('ru') && 
-          (v.name.toLowerCase().includes('dmitry') || v.name.toLowerCase().includes('pavel') || v.name.toLowerCase().includes('yuri') || v.name.toLowerCase().includes('юрий') || v.name.toLowerCase().includes('male'))
-        );
-        if (maleRu) {
-          utt.voice = maleRu;
-        } else {
-          // If only female Irina is available locally, lower pitch to 0.55 so voice sounds deep/masculine
-          utt.pitch = 0.55;
-        }
-      } catch {
-        utt.pitch = 0.55;
-      }
-      window.speechSynthesis.speak(utt);
-    }
+    // Dispatch Dynamic Island notification
+    window.dispatchEvent(new CustomEvent('argus_island_notify', {
+      detail: { text: `⏰ Время вышло: ${title}!`, type: 'timer' }
+    }));
   };
 
   // Synchronize with backend API on mount
@@ -266,6 +248,9 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
               // Timer just finished!
               playAlarmSound();
               speakVoiceAlert(t.title);
+              window.dispatchEvent(new CustomEvent('argus_island_notify', {
+                detail: { text: `⏰ Время вышло: ${t.title}!`, type: 'timer' }
+              }));
               if (onNotifyTimerFinish) {
                 onNotifyTimerFinish(t.title);
               }
@@ -513,7 +498,7 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
   }).sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
 
   const noteColorMap = {
-    purple: { bg: 'rgba(168, 85, 247, 0.12)', border: 'rgba(168, 85, 247, 0.35)', dot: '#c084fc' },
+    purple: { bg: 'rgba(255, 255, 255, 0.06)', border: 'rgba(255, 255, 255, 0.2)', dot: 'var(--accent, #ffffff)' },
     blue: { bg: 'rgba(56, 189, 248, 0.12)', border: 'rgba(56, 189, 248, 0.35)', dot: '#38bdf8' },
     emerald: { bg: 'rgba(16, 185, 129, 0.12)', border: 'rgba(16, 185, 129, 0.35)', dot: '#34d399' },
     amber: { bg: 'rgba(245, 158, 11, 0.12)', border: 'rgba(245, 158, 11, 0.35)', dot: '#fbbf24' },
@@ -567,12 +552,12 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
                 display: 'flex',
                 alignItems: 'center',
                 gap: 10,
-                background: 'linear-gradient(135deg, #ffffff 0%, #c084fc 100%)',
+                background: 'linear-gradient(135deg, #ffffff 0%, var(--accent, #ffffff) 100%)',
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent'
               }}
             >
-              <Sparkles size={22} color="#c084fc" />
+              <Sparkles size={22} color="var(--accent, #ffffff)" />
               Дополнительно
             </h1>
             <p style={{ margin: '4px 0 0 0', fontSize: 13, color: '#94a3b8' }}>
@@ -586,15 +571,15 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
               style={{
                 padding: '8px 14px',
                 borderRadius: 12,
-                background: 'rgba(168, 85, 247, 0.1)',
-                border: '1px solid rgba(168, 85, 247, 0.25)',
+                background: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
                 fontSize: 12
               }}
             >
-              <CheckSquare size={14} color="#c084fc" />
+              <CheckSquare size={14} color="var(--accent, #ffffff)" />
               <span>
                 Задач: <strong style={{ color: '#fff' }}>{tasks.length}</strong> ({taskProgress}%)
               </span>
@@ -650,11 +635,11 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
               padding: '10px 18px',
               border: 'none',
               background: 'none',
-              color: subTab === 'timers' ? '#c084fc' : '#94a3b8',
+              color: subTab === 'timers' ? 'var(--accent, #ffffff)' : '#94a3b8',
               fontSize: 13,
               fontWeight: subTab === 'timers' ? 600 : 500,
               cursor: 'pointer',
-              borderBottom: subTab === 'timers' ? '2px solid #a855f7' : '2px solid transparent',
+              borderBottom: subTab === 'timers' ? '2px solid var(--accent, #ffffff)' : '2px solid transparent',
               display: 'flex',
               alignItems: 'center',
               gap: 8,
@@ -685,11 +670,11 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
               padding: '10px 18px',
               border: 'none',
               background: 'none',
-              color: subTab === 'tasks' ? '#c084fc' : '#94a3b8',
+              color: subTab === 'tasks' ? 'var(--accent, #ffffff)' : '#94a3b8',
               fontSize: 13,
               fontWeight: subTab === 'tasks' ? 600 : 500,
               cursor: 'pointer',
-              borderBottom: subTab === 'tasks' ? '2px solid #a855f7' : '2px solid transparent',
+              borderBottom: subTab === 'tasks' ? '2px solid var(--accent, #ffffff)' : '2px solid transparent',
               display: 'flex',
               alignItems: 'center',
               gap: 8,
@@ -717,11 +702,11 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
               padding: '10px 18px',
               border: 'none',
               background: 'none',
-              color: subTab === 'notes' ? '#c084fc' : '#94a3b8',
+              color: subTab === 'notes' ? 'var(--accent, #ffffff)' : '#94a3b8',
               fontSize: 13,
               fontWeight: subTab === 'notes' ? 600 : 500,
               cursor: 'pointer',
-              borderBottom: subTab === 'notes' ? '2px solid #a855f7' : '2px solid transparent',
+              borderBottom: subTab === 'notes' ? '2px solid var(--accent, #ffffff)' : '2px solid transparent',
               display: 'flex',
               alignItems: 'center',
               gap: 8,
@@ -779,9 +764,9 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
                       boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = 'rgba(168, 85, 247, 0.4)';
+                      e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.25)';
                       e.currentTarget.style.transform = 'translateY(-2px)';
-                      e.currentTarget.style.background = 'rgba(168, 85, 247, 0.08)';
+                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.04)';
                     }}
                     onMouseLeave={(e) => {
                       e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
@@ -789,7 +774,7 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
                       e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';
                     }}
                   >
-                    <span style={{ color: '#c084fc', fontSize: 13 }}>⏱️ {preset.mins} мин</span>
+                    <span style={{ color: 'var(--accent, #ffffff)', fontSize: 13 }}>⏱️ {preset.mins} мин</span>
                     <span style={{ color: '#94a3b8', fontSize: 11, fontWeight: 400 }}>{preset.title}</span>
                   </button>
                 ))}
@@ -800,7 +785,7 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
             <div
               style={{
                 background: 'rgba(255, 255, 255, 0.03)',
-                border: '1px solid rgba(168, 85, 247, 0.25)',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
                 borderRadius: 16,
                 padding: '20px 24px',
                 display: 'flex',
@@ -811,7 +796,7 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
               }}
             >
               <div style={{ flex: '1 1 240px' }}>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#c084fc', marginBottom: 6 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--accent, #ffffff)', marginBottom: 6 }}>
                   Название задачи / таймера
                 </label>
                 <input
@@ -885,7 +870,7 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
                   style={{
                     padding: '10px 22px',
                     borderRadius: 10,
-                    background: 'linear-gradient(135deg, #a855f7 0%, #38bdf8 100%)',
+                    background: 'linear-gradient(135deg, var(--accent, #ffffff) 0%, #38bdf8 100%)',
                     border: 'none',
                     color: '#fff',
                     fontSize: 13,
@@ -895,16 +880,16 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
                     alignItems: 'center',
                     gap: 8,
                     height: 40,
-                    boxShadow: '0 4px 16px rgba(168, 85, 247, 0.35)',
+                    boxShadow: '0 4px 16px rgba(255, 255, 255, 0.2)',
                     transition: 'all 0.2s ease'
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.transform = 'translateY(-1px)';
-                    e.currentTarget.style.boxShadow = '0 6px 20px rgba(168, 85, 247, 0.5)';
+                    e.currentTarget.style.boxShadow = '0 6px 20px rgba(255, 255, 255, 0.3)';
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 4px 16px rgba(168, 85, 247, 0.35)';
+                    e.currentTarget.style.boxShadow = '0 4px 16px rgba(255, 255, 255, 0.2)';
                   }}
                 >
                   <Play size={14} fill="#fff" />
@@ -970,14 +955,14 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
                           border: isFinished
                             ? '1px solid rgba(239, 68, 68, 0.5)'
                             : timer.is_running
-                            ? '1px solid rgba(168, 85, 247, 0.4)'
+                            ? '1px solid rgba(255, 255, 255, 0.25)'
                             : '1px solid rgba(255, 255, 255, 0.08)',
                           borderRadius: 16,
                           padding: '18px 20px',
                           display: 'flex',
                           flexDirection: 'column',
                           gap: 12,
-                          boxShadow: timer.is_running ? '0 8px 24px rgba(168, 85, 247, 0.15)' : 'none',
+                          boxShadow: timer.is_running ? '0 8px 24px rgba(255, 255, 255, 0.08)' : 'none',
                           position: 'relative',
                           overflow: 'hidden'
                         }}
@@ -990,7 +975,7 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
                             left: 0,
                             height: 3,
                             width: `${percentRemaining}%`,
-                            background: isFinished ? '#ef4444' : 'linear-gradient(90deg, #a855f7, #38bdf8)',
+                            background: isFinished ? '#ef4444' : 'linear-gradient(90deg, var(--accent, #ffffff), #38bdf8)',
                             transition: 'width 1s linear'
                           }}
                         />
@@ -1059,11 +1044,11 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
                                 borderRadius: 8,
                                 background: timer.is_running
                                   ? 'rgba(234, 179, 8, 0.15)'
-                                  : 'rgba(168, 85, 247, 0.25)',
+                                  : 'rgba(255, 255, 255, 0.15)',
                                 border: timer.is_running
                                   ? '1px solid rgba(234, 179, 8, 0.4)'
-                                  : '1px solid rgba(168, 85, 247, 0.5)',
-                                color: timer.is_running ? '#fbbf24' : '#c084fc',
+                                  : '1px solid rgba(255, 255, 255, 0.3)',
+                                color: timer.is_running ? '#fbbf24' : 'var(--accent, #ffffff)',
                                 fontSize: 12,
                                 fontWeight: 600,
                                 cursor: 'pointer',
@@ -1073,7 +1058,7 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
                                 gap: 6
                               }}
                             >
-                              {timer.is_running ? <Pause size={13} fill="#fbbf24" /> : <Play size={13} fill="#c084fc" />}
+                              {timer.is_running ? <Pause size={13} fill="#fbbf24" /> : <Play size={13} fill="var(--accent, #ffffff)" />}
                               {timer.is_running ? 'Пауза' : 'Продолжить'}
                             </button>
                           ) : (
@@ -1171,7 +1156,7 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
                   style={{
                     padding: '10px 20px',
                     borderRadius: 10,
-                    background: 'linear-gradient(135deg, #a855f7 0%, #38bdf8 100%)',
+                    background: 'linear-gradient(135deg, var(--accent, #ffffff) 0%, #38bdf8 100%)',
                     border: 'none',
                     color: '#fff',
                     fontSize: 13,
@@ -1264,9 +1249,9 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
                   style={{
                     padding: '6px 12px',
                     borderRadius: 8,
-                    background: taskFilter === 'all' ? 'rgba(168, 85, 247, 0.2)' : 'rgba(255, 255, 255, 0.04)',
-                    border: taskFilter === 'all' ? '1px solid rgba(168, 85, 247, 0.4)' : '1px solid rgba(255, 255, 255, 0.08)',
-                    color: taskFilter === 'all' ? '#c084fc' : '#94a3b8',
+                    background: taskFilter === 'all' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.04)',
+                    border: taskFilter === 'all' ? '1px solid rgba(255, 255, 255, 0.25)' : '1px solid rgba(255, 255, 255, 0.08)',
+                    color: taskFilter === 'all' ? 'var(--accent, #ffffff)' : '#94a3b8',
                     fontSize: 12,
                     cursor: 'pointer'
                   }}
@@ -1278,9 +1263,9 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
                   style={{
                     padding: '6px 12px',
                     borderRadius: 8,
-                    background: taskFilter === 'active' ? 'rgba(168, 85, 247, 0.2)' : 'rgba(255, 255, 255, 0.04)',
-                    border: taskFilter === 'active' ? '1px solid rgba(168, 85, 247, 0.4)' : '1px solid rgba(255, 255, 255, 0.08)',
-                    color: taskFilter === 'active' ? '#c084fc' : '#94a3b8',
+                    background: taskFilter === 'active' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.04)',
+                    border: taskFilter === 'active' ? '1px solid rgba(255, 255, 255, 0.25)' : '1px solid rgba(255, 255, 255, 0.08)',
+                    color: taskFilter === 'active' ? 'var(--accent, #ffffff)' : '#94a3b8',
                     fontSize: 12,
                     cursor: 'pointer'
                   }}
@@ -1292,9 +1277,9 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
                   style={{
                     padding: '6px 12px',
                     borderRadius: 8,
-                    background: taskFilter === 'completed' ? 'rgba(168, 85, 247, 0.2)' : 'rgba(255, 255, 255, 0.04)',
-                    border: taskFilter === 'completed' ? '1px solid rgba(168, 85, 247, 0.4)' : '1px solid rgba(255, 255, 255, 0.08)',
-                    color: taskFilter === 'completed' ? '#c084fc' : '#94a3b8',
+                    background: taskFilter === 'completed' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.04)',
+                    border: taskFilter === 'completed' ? '1px solid rgba(255, 255, 255, 0.25)' : '1px solid rgba(255, 255, 255, 0.08)',
+                    color: taskFilter === 'completed' ? 'var(--accent, #ffffff)' : '#94a3b8',
                     fontSize: 12,
                     cursor: 'pointer'
                   }}
@@ -1334,7 +1319,7 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
                       style={{
                         height: '100%',
                         width: `${taskProgress}%`,
-                        background: 'linear-gradient(90deg, #a855f7, #38bdf8)',
+                        background: 'linear-gradient(90deg, var(--accent, #ffffff), #38bdf8)',
                         transition: 'width 0.3s ease'
                       }}
                     />
@@ -1370,8 +1355,8 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
                       <div
                         key={task.id}
                         style={{
-                          background: 'rgba(168, 85, 247, 0.08)',
-                          border: '1px solid rgba(168, 85, 247, 0.35)',
+                          background: 'rgba(255, 255, 255, 0.04)',
+                          border: '1px solid rgba(255, 255, 255, 0.2)',
                           borderRadius: 12,
                           padding: '14px 16px',
                           display: 'flex',
@@ -1473,7 +1458,7 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
                               style={{
                                 padding: '6px 14px',
                                 borderRadius: 6,
-                                background: 'linear-gradient(135deg, #a855f7, #38bdf8)',
+                                background: 'linear-gradient(135deg, var(--accent, #ffffff), #38bdf8)',
                                 border: 'none',
                                 color: '#fff',
                                 fontSize: 11,
@@ -1652,7 +1637,7 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
                   style={{
                     padding: '9px 18px',
                     borderRadius: 10,
-                    background: 'linear-gradient(135deg, #a855f7 0%, #38bdf8 100%)',
+                    background: 'linear-gradient(135deg, var(--accent, #ffffff) 0%, #38bdf8 100%)',
                     border: 'none',
                     color: '#fff',
                     fontSize: 13,
@@ -1674,13 +1659,13 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
               <div
                 style={{
                   background: 'rgba(255, 255, 255, 0.04)',
-                  border: '1px solid rgba(168, 85, 247, 0.35)',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
                   borderRadius: 16,
                   padding: 20,
                   display: 'flex',
                   flexDirection: 'column',
                   gap: 12,
-                  boxShadow: '0 8px 32px rgba(168, 85, 247, 0.1)'
+                  boxShadow: '0 8px 32px rgba(255, 255, 255, 0.05)'
                 }}
               >
                 <input
@@ -1763,7 +1748,7 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
                       style={{
                         padding: '8px 18px',
                         borderRadius: 8,
-                        background: 'linear-gradient(135deg, #a855f7 0%, #38bdf8 100%)',
+                        background: 'linear-gradient(135deg, var(--accent, #ffffff) 0%, #38bdf8 100%)',
                         border: 'none',
                         color: '#fff',
                         fontSize: 12,
@@ -1806,14 +1791,14 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
                         key={note.id}
                         style={{
                           background: styleColor.bg,
-                          border: `2px solid #a855f7`,
+                          border: `2px solid var(--accent, #ffffff)`,
                           borderRadius: 16,
                           padding: '16px 18px',
                           display: 'flex',
                           flexDirection: 'column',
                           gap: 10,
                           minHeight: 180,
-                          boxShadow: '0 8px 24px rgba(168, 85, 247, 0.2)'
+                          boxShadow: '0 8px 24px rgba(255, 255, 255, 0.1)'
                         }}
                       >
                         <input
@@ -1893,7 +1878,7 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
                               style={{
                                 padding: '6px 14px',
                                 borderRadius: 6,
-                                background: 'linear-gradient(135deg, #a855f7, #38bdf8)',
+                                background: 'linear-gradient(135deg, var(--accent, #ffffff), #38bdf8)',
                                 border: 'none',
                                 color: '#fff',
                                 fontSize: 11,
@@ -1939,13 +1924,13 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
                               style={{
                                 background: 'none',
                                 border: 'none',
-                                color: note.pinned ? '#c084fc' : '#64748b',
+                                color: note.pinned ? 'var(--accent, #ffffff)' : '#64748b',
                                 cursor: 'pointer',
                                 padding: 3
                               }}
                               title={note.pinned ? 'Открепить' : 'Закрепить'}
                             >
-                              <Pin size={13} fill={note.pinned ? '#c084fc' : 'none'} />
+                              <Pin size={13} fill={note.pinned ? 'var(--accent, #ffffff)' : 'none'} />
                             </button>
 
                             <button
@@ -2017,7 +2002,7 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
                             style={{
                               background: 'none',
                               border: 'none',
-                              color: '#c084fc',
+                              color: 'var(--accent, #ffffff)',
                               fontSize: 11,
                               fontWeight: 500,
                               cursor: 'pointer',
@@ -2071,14 +2056,14 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
           <div
             style={{
               background: '#13111c',
-              border: '1px solid rgba(168, 85, 247, 0.35)',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
               borderRadius: 20,
               maxWidth: 640,
               width: '100%',
               maxHeight: '85vh',
               display: 'flex',
               flexDirection: 'column',
-              boxShadow: '0 25px 60px rgba(0, 0, 0, 0.8), 0 0 30px rgba(168, 85, 247, 0.15)',
+              boxShadow: '0 25px 60px rgba(0, 0, 0, 0.8), 0 0 30px rgba(255, 255, 255, 0.08)',
               overflow: 'hidden'
             }}
             onClick={(e) => e.stopPropagation()}
@@ -2178,9 +2163,9 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
                   style={{
                     padding: '8px 14px',
                     borderRadius: 8,
-                    background: 'rgba(168, 85, 247, 0.15)',
-                    border: '1px solid rgba(168, 85, 247, 0.35)',
-                    color: '#c084fc',
+                    background: 'rgba(255, 255, 255, 0.08)',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    color: 'var(--accent, #ffffff)',
                     fontSize: 12,
                     fontWeight: 500,
                     cursor: 'pointer',
@@ -2197,7 +2182,7 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
                   style={{
                     padding: '8px 18px',
                     borderRadius: 8,
-                    background: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)',
+                    background: 'linear-gradient(135deg, var(--accent, #ffffff) 0%, var(--accent, #ffffff) 100%)',
                     border: 'none',
                     color: '#ffffff',
                     fontSize: 12,

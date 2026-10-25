@@ -75,7 +75,7 @@ export const ControlsDock: React.FC<ControlsDockProps> = ({ onTriggerVoice, isLi
             padding: '20px 22px',
             borderRadius: 18,
             marginBottom: 12,
-            boxShadow: '0 25px 65px rgba(0,0,0,0.8), 0 0 0 1px rgba(168,85,247,0.25) inset',
+            boxShadow: '0 25px 65px rgba(0,0,0,0.8), 0 0 0 1px rgba(255, 255, 255, 0.12) inset',
             display: 'flex',
             flexDirection: 'column',
             gap: 16,
@@ -92,12 +92,12 @@ export const ControlsDock: React.FC<ControlsDockProps> = ({ onTriggerVoice, isLi
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-              <Sliders size={15} color="#c084fc" />
+              <Sliders size={15} color="var(--accent, #ffffff)" />
               <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#ffffff' }}>
                 Управление ПК
               </span>
             </div>
-            <span style={{ fontSize: 10, color: '#a855f7', fontWeight: 700, letterSpacing: '0.06em' }}>
+            <span style={{ fontSize: 10, color: 'var(--accent, #ffffff)', fontWeight: 700, letterSpacing: '0.06em' }}>
               ARGUS
             </span>
           </div>
@@ -106,7 +106,7 @@ export const ControlsDock: React.FC<ControlsDockProps> = ({ onTriggerVoice, isLi
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5, color: '#cbd5e1' }}>
-                <Volume2 size={14} color="#c084fc" />
+                <Volume2 size={14} color="var(--accent, #ffffff)" />
                 <span>Громкость</span>
               </span>
               <span style={{ fontSize: 12.5, fontWeight: 700, color: '#ffffff', fontFamily: 'ui-monospace, monospace' }}>
@@ -216,7 +216,7 @@ export const ControlsDock: React.FC<ControlsDockProps> = ({ onTriggerVoice, isLi
                   gap: 8,
                 }}
               >
-                <Cpu size={15} color="#c084fc" />
+                <Cpu size={15} color="var(--accent, #ffffff)" />
                 <div>
                   <div style={{ fontSize: 10, color: '#94a3b8' }}>ЦП</div>
                   <div style={{ fontSize: 12, fontWeight: 700, color: '#ffffff', fontFamily: 'ui-monospace, monospace' }}>
@@ -235,7 +235,7 @@ export const ControlsDock: React.FC<ControlsDockProps> = ({ onTriggerVoice, isLi
                   gap: 8,
                 }}
               >
-                <HardDrive size={15} color="#ec4899" />
+                <HardDrive size={15} color="#cbd5e1" />
                 <div>
                   <div style={{ fontSize: 10, color: '#94a3b8' }}>ОЗУ</div>
                   <div style={{ fontSize: 12, fontWeight: 700, color: '#ffffff', fontFamily: 'ui-monospace, monospace' }}>
@@ -287,7 +287,7 @@ export const ControlsDock: React.FC<ControlsDockProps> = ({ onTriggerVoice, isLi
             alignItems: 'center',
             justifyContent: 'center',
             cursor: 'pointer',
-            color: '#c084fc',
+            color: 'var(--accent, #ffffff)',
           }}
           title="Открыть пульт ПК"
         >

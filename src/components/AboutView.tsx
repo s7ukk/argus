@@ -44,7 +44,7 @@ export const AboutView: React.FC = () => {
             borderRadius: 24,
             position: 'relative',
             overflow: 'hidden',
-            border: '1px solid rgba(168, 85, 247, 0.3)',
+            border: '1px solid rgba(255, 255, 255, 0.15)',
             boxShadow: '0 25px 60px rgba(0, 0, 0, 0.6)',
           }}
         >
@@ -57,14 +57,14 @@ export const AboutView: React.FC = () => {
               width: 250,
               height: 250,
               borderRadius: '50%',
-              background: 'radial-gradient(circle, rgba(168,85,247,0.3) 0%, transparent 70%)',
+              background: 'radial-gradient(circle, rgba(255, 255, 255, 0.15) 0%, transparent 70%)',
               filter: 'blur(50px)',
               pointerEvents: 'none',
             }}
           />
 
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 12px', borderRadius: 99, background: 'rgba(168,85,247,0.12)', border: '1px solid rgba(168,85,247,0.3)', color: '#d8b4fe', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', marginBottom: 16 }}>
-            <Sparkles size={12} color="#c084fc" />
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 12px', borderRadius: 99, background: 'rgba(255, 255, 255, 0.06)', border: '1px solid rgba(255, 255, 255, 0.15)', color: '#cbd5e1', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', marginBottom: 16 }}>
+            <Sparkles size={12} color="var(--accent, #ffffff)" />
             <span>ARGUS SYSTEM OVERVIEW</span>
           </div>
 
@@ -107,9 +107,9 @@ export const AboutView: React.FC = () => {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 10,
-                background: 'rgba(168, 85, 247, 0.15)',
-                border: '1px solid rgba(168, 85, 247, 0.4)',
-                color: '#c084fc',
+                background: 'rgba(255, 255, 255, 0.08)',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                color: 'var(--accent, #ffffff)',
                 fontSize: 13,
                 fontWeight: 700,
                 cursor: 'pointer',
@@ -125,7 +125,7 @@ export const AboutView: React.FC = () => {
         {/* Feature Highlights Grid */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
           <div className="glass-card" style={{ padding: '20px', borderRadius: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(168,85,247,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#c084fc' }}>
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(255, 255, 255, 0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent, #ffffff)' }}>
               <Cpu size={18} />
             </div>
             <h4 style={{ fontSize: 14, fontWeight: 700, color: '#ffffff' }}>Динамический запуск</h4>
@@ -162,7 +162,7 @@ export const AboutView: React.FC = () => {
           </div>
           <div style={{ display: 'flex', gap: 16 }}>
             <span>Канал: <a onClick={openTelegramChannel} style={{ color: '#38bdf8', cursor: 'pointer', textDecoration: 'underline' }}>t.me/techargus</a></span>
-            <span>Поддержка: <a onClick={openTelegramSupport} style={{ color: '#c084fc', cursor: 'pointer', textDecoration: 'underline' }}>t.me/argus_adv</a></span>
+            <span>Поддержка: <a onClick={openTelegramSupport} style={{ color: 'var(--accent, #ffffff)', cursor: 'pointer', textDecoration: 'underline' }}>t.me/argus_adv</a></span>
           </div>
         </div>
       </div>
