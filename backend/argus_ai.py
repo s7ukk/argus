@@ -29,6 +29,7 @@ except ImportError:
 _AI_QUERY_CACHE: Dict[str, str] = {}
 _MESSENGER_WIZARD_STATE: Dict[str, Dict[str, Any]] = {}
 _NOTE_CREATION_STATE: Dict[str, Dict[str, Any]] = {}
+_PENDING_CONFIRMATION_STATE: Dict[str, Dict[str, Any]] = {}
 
 INVALID_CONTACT_KEYWORDS = {
     'контакт', 'контакту', 'контакта', 'контактом', 'контакте', 'контакты',
@@ -439,10 +440,28 @@ def execute_single_action(act: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]
         dir_ru = "вниз" if direction == "down" else "вверх"
         return f"Страница прокручена {dir_ru}", "scroll", {"direction": direction}
 
-    elif act_type == "click_website_button":
+    elif act_type in ["click_website_button", "click_button", "click_ui_button"]:
         btn = act.get("button", "").strip()
-        ok = sc.click_website_button(btn)
-        return f"Нажата кнопка «{btn}» на открытой веб-странице", "click_button", {"button": btn, "success": ok}
+        app = act.get("app")
+        ok = gui_agent.click_ui_button_native(btn, app_name=app)
+        app_note = f" в {app}" if app else ""
+        return f"Нажата кнопка «{btn}»{app_note}", "click_button", {"button": btn, "app": app, "success": ok}
+
+    elif act_type == "computer_use_task":
+        goal = act.get("goal", "")
+        steps = act.get("steps")
+        res = gui_agent.execute_autonomous_computer_task(goal, steps)
+        return res.get("summary", "Автономное управление компьютером выполнено, сэр."), "computer_use_task", res
+
+    elif act_type in ["mouse_click", "click_coordinates"]:
+        x = act.get("x")
+        y = act.get("y")
+        double = act.get("double", False)
+        right = act.get("right", False)
+        ok = gui_agent.click_coordinates_crossplatform(x, y, double_click=double, right_click=right)
+        action_name = "Двойной клик" if double else ("Правый клик" if right else "Клик мыши")
+        coord_str = f" по координатам ({x}, {y})" if x is not None and y is not None else ""
+        return f"{action_name}{coord_str} выполнен", "mouse_click", {"x": x, "y": y, "success": ok}
 
     elif act_type == "terminal_command":
         cmd = act.get("command", "")
@@ -2931,6 +2950,66 @@ def process_command(user_text: str, user_name: str = "Пользователь",
     en = is_english(raw)
     raw_low = raw.lower()
 
+    # 0.0 SAFETY CONFIRMATION STATE MACHINE (Permissions for SEND, DELETE, and PAY)
+    active_conf_key = user_name if user_name in _PENDING_CONFIRMATION_STATE else ("default" if "default" in _PENDING_CONFIRMATION_STATE else None)
+    if active_conf_key:
+        conf_state = _PENDING_CONFIRMATION_STATE[active_conf_key]
+        if time.time() - conf_state.get("created_at", 0) > 300:
+            _PENDING_CONFIRMATION_STATE.pop(active_conf_key, None)
+        else:
+            is_approved = any(w in raw_low for w in [
+                "разрешаю", "да", "подтверждаю", "выполняй", "давай", "согласен",
+                "ок", "хорошо", "yes", "confirm", "proceed", "разрешить", "действуй", "делай",
+                "отправляй", "удаляй", "оплачивай", "купи", "покупай"
+            ])
+            is_rejected = any(w in raw_low for w in [
+                "отмена", "отбой", "стоп", "назад", "хватит", "не надо", "забудь",
+                "cancel", "нет", "не разрешаю", "отклонить", "no", "stop", "не выполняй",
+                "не отправляй", "не удаляй", "не покупай"
+            ])
+
+            if is_approved:
+                saved_actions = conf_state.get("actions", [])
+                guard_info = conf_state.get("guard", {})
+                _PENDING_CONFIRMATION_STATE.pop(active_conf_key, None)
+
+                executed_results = []
+                primary_action_type = "multi_action" if len(saved_actions) > 1 else (saved_actions[0].get("type", "general") if saved_actions else "confirmed")
+                primary_data = {}
+
+                for act in saved_actions:
+                    msg, a_type, a_data = execute_single_action(act)
+                    if a_type != "noop" and a_type != "wait":
+                        primary_data.update(a_data)
+                        if len(saved_actions) == 1:
+                            primary_action_type = a_type
+                        elif a_type == "screenshot":
+                            primary_data["screenshot_path"] = a_data.get("path")
+                        if msg:
+                            executed_results.append(msg)
+
+                exec_summary = ". ".join(executed_results) if executed_results else "Операция успешно выполнена."
+                return f"Подтверждение получено, сэр. {exec_summary}", primary_action_type, primary_data
+
+            elif is_rejected:
+                _PENDING_CONFIRMATION_STATE.pop(active_conf_key, None)
+                return "Действие отменено по Вашему указанию, сэр. Безопасность сохранена.", "cancelled", {}
+            else:
+                guard = conf_state.get("guard", {})
+                return (
+                    f"Сэр, ожидает Вашего решения операция:\n\n"
+                    f"⚠️ **{guard.get('title', 'Подтверждение')}**: {guard.get('description', '')}.\n\n"
+                    f"Разрешить («да / разрешаю») или отклонить («нет / отмена»)?",
+                    "confirmation_required",
+                    {
+                        "category": guard.get("category"),
+                        "options": [
+                            {"label": "✅ Разрешить", "cmd": "разрешаю"},
+                            {"label": "❌ Отклонить", "cmd": "отмена"}
+                        ]
+                    }
+                )
+
     # 0.1 Interactive Stateful Note Creation State Machine (asks Title -> then asks Text)
     if any(k == raw_low or raw_low.startswith(k + " ") for k in ["отмена", "отбой", "стоп", "назад", "хватит", "не надо", "забудь", "cancel"]):
         if user_name in _NOTE_CREATION_STATE or "default" in _NOTE_CREATION_STATE:
@@ -3209,6 +3288,41 @@ def process_command(user_text: str, user_name: str = "Пользователь",
     if not actions_to_run:
         reply = get_conversational_reply(resolved_text, en, user_name, history=history)
         return reply, "general", {}
+
+    # 5.5 Safety Guardrail Check: Confirm before SEND, DELETE, or PAY
+    protected_guard = None
+    for act in actions_to_run:
+        guard = gui_agent.inspect_action_safety(act, resolved_text)
+        if guard:
+            protected_guard = guard
+            break
+
+    if protected_guard:
+        _PENDING_CONFIRMATION_STATE[user_name or "default"] = {
+            "actions": actions_to_run,
+            "guard": protected_guard,
+            "created_at": time.time()
+        }
+        cat_emojis = {
+            "send": "✉️",
+            "delete": "🗑️",
+            "pay": "💳"
+        }
+        icon = cat_emojis.get(protected_guard["category"], "⚠️")
+        reply_text = (
+            f"Внимание, сэр! Для безопасности системы требуется Ваше подтверждение перед выполнением:\n\n"
+            f"{icon} **{protected_guard['title']}**: {protected_guard['description']}.\n\n"
+            f"Вы разрешаете выполнить эту операцию?"
+        )
+        return reply_text, "confirmation_required", {
+            "category": protected_guard["category"],
+            "title": protected_guard["title"],
+            "description": protected_guard["description"],
+            "options": [
+                {"label": "✅ Разрешить", "cmd": "разрешаю"},
+                {"label": "❌ Отклонить", "cmd": "отмена"}
+            ]
+        }
 
     # 6. Sequentially execute all planned actions
     executed_results = []

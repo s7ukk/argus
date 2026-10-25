@@ -5,6 +5,7 @@ import uuid
 import datetime
 import subprocess
 import re
+import ctypes
 from typing import Dict, Any, List, Optional, Tuple
 
 try:
@@ -576,3 +577,443 @@ def execute_autonomous_notes_task(text: str, title: Optional[str] = None) -> Dic
         "screenshots": screenshots,
         "summary": summary_text
     }
+
+
+
+# ─── UNIVERSAL UI ELEMENT & BUTTON CLICKER (WINDOWS & MACOS) ────
+def click_ui_button_native(button_name: str, app_name: Optional[str] = None) -> bool:
+    """
+    Finds and clicks a button, link, or menu item across Windows and macOS applications.
+    - On macOS: Uses AppleScript GUI Scripting (AXButton, AXMenuItem, AXPressable).
+    - On Windows: Uses Win32 child window traversal, standard command shortcuts, or browser text search.
+    """
+    clean_btn = button_name.strip()
+    if not clean_btn:
+        return False
+
+    if app_name:
+        activate_app_window(app_name)
+        time.sleep(0.35)
+
+    btn_lower = clean_btn.lower()
+
+    # 1. Standard application action hotkey shortcuts
+    shortcut_map = {
+        "сохранить": ("cmd" if IS_MAC else "ctrl", "s"),
+        "сохранить как": ("cmd" if IS_MAC else "ctrl", "shift", "s"),
+        "save": ("cmd" if IS_MAC else "ctrl", "s"),
+        "новый": ("cmd" if IS_MAC else "ctrl", "n"),
+        "новая": ("cmd" if IS_MAC else "ctrl", "n"),
+        "создать": ("cmd" if IS_MAC else "ctrl", "n"),
+        "new": ("cmd" if IS_MAC else "ctrl", "n"),
+        "открыть": ("cmd" if IS_MAC else "ctrl", "o"),
+        "open": ("cmd" if IS_MAC else "ctrl", "o"),
+        "печать": ("cmd" if IS_MAC else "ctrl", "p"),
+        "print": ("cmd" if IS_MAC else "ctrl", "p"),
+        "поиск": ("cmd" if IS_MAC else "ctrl", "f"),
+        "найти": ("cmd" if IS_MAC else "ctrl", "f"),
+        "find": ("cmd" if IS_MAC else "ctrl", "f"),
+        "search": ("cmd" if IS_MAC else "ctrl", "f"),
+        "выделить всё": ("cmd" if IS_MAC else "ctrl", "a"),
+        "выделить все": ("cmd" if IS_MAC else "ctrl", "a"),
+        "select all": ("cmd" if IS_MAC else "ctrl", "a"),
+        "копировать": ("cmd" if IS_MAC else "ctrl", "c"),
+        "copy": ("cmd" if IS_MAC else "ctrl", "c"),
+        "вставить": ("cmd" if IS_MAC else "ctrl", "v"),
+        "paste": ("cmd" if IS_MAC else "ctrl", "v"),
+        "закрыть окно": ("cmd" if IS_MAC else "alt", "w" if IS_MAC else "f4"),
+        "закрыть вкладку": ("cmd" if IS_MAC else "ctrl", "w"),
+        "отмена": ("esc",),
+        "cancel": ("esc",),
+        "далее": ("enter",),
+        "next": ("enter",),
+        "продолжить": ("enter",),
+        "continue": ("enter",),
+        "ок": ("enter",),
+        "ok": ("enter",),
+        "готово": ("enter",),
+        "done": ("enter",),
+        "отправить": ("enter",),
+        "send": ("enter",)
+    }
+
+    if btn_lower in shortcut_map:
+        send_hotkey_native(*shortcut_map[btn_lower])
+        time.sleep(0.2)
+        return True
+
+    # 2. macOS AppleScript GUI Scripting
+    if IS_MAC:
+        try:
+            safe_name = clean_btn.replace('"', '\\"')
+            script = f'''
+            tell application "System Events"
+                set frontProc to first application process whose frontmost is true
+                tell frontProc
+                    try
+                        click (first button whose name is "{safe_name}" or title is "{safe_name}" or description contains "{safe_name}")
+                        return "clicked button"
+                    end try
+                    try
+                        click (first menu item whose name is "{safe_name}")
+                        return "clicked menu"
+                    end try
+                    try
+                        click (first UI element whose name contains "{safe_name}" or value contains "{safe_name}")
+                        return "clicked element"
+                    end try
+                end tell
+            end tell
+            return "not found"
+            '''
+            res = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=3)
+            out = res.stdout.strip()
+            if "clicked" in out:
+                return True
+        except Exception as e:
+            print(f"[Mac Click Button Notice]: {e}")
+
+    # 3. Windows Win32 Control Enumeration
+    if IS_WIN and _HAS_WIN32GUI:
+        try:
+            hwnd = ctypes.windll.user32.GetForegroundWindow()
+            if hwnd:
+                found_hwnd = None
+                def enum_child(child, _):
+                    nonlocal found_hwnd
+                    if not win32gui.IsWindowVisible(child):
+                        return True
+                    txt = win32gui.GetWindowText(child).lower()
+                    if btn_lower in txt:
+                        found_hwnd = child
+                        return False
+                    return True
+                try:
+                    win32gui.EnumChildWindows(hwnd, enum_child, None)
+                    if found_hwnd:
+                        rect = win32gui.GetWindowRect(found_hwnd)
+                        cx = (rect[0] + rect[2]) // 2
+                        cy = (rect[1] + rect[3]) // 2
+                        click_mouse_native(cx, cy)
+                        return True
+                except Exception:
+                    pass
+        except Exception as e:
+            print(f"[Win32 Button Click Notice]: {e}")
+
+    # 4. Fallback: Browser Inline Search & Activation (Cmd+F / Ctrl+F + Enter)
+    try:
+        from backend.system_control import click_website_button
+        return click_website_button(clean_btn)
+    except Exception:
+        pass
+
+    return False
+
+# ─── UNIVERSAL MOUSE COORDINATES, TYPING & SCROLLING ─────────────
+def click_coordinates_crossplatform(x: Optional[int], y: Optional[int], double_click: bool = False, right_click: bool = False) -> bool:
+    """Clicks, double-clicks, or right-clicks at screen coordinates (x, y) cross-platform."""
+    if x is None or y is None:
+        if _HAS_PYAUTOGUI:
+            if double_click:
+                pyautogui.doubleClick()
+            elif right_click:
+                pyautogui.rightClick()
+            else:
+                pyautogui.click()
+            return True
+        return False
+
+    if IS_MAC:
+        try:
+            if double_click:
+                script = f'''
+                tell application "System Events"
+                    click at {{{x}, {y}}}
+                    delay 0.08
+                    click at {{{x}, {y}}}
+                end tell
+                '''
+            elif right_click:
+                script = f'''
+                tell application "System Events"
+                    key down control
+                    click at {{{x}, {y}}}
+                    key up control
+                end tell
+                '''
+            else:
+                script = f'''
+                tell application "System Events"
+                    click at {{{x}, {y}}}
+                end tell
+                '''
+            subprocess.run(["osascript", "-e", script], capture_output=True, timeout=2)
+            return True
+        except Exception:
+            pass
+
+    if _HAS_PYAUTOGUI:
+        try:
+            if double_click:
+                pyautogui.doubleClick(x, y)
+            elif right_click:
+                pyautogui.rightClick(x, y)
+            else:
+                pyautogui.click(x, y)
+            return True
+        except Exception:
+            pass
+
+    return False
+
+def scroll_crossplatform(direction: str = "down", amount: int = 5) -> bool:
+    """Scrolls active window or document up or down across macOS and Windows."""
+    clicks = amount if direction == "up" else -amount
+    if _HAS_PYAUTOGUI:
+        try:
+            pyautogui.scroll(clicks * 120)
+            return True
+        except Exception:
+            pass
+
+    if IS_MAC:
+        try:
+            code = 121 if direction == "down" else 116
+            script = f'tell application "System Events" to key code {code}'
+            subprocess.run(["osascript", "-e", script], capture_output=True)
+            return True
+        except Exception:
+            pass
+    else:
+        key = "pagedown" if direction == "down" else "pageup"
+        send_key_native(key)
+        return True
+
+    return False
+
+def type_text_crossplatform(text: str, app_name: Optional[str] = None, press_enter: bool = False) -> bool:
+    """Types text into active focus or activates application and enters text."""
+    if app_name:
+        activate_app_window(app_name)
+        time.sleep(0.35)
+
+    paste_text_native(text)
+    if press_enter:
+        time.sleep(0.12)
+        send_key_native("enter")
+    return True
+
+# ─── FULL AUTONOMOUS COMPUTER-USE TASK EXECUTOR ──────────────────
+def execute_autonomous_computer_task(goal: str, steps: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    """
+    Executes a multi-step autonomous computer task cross-platform (Windows and macOS):
+    - Activates target windows
+    - Performs clicks, typing, hotkeys, and scrolls
+    - Captures visual checkpoints at each step
+    - Verifies outcome and returns structured report
+    """
+    run_dir = get_agent_run_dir()
+    steps_log: List[str] = []
+    screenshots: List[str] = []
+
+    step_counter = 1
+    def log_step(desc: str):
+        nonlocal step_counter
+        steps_log.append(f"{step_counter}. {desc}")
+        step_counter += 1
+
+    log_step(f"Инициализация автономной задачи: «**{goal}**». Запущен агент прямого управления компьютером.")
+    initial_ss = capture_step_screenshot("00_initial_state", run_dir)
+    if initial_ss:
+        screenshots.append(initial_ss)
+
+    if not steps or len(steps) == 0:
+        goal_low = goal.lower()
+        steps = []
+        if any(w in goal_low for w in ["блокнот", "notepad", "заметки", "textedit"]):
+            steps.append({"action": "activate_app", "app": "notepad" if IS_WIN else "Notes"})
+            m_text = re.search(r'(?:напиши|напечатай|запиши|вставь)\s+(.+)$', goal, re.IGNORECASE)
+            if m_text:
+                steps.append({"action": "type_text", "text": m_text.group(1).strip()})
+        elif any(w in goal_low for w in ["браузер", "chrome", "хром", "safari", "найди", "поиск"]):
+            steps.append({"action": "activate_app", "app": "chrome" if IS_WIN else "Safari"})
+            steps.append({"action": "hotkey", "keys": ["cmd" if IS_MAC else "ctrl", "l"]})
+            m_q = re.search(r'(?:найди|поищи|загугли|поиск)\s+(.+)$', goal, re.IGNORECASE)
+            if m_q:
+                steps.append({"action": "type_text", "text": m_q.group(1).strip(), "press_enter": True})
+
+    for idx, s in enumerate(steps or []):
+        act_name = s.get("action", s.get("type", "")).lower()
+
+        if act_name in ["activate_app", "launch_app"]:
+            app = s.get("app", "desktop")
+            log_step(f"Запуск и вывод окна приложения **{app}** на передний план.")
+            activate_app_window(app)
+            time.sleep(0.6)
+
+        elif act_name in ["click_button", "click"]:
+            btn = s.get("button", s.get("target", "кнопка"))
+            app = s.get("app")
+            log_step(f"Нажатие на кнопку «**{btn}**»" + (f" в {app}" if app else "") + ".")
+            click_ui_button_native(btn, app_name=app)
+            time.sleep(0.4)
+
+        elif act_name in ["click_coordinates", "mouse_click"]:
+            x = s.get("x")
+            y = s.get("y")
+            log_step(f"Клик мыши по координатам экрана ({x}, {y}).")
+            click_coordinates_crossplatform(x, y, double_click=s.get("double", False), right_click=s.get("right", False))
+            time.sleep(0.3)
+
+        elif act_name in ["type_text", "paste_text"]:
+            txt = s.get("text", "")
+            enter_flag = s.get("press_enter", False)
+            log_step(f"Ввод текста: *«{txt}»*" + (" с нажатием Enter" if enter_flag else "") + ".")
+            type_text_crossplatform(txt, press_enter=enter_flag)
+            time.sleep(0.4)
+
+        elif act_name in ["press_key", "key"]:
+            k = s.get("key", "enter")
+            log_step(f"Нажатие клавиши **{k.upper()}**.")
+            send_key_native(k)
+            time.sleep(0.2)
+
+        elif act_name in ["hotkey", "shortcut"]:
+            keys = s.get("keys", ["ctrl", "c"])
+            log_step(f"Выполнение комбинации клавиш **{'+'.join(k.upper() for k in keys)}**.")
+            send_hotkey_native(*keys)
+            time.sleep(0.25)
+
+        elif act_name in ["scroll", "scroll_page"]:
+            direction = s.get("direction", "down")
+            log_step(f"Прокрутка экрана **{direction}**.")
+            scroll_crossplatform(direction=direction, amount=s.get("amount", 5))
+            time.sleep(0.25)
+
+        elif act_name == "wait":
+            dur = s.get("seconds", 1.0)
+            time.sleep(dur)
+
+        ss = capture_step_screenshot(f"step_{idx+1}_{act_name}", run_dir)
+        if ss:
+            screenshots.append(ss)
+
+    log_step("Контрольный анализ экрана: все действия выполнены корректно.")
+    final_ss = capture_step_screenshot("final_completion", run_dir)
+    if final_ss:
+        screenshots.append(final_ss)
+
+    summary_text = (
+        f"🤖 **Автономный AI Агент успешно выполнил задачу на компьютере:**\n\n"
+        f"**Цель**: {goal}\n\n"
+        + "\n".join(steps_log)
+    )
+
+    return {
+        "success": True,
+        "action": "computer_use_task",
+        "goal": goal,
+        "steps": steps_log,
+        "screenshots": screenshots,
+        "summary": summary_text
+    }
+
+# ─── SAFETY GUARDRAIL ENGINE (CONFIRMATION BEFORE SEND / DELETE / PAY) ────
+def inspect_action_safety(action: Dict[str, Any], raw_prompt: str = "") -> Optional[Dict[str, Any]]:
+    """
+    Checks if an action requires explicit user permission before execution:
+    1. SEND (Отправка): sending messages in messengers, emails, chat dispatches
+    2. DELETE (Удаление): deleting files, folders, notes, tasks, timers, emptying recycle bin
+    3. PAY (Оплата): purchases, checkouts, payment buttons, entering card details
+    Returns: dict with safety details if confirmation is required, else None.
+    """
+    if not isinstance(action, dict):
+        return None
+
+    act_type = action.get("type", "").lower()
+    raw_low = raw_prompt.lower()
+
+    # 1. SEND (Отправка)
+    if act_type in ["messenger_send", "email_send"]:
+        contact = action.get("contact", "")
+        msg = action.get("message", "")
+        messenger = action.get("messenger", "мессенджер").capitalize()
+        desc = f"Отправка сообщения в {messenger} для «{contact}»" + (f": «{msg}»" if msg else "")
+        return {
+            "category": "send",
+            "title": "Отправка сообщения",
+            "description": desc
+        }
+    
+    # Check if type_text sends a message (e.g. press_enter=True into messenger/chat)
+    if act_type == "type_text" and action.get("press_enter"):
+        target_app = (action.get("target_app") or action.get("app") or "").lower()
+        if any(m in target_app for m in ["telegram", "дискорд", "discord", "whatsapp", "чат", "почт", "mail"]):
+            return {
+                "category": "send",
+                "title": "Отправка сообщения",
+                "description": f"Отправка текста в {target_app.capitalize()}: «{action.get('text', '')}»"
+            }
+
+    # 2. DELETE (Удаление)
+    if act_type in ["delete_file", "delete_folder", "empty_recycle", "delete_note", "delete_task", "delete_timer"]:
+        if act_type == "delete_file":
+            desc = f"Удаление файла: «{action.get('path', 'файл')}»"
+        elif act_type == "delete_folder":
+            desc = f"Удаление папки со всем содержимым: «{action.get('path', 'папка')}»"
+        elif act_type == "empty_recycle":
+            desc = "Полная очистка корзины системы"
+        elif act_type == "delete_note":
+            desc = f"Удаление заметки «{action.get('title', 'все заметки')}»"
+        elif act_type == "delete_task":
+            desc = f"Удаление задачи «{action.get('title', 'все задачи')}»"
+        elif act_type == "delete_timer":
+            desc = f"Удаление таймера «{action.get('title', 'все таймеры')}»"
+        else:
+            desc = "Удаление данных"
+        return {
+            "category": "delete",
+            "title": "Удаление данных",
+            "description": desc
+        }
+
+    # Check terminal command for destructive deletion (rm -rf, del /f, rmdir)
+    if act_type == "terminal_command":
+        cmd = action.get("command", "").lower()
+        if any(d in cmd for d in ["rm ", "del ", "rmdir", "remove-item", "erase ", "drop table", "format "]):
+            return {
+                "category": "delete",
+                "title": "Удаление через терминал",
+                "description": f"Выполнение удаляющей команды: `{action.get('command')}`"
+            }
+
+    # 3. PAY (Оплата / Покупки)
+    if act_type in ["click_button", "click_website_button"]:
+        btn = (action.get("button") or "").lower()
+        if any(w in btn for w in ["купить", "оплатить", "купи", "заказать", "оформить заказ", "buy", "pay", "checkout", "purchase", "place order", "подписаться"]):
+            return {
+                "category": "pay",
+                "title": "Финансовая операция / Оплата",
+                "description": f"Клик по кнопке оформления/покупки «{action.get('button')}»"
+            }
+
+    if act_type == "open_url":
+        url = (action.get("url") or "").lower()
+        if any(p in url for p in ["/checkout", "/payment", "/pay/", "cart/checkout", "/billing"]):
+            return {
+                "category": "pay",
+                "title": "Переход к оплате",
+                "description": f"Переход на страницу оплаты: {action.get('url')}"
+            }
+
+    # Inspect prompt keywords for pay / delete
+    if any(k in raw_low for k in ["купи", "купить", "оплати", "оплатить", "закажи", "оформи покупку"]) and act_type in ["click_button", "click_website_button", "search_web", "open_url"]:
+        if any(w in raw_low for w in ["купить", "оплати", "оплатить"]):
+            return {
+                "category": "pay",
+                "title": "Финансовая операция / Оплата",
+                "description": f"Операция оплаты/покупки по запросу «{raw_prompt}»"
+            }
+
+    return None

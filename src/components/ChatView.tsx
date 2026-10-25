@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Send, Mic, Square, CheckCircle2, ArrowUpRight, Volume2, VolumeX, Sun, Lock, Camera, Radio } from 'lucide-react';
+import { Send, Mic, Square, CheckCircle2, ArrowUpRight, Volume2, VolumeX, Sun, Lock, Camera, Radio, ShieldAlert, MousePointer, XCircle } from 'lucide-react';
 import { smartFetch } from '../api';
 import { ChatMessage, UserProfile } from '../types';
 import { StarburnCore } from './StarburnCore';
@@ -466,17 +466,57 @@ export const ChatView: React.FC<ChatViewProps> = ({
                           gap: 6,
                           padding: '3px 10px',
                           borderRadius: 9999,
-                          background: 'rgba(16, 185, 129, 0.12)',
-                          border: '1px solid rgba(16, 185, 129, 0.3)',
-                          color: '#34d399',
+                          background: msg.action_type === 'confirmation_required' 
+                            ? 'rgba(245, 158, 11, 0.15)' 
+                            : msg.action_type === 'cancelled'
+                            ? 'rgba(239, 68, 68, 0.15)'
+                            : msg.action_type === 'computer_use_task' || msg.action_type === 'click_button' || msg.action_type === 'mouse_click'
+                            ? 'rgba(168, 85, 247, 0.15)'
+                            : 'rgba(16, 185, 129, 0.12)',
+                          border: `1px solid ${
+                            msg.action_type === 'confirmation_required'
+                              ? 'rgba(245, 158, 11, 0.4)'
+                              : msg.action_type === 'cancelled'
+                              ? 'rgba(239, 68, 68, 0.4)'
+                              : msg.action_type === 'computer_use_task' || msg.action_type === 'click_button' || msg.action_type === 'mouse_click'
+                              ? 'rgba(168, 85, 247, 0.4)'
+                              : 'rgba(16, 185, 129, 0.3)'
+                          }`,
+                          color: msg.action_type === 'confirmation_required'
+                            ? '#fbbf24'
+                            : msg.action_type === 'cancelled'
+                            ? '#f87171'
+                            : msg.action_type === 'computer_use_task' || msg.action_type === 'click_button' || msg.action_type === 'mouse_click'
+                            ? '#c084fc'
+                            : '#34d399',
                           fontSize: 10.5,
                           fontFamily: 'ui-monospace, monospace',
                           fontWeight: 600,
-                          boxShadow: '0 0 12px rgba(16, 185, 129, 0.15)',
+                          boxShadow: '0 0 12px rgba(0, 0, 0, 0.2)',
                         }}
                       >
-                        <CheckCircle2 size={12} />
-                        <span>{msg.action_type}</span>
+                        {msg.action_type === 'confirmation_required' ? (
+                          <ShieldAlert size={12} />
+                        ) : msg.action_type === 'cancelled' ? (
+                          <XCircle size={12} />
+                        ) : msg.action_type === 'computer_use_task' || msg.action_type === 'click_button' || msg.action_type === 'mouse_click' ? (
+                          <MousePointer size={12} />
+                        ) : (
+                          <CheckCircle2 size={12} />
+                        )}
+                        <span>
+                          {msg.action_type === 'confirmation_required'
+                            ? 'Подтверждение безопасности'
+                            : msg.action_type === 'cancelled'
+                            ? 'Действие отменено'
+                            : msg.action_type === 'computer_use_task'
+                            ? 'Управление компьютером'
+                            : msg.action_type === 'click_button'
+                            ? 'Клик по интерфейсу'
+                            : msg.action_type === 'mouse_click'
+                            ? 'Действие мыши'
+                            : msg.action_type}
+                        </span>
                       </div>
                     )}
                   </div>

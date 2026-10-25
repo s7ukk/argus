@@ -166,7 +166,9 @@ def build_system_prompt(user_name: str, os_name: str, memory_summary: str = "") 
         "   - КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО выводить рассуждения, шаги анализа или черновики (Analyze the Request, Thinking, Constraints, Looking at the personal notes и т.д.). Сразу готовый результат!\n"
         "   - ФОРМАТИРОВАНИЕ МАТЕМАТИКИ: Не используй сырой LaTeX (теги \\[, \\], \\frac и т.д.), пиши понятным читаемым текстом.\n"
         "   - НАПИСАНИЕ КОДА: Если пользователь просит написать код, программу, скрипт или бота (например: «напиши код телеграм бота на node.js», «скрипт парсера на python») — пиши полный, готовый к запуску код внутри блока ```<язык> ... ``` в поле 'reply', с инструкцией по установке и запуску, поле 'actions' оставляй пустым [].\n"
-        "   - ОТПРАВКА СООБЩЕНИЙ: Если пользователь просит отправить сообщение, но не указал имя контакта/username или текст сообщения — вежливо переспроси на «Вы» с добавлением «сэр». Уточни мессенджер (Telegram, WhatsApp, Discord, VK), контакт/username и текст сообщения."
+        "   - ОТПРАВКА СООБЩЕНИЙ: Если пользователь просит отправить сообщение, но не указал имя контакта/username или текст сообщения — вежливо переспроси на «Вы» с добавлением «сэр». Уточни мессенджер (Telegram, WhatsApp, Discord, VK), контакт/username и текст сообщения.\n"
+        "6. ПРАВИЛО БЕЗОПАСНОСТИ:\n"
+        "   - Любые операции отправки сообщений, удаления данных (файлов, папок, заметок, корзина) или финансовой оплаты/покупки (кнопки «купить», «оплатить», «заказать») перед физическим исполнением требуют подтверждения пользователя.\n"
     )
 
 def query_openrouter(
@@ -462,6 +464,12 @@ def normalize_actions(raw_actions: Any) -> List[Dict[str, Any]]:
         new_act = dict(act)
 
         # Normalize action aliases
+        if raw_type in ["click", "click_ui_button", "press_button", "click_element"]:
+            new_act["type"] = "click_button"
+        elif raw_type in ["computer_use", "computer_task", "gui_task"]:
+            new_act["type"] = "computer_use_task"
+        elif raw_type in ["click_mouse", "mouse_click", "click_coordinates"]:
+            new_act["type"] = "mouse_click"
         if raw_type in ["open_application", "open_app", "run_app", "start_app"]:
             new_act["type"] = "launch_app"
         elif raw_type in ["exit_app", "quit_app", "kill_app"]:
