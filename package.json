@@ -91,7 +91,8 @@
       "extendInfo": {
         "NSMicrophoneUsageDescription": "Argus AI requires microphone access for voice control and wake word detection.",
         "NSScreenCaptureUsageDescription": "Argus AI requires screen recording permissions for autonomous desktop interactions and screenshots.",
-        "NSAppleEventsUsageDescription": "Argus AI requires Apple Events access to automate applications on macOS."
+        "NSAppleEventsUsageDescription": "Argus AI requires Apple Events access to automate applications on macOS.",
+        "NSAccessibilityUsageDescription": "Argus AI requires accessibility permissions for keyboard shortcuts, dictation, and automated system interactions."
       }
     },
     "dmg": {

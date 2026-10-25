@@ -385,7 +385,13 @@ def scan_all_installed_apps(force: bool = False) -> Dict[str, str]:
 
     # macOS Applications scanning
     if sys.platform == "darwin":
-        mac_dirs = ["/Applications", "/System/Applications", "/Applications/Utilities", os.path.expanduser("~/Applications")]
+        mac_dirs = [
+            "/Applications",
+            "/System/Applications",
+            "/System/Applications/Utilities",
+            "/Applications/Utilities",
+            os.path.expanduser("~/Applications")
+        ]
         for m_dir in mac_dirs:
             if os.path.exists(m_dir):
                 for app_bundle in glob.glob(os.path.join(m_dir, "*.app")):
@@ -396,19 +402,54 @@ def scan_all_installed_apps(force: bool = False) -> Dict[str, str]:
                         catalog[no_sp] = app_bundle
         catalog["safari"] = "/Applications/Safari.app"
         catalog["сафари"] = "/Applications/Safari.app"
+        catalog["браузер"] = "/Applications/Safari.app"
+        catalog["browser"] = "/Applications/Safari.app"
         catalog["chrome"] = catalog.get("google chrome", "/Applications/Google Chrome.app")
         catalog["хром"] = catalog.get("chrome")
-        catalog["telegram"] = catalog.get("telegram", "/Applications/Telegram.app")
+        catalog["telegram"] = catalog.get("telegram") or catalog.get("telegram desktop") or "/Applications/Telegram.app"
         catalog["телеграм"] = catalog.get("telegram")
+        catalog["телега"] = catalog.get("telegram")
+        catalog["тг"] = catalog.get("telegram")
+        catalog["discord"] = catalog.get("discord", "/Applications/Discord.app")
+        catalog["дискорд"] = catalog.get("discord")
+        catalog["whatsapp"] = catalog.get("whatsapp", "/Applications/WhatsApp.app")
+        catalog["ватсап"] = catalog.get("whatsapp")
+        catalog["vk"] = catalog.get("vk") or catalog.get("vk messenger") or "/Applications/VK.app"
+        catalog["вк"] = catalog.get("vk")
         catalog["vscode"] = catalog.get("visual studio code", "/Applications/Visual Studio Code.app")
+        catalog["код"] = catalog.get("vscode")
+        catalog["вскод"] = catalog.get("vscode")
         catalog["terminal"] = "/System/Applications/Utilities/Terminal.app"
         catalog["терминал"] = "/System/Applications/Utilities/Terminal.app"
+        catalog["консоль"] = "/System/Applications/Utilities/Terminal.app"
         catalog["калькулятор"] = "/System/Applications/Calculator.app"
         catalog["calculator"] = "/System/Applications/Calculator.app"
         catalog["музыка"] = "/System/Applications/Music.app"
         catalog["music"] = "/System/Applications/Music.app"
         catalog["spotify"] = catalog.get("spotify", "/Applications/Spotify.app")
         catalog["спотифай"] = catalog.get("spotify")
+        catalog["заметки"] = "/System/Applications/Notes.app"
+        catalog["notes"] = "/System/Applications/Notes.app"
+        catalog["напоминания"] = "/System/Applications/Reminders.app"
+        catalog["reminders"] = "/System/Applications/Reminders.app"
+        catalog["календарь"] = "/System/Applications/Calendar.app"
+        catalog["calendar"] = "/System/Applications/Calendar.app"
+        catalog["почта"] = "/System/Applications/Mail.app"
+        catalog["mail"] = "/System/Applications/Mail.app"
+        catalog["фото"] = "/System/Applications/Photos.app"
+        catalog["photos"] = "/System/Applications/Photos.app"
+        catalog["блокнот"] = "/System/Applications/TextEdit.app"
+        catalog["textedit"] = "/System/Applications/TextEdit.app"
+        catalog["текстовый редактор"] = "/System/Applications/TextEdit.app"
+        catalog["настройки"] = "/System/Applications/System Settings.app" if os.path.exists("/System/Applications/System Settings.app") else "/System/Applications/System Preferences.app"
+        catalog["settings"] = catalog["настройки"]
+        catalog["параметры"] = catalog["настройки"]
+        catalog["мониторинг"] = "/System/Applications/Utilities/Activity Monitor.app"
+        catalog["диспетчер задач"] = "/System/Applications/Utilities/Activity Monitor.app"
+        catalog["activity monitor"] = "/System/Applications/Utilities/Activity Monitor.app"
+        catalog["finder"] = "/System/Library/CoreServices/Finder.app"
+        catalog["файндер"] = "/System/Library/CoreServices/Finder.app"
+        catalog["проводник"] = "/System/Library/CoreServices/Finder.app"
         _APP_CATALOG = catalog
         _LAST_SCAN_TIME = now
         return _APP_CATALOG
@@ -813,17 +854,37 @@ def activate_running_window(app_query: str) -> bool:
     if sys.platform == "darwin":
         try:
             mac_app_map = {
-                "telegram": "Telegram",
-                "discord": "Discord",
-                "whatsapp": "WhatsApp",
-                "chrome": "Google Chrome",
-                "browser": "Safari",
-                "safari": "Safari",
-                "notepad": "TextEdit",
-                "word": "Microsoft Word",
-                "vscode": "Visual Studio Code"
+                "telegram": "Telegram", "телеграм": "Telegram", "телега": "Telegram", "тг": "Telegram", "телеграмм": "Telegram",
+                "discord": "Discord", "дискорд": "Discord",
+                "whatsapp": "WhatsApp", "ватсап": "WhatsApp", "воцап": "WhatsApp",
+                "vk": "VK", "вк": "VK", "вконтакте": "VK",
+                "chrome": "Google Chrome", "хром": "Google Chrome", "google chrome": "Google Chrome", "гугл хром": "Google Chrome",
+                "browser": "Safari", "браузер": "Safari", "сафари": "Safari", "safari": "Safari",
+                "notes": "Notes", "заметки": "Notes",
+                "notepad": "TextEdit", "блокнот": "TextEdit", "textedit": "TextEdit", "текстовый редактор": "TextEdit",
+                "word": "Microsoft Word", "ворд": "Microsoft Word",
+                "excel": "Microsoft Excel", "эксель": "Microsoft Excel",
+                "vscode": "Visual Studio Code", "код": "Visual Studio Code", "вскод": "Visual Studio Code", "vs code": "Visual Studio Code",
+                "terminal": "Terminal", "терминал": "Terminal", "консоль": "Terminal",
+                "finder": "Finder", "файндер": "Finder", "проводник": "Finder",
+                "music": "Music", "музыка": "Music",
+                "spotify": "Spotify", "спотифай": "Spotify",
+                "calculator": "Calculator", "калькулятор": "Calculator",
+                "reminders": "Reminders", "напоминания": "Reminders",
+                "calendar": "Calendar", "календарь": "Calendar",
+                "settings": "System Settings", "настройки": "System Settings", "параметры": "System Settings",
+                "mail": "Mail", "почта": "Mail",
+                "activity monitor": "Activity Monitor", "диспетчер задач": "Activity Monitor", "мониторинг": "Activity Monitor"
             }
-            target = mac_app_map.get(app_query.lower().strip(), app_query)
+            target = mac_app_map.get(app_query.lower().strip())
+            if not target:
+                catalog = scan_all_installed_apps()
+                target = catalog.get(app_query.lower().strip(), app_query)
+                if target.endswith(".app"):
+                    target = os.path.splitext(os.path.basename(target))[0]
+            if target == "Telegram" and not os.path.exists("/Applications/Telegram.app") and os.path.exists("/Applications/Telegram Desktop.app"):
+                target = "Telegram Desktop"
+            subprocess.run(["open", "-a", target], capture_output=True)
             script = f'tell application "{target}" to activate'
             subprocess.run(['osascript', '-e', script], capture_output=True, timeout=5)
             return True
@@ -1058,15 +1119,34 @@ def launch_application(app_name: str) -> Dict[str, Any]:
             "яндекс": "Yandex", "яндекс браузер": "Yandex",
             "яндекс музыка": "Yandex Music", "саундклауд": "SoundCloud", "sound cloud": "SoundCloud", "soundcloud": "SoundCloud"
         }
-        target_mac = mac_aliases.get(clean_app, clean_app)
+        target_mac = mac_aliases.get(clean_app) or mac_aliases.get(app_lower)
+        if not target_mac:
+            catalog = scan_all_installed_apps()
+            target_mac = catalog.get(clean_app) or catalog.get(app_lower)
+        if not target_mac:
+            target_mac = clean_app
+
+        if target_mac == "Telegram" and not os.path.exists("/Applications/Telegram.app") and os.path.exists("/Applications/Telegram Desktop.app"):
+            target_mac = "Telegram Desktop"
+
         try:
             res = subprocess.run(["open", "-a", target_mac], capture_output=True)
             if res.returncode == 0:
-                # Also bring window directly to foreground
                 subprocess.run(["osascript", "-e", f'tell application "{target_mac}" to activate'], capture_output=True)
                 return {"success": True, "launched": target_mac, "os": "mac"}
         except Exception:
             pass
+
+        # Native protocol fallbacks on macOS
+        if clean_app in ["telegram", "телеграм", "телега", "тг"]:
+            subprocess.run(["open", "tg:"], capture_output=True)
+            return {"success": True, "launched": "Telegram", "os": "mac", "type": "protocol"}
+        elif clean_app in ["discord", "дискорд"]:
+            subprocess.run(["open", "discord:"], capture_output=True)
+            return {"success": True, "launched": "Discord", "os": "mac", "type": "protocol"}
+        elif clean_app in ["spotify", "спотифай"]:
+            subprocess.run(["open", "spotify:"], capture_output=True)
+            return {"success": True, "launched": "Spotify", "os": "mac", "type": "protocol"}
         # Check web fallback on macOS
         target_key_check = APP_CANONICAL_KEYS.get(clean_app) or clean_app
         if clean_app in WEB_SERVICE_FALLBACKS or target_key_check in WEB_SERVICE_FALLBACKS:
@@ -1428,6 +1508,17 @@ def send_hotkey(*keys: str) -> bool:
     """
     if sys.platform == "darwin":
         try:
+            mac_keycodes = {
+                "enter": 36, "return": 36, "ввод": 36, "ентр": 36,
+                "escape": 53, "esc": 53, "эскейп": 53,
+                "tab": 48, "таб": 48,
+                "space": 49, "пробел": 49,
+                "down": 125, "вниз": 125,
+                "up": 126, "вверх": 126,
+                "left": 123, "влево": 123,
+                "right": 124, "вправо": 124,
+                "delete": 51, "backspace": 51, "стереть": 51
+            }
             modifiers = []
             regular_key = ""
             for k in keys:
@@ -1442,7 +1533,12 @@ def send_hotkey(*keys: str) -> bool:
                     regular_key = kl
             mod_str = "{" + ", ".join(modifiers) + "}" if modifiers else "{}"
             if regular_key:
-                script = f'tell application "System Events" to keystroke "{regular_key}" using {mod_str}'
+                rk_lower = regular_key.lower().strip()
+                if rk_lower in mac_keycodes:
+                    code = mac_keycodes[rk_lower]
+                    script = f'tell application "System Events" to key code {code} using {mod_str}'
+                else:
+                    script = f'tell application "System Events" to keystroke "{regular_key}" using {mod_str}'
                 res = subprocess.run(["osascript", "-e", script], capture_output=True, timeout=2)
                 if res.returncode == 0:
                     return True
@@ -1475,7 +1571,20 @@ def send_hotkey(*keys: str) -> bool:
         return False
 
 def click_mouse(x: Optional[int] = None, y: Optional[int] = None) -> bool:
-    """Clicks the mouse at current or specified coordinate."""
+    """Clicks the mouse at current or specified coordinate on Windows and macOS."""
+    if sys.platform == "darwin":
+        if x is not None and y is not None:
+            try:
+                script = f'''
+                tell application "System Events"
+                    click at {{{x}, {y}}}
+                end tell
+                '''
+                res = subprocess.run(["osascript", "-e", script], capture_output=True, timeout=2)
+                if res.returncode == 0:
+                    return True
+            except Exception:
+                pass
     if not _HAS_PYAUTOGUI:
         return False
     try:
@@ -1630,7 +1739,18 @@ def empty_recycle_bin() -> bool:
     """Silently empty Trash / Recycle Bin."""
     if sys.platform == "darwin":
         try:
-            subprocess.run(["osascript", "-e", 'tell application "Finder" to empty trash'], check=False)
+            subprocess.run(["osascript", "-e", 'tell application "Finder" to empty trash'], check=False, timeout=3)
+            trash_path = os.path.expanduser("~/.Trash")
+            if os.path.exists(trash_path):
+                for item in os.listdir(trash_path):
+                    fp = os.path.join(trash_path, item)
+                    try:
+                        if os.path.isdir(fp):
+                            shutil.rmtree(fp, ignore_errors=True)
+                        else:
+                            os.remove(fp)
+                    except Exception:
+                        pass
             return True
         except Exception as e:
             print("Mac trash error:", e)
@@ -1661,7 +1781,12 @@ def open_folder(folder_name: str) -> bool:
         "c": "C:\\" if sys.platform == "win32" else "/",
         "диск c": "C:\\" if sys.platform == "win32" else "/"
     }
-    target = folder_map.get(folder_name.lower().strip())
+    clean = folder_name.lower().strip()
+    target = folder_map.get(clean)
+    if not target or not os.path.exists(target):
+        resolved = resolve_file_path(folder_name)
+        if os.path.exists(resolved) and os.path.isdir(resolved):
+            target = resolved
     if target and os.path.exists(target):
         if sys.platform == "darwin":
             subprocess.Popen(["open", target])
@@ -3182,7 +3307,11 @@ def delete_file_or_folder(target: str) -> Dict[str, Any]:
 
         path = resolve_file_path(target)
         norm = os.path.normpath(path).lower()
-        if norm in ["c:\\", "c:", "c:\\windows", "c:\\program files", "c:\\users"]:
+        system_roots = [
+            "c:\\", "c:", "c:\\windows", "c:\\program files", "c:\\users",
+            "/", "/system", "/library", "/applications", "/users", "/bin", "/sbin", "/usr", "/etc", "/var", "/private"
+        ]
+        if norm in system_roots:
             return {"success": False, "error": "Запрещено удалять системные директории"}
         if not os.path.exists(path):
             return {"success": False, "error": f"Файл или папка '{os.path.basename(path)}' не найдены"}

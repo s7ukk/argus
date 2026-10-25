@@ -185,7 +185,7 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
         const voices = window.speechSynthesis.getVoices();
         const maleRu = voices.find(v => 
           v.lang.startsWith('ru') && 
-          (v.name.toLowerCase().includes('dmitry') || v.name.toLowerCase().includes('pavel') || v.name.toLowerCase().includes('male'))
+          (v.name.toLowerCase().includes('dmitry') || v.name.toLowerCase().includes('pavel') || v.name.toLowerCase().includes('yuri') || v.name.toLowerCase().includes('юрий') || v.name.toLowerCase().includes('male'))
         );
         if (maleRu) utt.voice = maleRu;
       } catch {}

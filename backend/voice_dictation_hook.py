@@ -57,9 +57,14 @@ def _run_listener():
     if is_mac:
         try:
             import ctypes
-            cg = ctypes.cdll.LoadLibrary('/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics')
+            import ctypes.util
+            cg_path = ctypes.util.find_library('CoreGraphics') or '/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics'
+            cg = ctypes.cdll.LoadLibrary(cg_path)
         except Exception as e:
-            print(f"[Argus Dictation Hook]: Failed to load CoreGraphics on macOS: {e}")
+            try:
+                cg = ctypes.CDLL('CoreGraphics.framework/CoreGraphics')
+            except Exception:
+                print(f"[Argus Dictation Hook]: Failed to load CoreGraphics on macOS: {e}")
 
     # Windows user32 setup
     user32 = None

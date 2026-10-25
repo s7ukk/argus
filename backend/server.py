@@ -478,20 +478,26 @@ async def terminal_ai_assistant(req: TerminalAIAssistantRequest):
     elif any(k in p_lower for k in ["процесс", "память", "cpu", "нагрузк", "top processes"]):
         if target_os == "windows":
             fallback_cmd = "Get-Process | Sort-Object WorkingSet64 -Descending | Select-Object -First 10 ProcessName, Id, @{N='RAM(MB)';E={[math]::round($_.WorkingSet64/1MB,1)}}"
+        elif target_os == "macos":
+            fallback_cmd = "ps -A -o pid,%cpu,%mem,comm -r | head -n 11"
         else:
             fallback_cmd = "ps aux --sort=-%mem | head -n 11"
         fallback_desc = "Топ-10 процессов по потреблению оперативной памяти"
     elif any(k in p_lower for k in ["порт", "порты", "open ports", "слуша"]):
         if target_os == "windows":
             fallback_cmd = "Get-NetTCPConnection -State Listen | Select-Object LocalAddress, LocalPort, OwningProcess"
+        elif target_os == "macos":
+            fallback_cmd = "lsof -iTCP -sTCP:LISTEN -P -n"
         else:
-            fallback_cmd = "netstat -tuln"
+            fallback_cmd = "netstat -tuln 2>/dev/null || ss -tuln"
         fallback_desc = "Список всех открытых и прослушиваемых сетевых портов"
     elif any(k in p_lower for k in ["ip", "айпи", "сеть", "интернет адрес"]):
         if target_os == "windows":
             fallback_cmd = "Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.InterfaceAlias -notmatch 'Loopback' } | Select-Object InterfaceAlias, IPAddress"
+        elif target_os == "macos":
+            fallback_cmd = "ifconfig | grep 'inet ' | grep -v 127.0.0.1"
         else:
-            fallback_cmd = "ip a || ifconfig"
+            fallback_cmd = "ip a 2>/dev/null || ifconfig"
         fallback_desc = "Определение локальных сетевых IP-адресов адаптеров"
 
     ai_cmd = fallback_cmd

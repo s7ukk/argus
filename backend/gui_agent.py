@@ -152,9 +152,25 @@ def send_hotkey_native(*keys: str):
             else:
                 regular_key = kl
 
+        mac_keycodes = {
+            "enter": 36, "return": 36, "ввод": 36, "ентр": 36,
+            "escape": 53, "esc": 53, "эскейп": 53,
+            "tab": 48, "таб": 48,
+            "space": 49, "пробел": 49,
+            "down": 125, "вниз": 125,
+            "up": 126, "вверх": 126,
+            "left": 123, "влево": 123,
+            "right": 124, "вправо": 124,
+            "delete": 51, "backspace": 51, "стереть": 51
+        }
         mod_str = "{" + ", ".join(modifiers) + "}" if modifiers else "{}"
         if regular_key:
-            script = f'tell application "System Events" to keystroke "{regular_key}" using {mod_str}'
+            rk_lower = regular_key.lower().strip()
+            if rk_lower in mac_keycodes:
+                code = mac_keycodes[rk_lower]
+                script = f'tell application "System Events" to key code {code} using {mod_str}'
+            else:
+                script = f'tell application "System Events" to keystroke "{regular_key}" using {mod_str}'
             subprocess.run(["osascript", "-e", script], capture_output=True)
             return
 
@@ -221,24 +237,50 @@ def activate_app_window(app_name: str) -> bool:
             "телеграм": "Telegram",
             "телега": "Telegram",
             "тг": "Telegram",
+            "телеграмм": "Telegram",
             "safari": "Safari",
             "сафари": "Safari",
+            "браузер": "Safari",
             "chrome": "Google Chrome",
             "хром": "Google Chrome",
+            "гугл хром": "Google Chrome",
             "discord": "Discord",
             "дискорд": "Discord",
             "whatsapp": "WhatsApp",
             "ватсап": "WhatsApp",
+            "воцап": "WhatsApp",
+            "vk": "VK",
+            "вк": "VK",
+            "вконтакте": "VK",
             "notes": "Notes",
             "заметки": "Notes",
+            "блокнот": "TextEdit",
+            "textedit": "TextEdit",
             "finder": "Finder",
+            "файндер": "Finder",
+            "проводник": "Finder",
             "music": "Music",
             "музыка": "Music",
             "spotify": "Spotify",
+            "спотифай": "Spotify",
             "terminal": "Terminal",
-            "vscode": "Visual Studio Code"
+            "терминал": "Terminal",
+            "консоль": "Terminal",
+            "vscode": "Visual Studio Code",
+            "код": "Visual Studio Code",
+            "вскод": "Visual Studio Code",
+            "calculator": "Calculator",
+            "калькулятор": "Calculator",
+            "reminders": "Reminders",
+            "напоминания": "Reminders",
+            "calendar": "Calendar",
+            "календарь": "Calendar",
+            "mail": "Mail",
+            "почта": "Mail"
         }
         target = mac_name_map.get(app_lower, app_name)
+        if target == "Telegram" and not os.path.exists("/Applications/Telegram.app") and os.path.exists("/Applications/Telegram Desktop.app"):
+            target = "Telegram Desktop"
         try:
             # 1. Open / launch application
             subprocess.run(["open", "-a", target], capture_output=True)
