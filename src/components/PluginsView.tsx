@@ -852,7 +852,7 @@ export const PluginsView: React.FC = () => {
             style={{
               padding: '14px 24px',
               borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-              background: 'linear-gradient(180deg, rgba(18, 14, 32, 0.85) 0%, rgba(10, 10, 14, 0.75) 100%)',
+              background: 'linear-gradient(180deg, rgba(14, 14, 18, 0.85) 0%, rgba(10, 10, 14, 0.75) 100%)',
               backdropFilter: 'blur(16px)',
               display: 'flex',
               alignItems: 'center',
@@ -1586,7 +1586,7 @@ export const PluginsView: React.FC = () => {
                         style={{
                           padding: '8px 18px',
                           borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-                          background: 'rgba(15, 12, 28, 0.5)',
+                          background: 'rgba(14, 14, 18, 0.5)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'space-between',

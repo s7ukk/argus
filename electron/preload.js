@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   showIslandNotification: (data) => ipcRenderer.send('show-island-notification', data),
   hideIsland: () => ipcRenderer.send('hide-island'),
   updateIslandState: (state) => ipcRenderer.send('update-island-state', state),
+  updateIslandTimer: (timer) => ipcRenderer.send('update-island-timer', timer),
   isElectron: true,
   isMac: process.platform === 'darwin',
   platform: process.platform

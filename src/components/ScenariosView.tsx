@@ -263,7 +263,7 @@ export const ScenariosView: React.FC = () => {
                 style={{
                   padding: 22,
                   borderRadius: 18,
-                  background: 'rgba(15, 12, 28, 0.65)',
+                  background: 'rgba(14, 14, 18, 0.65)',
                   border: isRunning
                     ? '1px solid rgba(255, 255, 255, 0.4)'
                     : '1px solid rgba(255, 255, 255, 0.08)',
@@ -474,7 +474,7 @@ export const ScenariosView: React.FC = () => {
               maxHeight: '90vh',
               overflowY: 'auto',
               borderRadius: 20,
-              background: 'rgba(15, 12, 28, 0.95)',
+              background: 'rgba(12, 12, 16, 0.95)',
               border: '1px solid rgba(255, 255, 255, 0.2)',
               boxShadow: '0 0 35px var(--accent-glow, rgba(255, 255, 255, 0.12))',
               padding: 26,

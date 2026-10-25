@@ -511,10 +511,10 @@ function registerIpcHandlers() {
     try { dictationHudWindow?.hide(); } catch (e) {}
   });
 
-  ipcMain.on('update-island-state', (event, state) => {
+  ipcMain.on('update-island-timer', (event, timer) => {
     if (!dictationHudWindow || dictationHudWindow.isDestroyed()) createDictationHudWindow();
     if (dictationHudWindow) {
-      if (state.thinking) {
+      if (timer && timer.is_running && timer.remaining_seconds > 0) {
         try {
           const primaryDisplay = screen.getPrimaryDisplay();
           const { width } = primaryDisplay.workAreaSize;
@@ -523,7 +523,26 @@ function registerIpcHandlers() {
         dictationHudWindow.setAlwaysOnTop(true, 'screen-saver', 1);
         dictationHudWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
         dictationHudWindow.showInactive();
-        dictationHudWindow.webContents.send('island-state', { thinking: true });
+        dictationHudWindow.webContents.send('island-timer', timer);
+      } else {
+        dictationHudWindow.webContents.send('island-timer', null);
+      }
+    }
+  });
+
+  ipcMain.on('update-island-state', (event, state) => {
+    if (!dictationHudWindow || dictationHudWindow.isDestroyed()) createDictationHudWindow();
+    if (dictationHudWindow) {
+      if (state.thinking || state.speaking) {
+        try {
+          const primaryDisplay = screen.getPrimaryDisplay();
+          const { width } = primaryDisplay.workAreaSize;
+          dictationHudWindow.setPosition(Math.round((width - 500) / 2), 20);
+        } catch (e) {}
+        dictationHudWindow.setAlwaysOnTop(true, 'screen-saver', 1);
+        dictationHudWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+        dictationHudWindow.showInactive();
+        dictationHudWindow.webContents.send('island-state', state);
       } else if (state.idle) {
         dictationHudWindow.webContents.send('island-state', { idle: true });
       }
@@ -680,6 +699,17 @@ function createDictationHudWindow() {
     .anim-dot-run-1 { animation: dotRun1 1.4s infinite cubic-bezier(0.4, 0, 0.2, 1); }
     .anim-dot-run-2 { animation: dotRun2 1.4s infinite cubic-bezier(0.4, 0, 0.2, 1); }
     .anim-dot-run-3 { animation: dotRun3 1.4s infinite cubic-bezier(0.4, 0, 0.2, 1); }
+    @keyframes soundwave {
+      0%, 100% { height: 4px; }
+      50% { height: 15px; }
+    }
+    .wave-bar {
+      width: 2.5px;
+      background: #ffffff;
+      border-radius: 2px;
+      display: inline-block;
+      animation: soundwave 0.8s ease-in-out infinite;
+    }
   </style>
 </head>
 <body>
@@ -690,6 +720,11 @@ function createDictationHudWindow() {
       <span class="anim-dot-run-2" style="width:4.5px;height:4.5px;border-radius:50%;background:#ffffff;opacity:0.8;display:inline-block;"></span>
       <span class="anim-dot-run-3" style="width:4.5px;height:4.5px;border-radius:50%;background:#ffffff;opacity:0.6;display:inline-block;"></span>
     </div>
+    <div id="soundwave" style="display:none;align-items:center;gap:2.5px;margin-right:4px;">
+      <span class="wave-bar" style="height:6px;animation-delay:0s;"></span>
+      <span class="wave-bar" style="height:14px;animation-delay:0.18s;"></span>
+      <span class="wave-bar" style="height:10px;animation-delay:0.36s;"></span>
+    </div>
     <div id="icon" style="display:none;align-items:center;"></div>
     <span id="text" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
   </div>
@@ -697,6 +732,9 @@ function createDictationHudWindow() {
     const { ipcRenderer } = require('electron');
     let hideTimeout = null;
     let isThinking = false;
+    let isSpeaking = false;
+    let isDictating = false;
+    let activeTimer = null;
 
     const ICONS = {
       check: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
@@ -705,17 +743,77 @@ function createDictationHudWindow() {
       info: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>'
     };
 
+    function formatTime(totalSec) {
+      const m = Math.floor(totalSec / 60);
+      const s = totalSec % 60;
+      return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+    }
+
+    function renderActiveState() {
+      if (hideTimeout) clearTimeout(hideTimeout);
+      const pill = document.getElementById('pill');
+      const dot = document.getElementById('dot');
+      const tDots = document.getElementById('thinking-dots');
+      const wave = document.getElementById('soundwave');
+      const icon = document.getElementById('icon');
+      const text = document.getElementById('text');
+
+      if (isDictating) return;
+
+      if (isThinking) {
+        dot.style.display = 'none';
+        icon.style.display = 'none';
+        wave.style.display = 'none';
+        tDots.style.display = 'flex';
+        pill.style.borderColor = 'rgba(255, 255, 255, 0.22)';
+        text.innerText = 'Thinking...';
+        return;
+      }
+
+      if (isSpeaking) {
+        dot.style.display = 'none';
+        icon.style.display = 'none';
+        tDots.style.display = 'none';
+        wave.style.display = 'flex';
+        pill.style.borderColor = 'rgba(255, 255, 255, 0.22)';
+        text.innerText = 'Озвучивание...';
+        return;
+      }
+
+      if (activeTimer && activeTimer.is_running && activeTimer.remaining_seconds > 0) {
+        dot.style.display = 'none';
+        tDots.style.display = 'none';
+        wave.style.display = 'none';
+        icon.style.display = 'flex';
+        icon.innerHTML = ICONS.timer;
+        pill.style.borderColor = 'rgba(251, 191, 36, 0.45)';
+        text.innerHTML = '<span style="color:#e2e8f0;margin-right:8px;">' + (activeTimer.title || 'Таймер') + '</span><span style="color:#ffffff;font-weight:800;font-family:monospace;letter-spacing:0.04em;">' + formatTime(activeTimer.remaining_seconds) + '</span>';
+        return;
+      }
+
+      // Hide if nothing active
+      try { ipcRenderer.send('hide-dictation-hud'); } catch (e) {}
+    }
+
+    ipcRenderer.on('island-timer', (event, timer) => {
+      activeTimer = timer;
+      renderActiveState();
+    });
+
     ipcRenderer.on('hud-update', (event, state) => {
       if (hideTimeout) clearTimeout(hideTimeout);
       const pill = document.getElementById('pill');
       const dot = document.getElementById('dot');
       const tDots = document.getElementById('thinking-dots');
+      const wave = document.getElementById('soundwave');
       const icon = document.getElementById('icon');
       const text = document.getElementById('text');
 
       tDots.style.display = 'none';
+      wave.style.display = 'none';
 
       if (state.active) {
+        isDictating = true;
         dot.style.display = 'block';
         dot.style.background = '#ef4444';
         dot.style.boxShadow = '0 0 10px #ef4444';
@@ -723,11 +821,13 @@ function createDictationHudWindow() {
         pill.style.borderColor = 'rgba(239, 68, 68, 0.6)';
         text.innerText = 'Голосовой ввод Argus: говорите текст... (Double-Ctrl)';
       } else if (state.success) {
+        isDictating = false;
         dot.style.display = 'none';
         icon.style.display = 'flex';
         icon.innerHTML = ICONS.check;
         pill.style.borderColor = 'rgba(74, 222, 128, 0.5)';
         text.innerText = 'Вставлено: «' + (state.text || '') + '»';
+        setTimeout(renderActiveState, 1800);
       }
     });
 
@@ -736,11 +836,13 @@ function createDictationHudWindow() {
       const pill = document.getElementById('pill');
       const dot = document.getElementById('dot');
       const tDots = document.getElementById('thinking-dots');
+      const wave = document.getElementById('soundwave');
       const icon = document.getElementById('icon');
       const text = document.getElementById('text');
 
       dot.style.display = 'none';
       tDots.style.display = 'none';
+      wave.style.display = 'none';
       icon.style.display = 'flex';
 
       if (data.type === 'success') {
@@ -760,33 +862,22 @@ function createDictationHudWindow() {
       text.innerText = data.text || '';
 
       hideTimeout = setTimeout(() => {
-        try { ipcRenderer.send('hide-dictation-hud'); } catch (e) {}
+        renderActiveState();
       }, data.duration || 2800);
     });
 
     ipcRenderer.on('island-state', (event, state) => {
-      if (hideTimeout) clearTimeout(hideTimeout);
-      const pill = document.getElementById('pill');
-      const dot = document.getElementById('dot');
-      const tDots = document.getElementById('thinking-dots');
-      const icon = document.getElementById('icon');
-      const text = document.getElementById('text');
-
       if (state.thinking) {
         isThinking = true;
-        dot.style.display = 'none';
-        icon.style.display = 'none';
-        tDots.style.display = 'flex';
-        pill.style.borderColor = 'rgba(255, 255, 255, 0.18)';
-        text.innerText = 'Thinking...';
+        isSpeaking = false;
+      } else if (state.speaking) {
+        isSpeaking = true;
+        isThinking = false;
       } else if (state.idle) {
-        if (isThinking) {
-          isThinking = false;
-          hideTimeout = setTimeout(() => {
-            try { ipcRenderer.send('hide-dictation-hud'); } catch (e) {}
-          }, 350);
-        }
+        isThinking = false;
+        isSpeaking = false;
       }
+      renderActiveState();
     });
   </script>
 </body>

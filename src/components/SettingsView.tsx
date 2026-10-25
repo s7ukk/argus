@@ -1108,7 +1108,7 @@ export const SettingsView: React.FC = () => {
                   marginTop: 10,
                   padding: 10,
                   borderRadius: 10,
-                  background: '#090714',
+                  background: '#09090c',
                   border: '1px solid rgba(74, 222, 128, 0.3)',
                   display: 'flex',
                   alignItems: 'center',

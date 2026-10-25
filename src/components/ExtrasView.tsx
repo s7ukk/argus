@@ -522,7 +522,7 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
         flexDirection: 'column',
         height: '100%',
         width: '100%',
-        background: 'linear-gradient(180deg, #090714 0%, #0c0a1a 100%)',
+        background: 'rgba(8, 8, 12, 0.65)',
         color: '#f8fafc',
         fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
         overflowY: 'auto',
@@ -535,7 +535,7 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
         style={{
           padding: '24px 32px 16px 32px',
           borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-          background: 'rgba(15, 11, 30, 0.75)',
+          background: 'rgba(12, 12, 16, 0.5)',
           backdropFilter: 'blur(20px)',
           display: 'flex',
           flexDirection: 'column',
@@ -967,7 +967,7 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
                         style={{
                           background: isFinished
                             ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(15, 15, 20, 0.8) 100%)'
-                            : 'linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, rgba(15, 11, 30, 0.8) 100%)',
+                            : 'linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, rgba(14, 14, 18, 0.8) 100%)',
                           border: isFinished
                             ? '1px solid rgba(239, 68, 68, 0.5)'
                             : timer.is_running
@@ -2071,7 +2071,7 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
         >
           <div
             style={{
-              background: '#13111c',
+              background: 'rgba(12, 12, 16, 0.96)',
               border: '1px solid rgba(255, 255, 255, 0.2)',
               borderRadius: 20,
               maxWidth: 640,

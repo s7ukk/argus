@@ -166,7 +166,69 @@ export const App: React.FC = () => {
     };
     window.addEventListener('argus_settings_updated', handleSettingsUpdated);
 
+    // Synchronize Active Timer to Electron OS Overlay Dynamic Island
+  useEffect(() => {
+    if (!Boolean((window as any).electronAPI?.isElectron)) return;
+    const syncTimer = () => {
+      try {
+        const raw = localStorage.getItem('argus_extras_timers');
+        if (raw) {
+          const list: TimerItem[] = JSON.parse(raw);
+          const running = list.find((t) => t.is_running && t.remaining_seconds > 0);
+          if (running) {
+            (window as any).electronAPI?.updateIslandTimer?.({
+              id: running.id,
+              title: running.title,
+              remaining_seconds: running.remaining_seconds,
+              is_running: true,
+            });
+            return;
+          }
+        }
+        (window as any).electronAPI?.updateIslandTimer?.(null);
+      } catch {
+        (window as any).electronAPI?.updateIslandTimer?.(null);
+      }
+    };
+
+    syncTimer();
+    const interval = setInterval(syncTimer, 1000);
+    window.addEventListener('argus_extras_updated', syncTimer);
     return () => {
+      clearInterval(interval);
+      window.removeEventListener('argus_extras_updated', syncTimer);
+    };
+  }, []);
+
+  // Synchronize AI State (Thinking / Speaking / Idle) to Electron OS Overlay Dynamic Island
+  useEffect(() => {
+    if (!Boolean((window as any).electronAPI?.isElectron)) return;
+    if (loading) {
+      (window as any).electronAPI?.updateIslandState?.({ thinking: true });
+    } else if (isSpeaking) {
+      (window as any).electronAPI?.updateIslandState?.({ speaking: true });
+    } else {
+      (window as any).electronAPI?.updateIslandState?.({ idle: true });
+    }
+  }, [loading, isSpeaking]);
+
+  // Synchronize in-app Notifications to Electron OS Overlay Dynamic Island
+  useEffect(() => {
+    if (!Boolean((window as any).electronAPI?.isElectron)) return;
+    const handleIslandNotify = (e: any) => {
+      if (e.detail?.text) {
+        (window as any).electronAPI?.showIslandNotification?.({
+          text: e.detail.text,
+          type: e.detail.type || 'info',
+          duration: e.detail.duration || 3200,
+        });
+      }
+    };
+    window.addEventListener('argus_island_notify', handleIslandNotify);
+    return () => window.removeEventListener('argus_island_notify', handleIslandNotify);
+  }, []);
+
+  return () => {
       isDictationSubscribed = false;
       window.removeEventListener('argus_dictation_state', handleDictationState);
       window.removeEventListener('argus_settings_updated', handleSettingsUpdated);
@@ -541,15 +603,29 @@ export const App: React.FC = () => {
       <div className="bg-grid" />
       <div className="bg-noise" />
 
-      <Header />
-
-      {/* Dynamic Island: Always floating on top */}
-      <DynamicIsland
-        dictationState={dictationState}
-        isAiThinking={loading}
-        isSpeaking={isSpeaking}
-        onStopAi={handleStop}
+      <Header
+        centerContent={
+          themeConfig.navPosition === 'top' && profile ? (
+            <NavDock
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+              profile={profile}
+              onOpenProfile={() => setIsProfileOpen(true)}
+              position="top"
+            />
+          ) : undefined
+        }
       />
+
+      {/* Dynamic Island: When running in Electron, it operates strictly as an OS overlay window (outside/on top of app). Only render in-DOM if web-only */}
+      {!Boolean((window as any).electronAPI?.isElectron) && (
+        <DynamicIsland
+          dictationState={dictationState}
+          isAiThinking={loading}
+          isSpeaking={isSpeaking}
+          onStopAi={handleStop}
+        />
+      )}
 
       {!profile ? (
         <AuthScreen onSuccess={handleAuthSuccess} />
@@ -564,30 +640,33 @@ export const App: React.FC = () => {
             zIndex: 2,
           }}
         >
-          {/* Top NavDock (Sleek floating oval capsule centered below Header) */}
-          {themeConfig.navPosition === 'top' && (
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 16px 8px 16px', flexShrink: 0 }}>
-              <NavDock
-                activeTab={activeTab}
-                onTabChange={setActiveTab}
-                profile={profile}
-                onOpenProfile={() => setIsProfileOpen(true)}
-                position="top"
-              />
-            </div>
-          )}
+
 
           {/* Main Content Row */}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'row', overflow: 'hidden', position: 'relative' }}>
           {/* Left NavDock (when position === 'left') */}
           {themeConfig.navPosition === 'left' && (
-            <NavDock
-              activeTab={activeTab}
-              onTabChange={setActiveTab}
-              profile={profile}
-              onOpenProfile={() => setIsProfileOpen(true)}
-              position="left"
-            />
+            <div
+              style={{
+                width: 56,
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                background: 'rgba(10, 10, 14, 0.94)',
+                borderRight: '1px solid rgba(255, 255, 255, 0.08)',
+                padding: '10px 0',
+                flexShrink: 0,
+              }}
+            >
+              <NavDock
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+                profile={profile}
+                onOpenProfile={() => setIsProfileOpen(true)}
+                position="left"
+              />
+            </div>
           )}
 
           {/* Main Content Area */}
