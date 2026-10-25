@@ -24,6 +24,7 @@ import {
   fetchMessages,
   sendChatMessage,
   API_BASE,
+  LOCAL_SERVER_URL,
   smartFetch,
   launchApp,
   runScenario,

@@ -22,7 +22,8 @@ import {
   Search,
   Filter,
   CheckCircle2,
-  Edit2
+  Edit2,
+  X
 } from 'lucide-react';
 import { TaskItem, NoteItem, TimerItem, ReminderItem, ExtrasData } from '../types';
 import { smartFetch } from '../api';
