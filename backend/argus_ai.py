@@ -3436,4 +3436,17 @@ def process_command(user_text: str, user_name: str = "Пользователь",
     else:
         final_reply = "Все задачи успешно выполнены, сэр." if not en else "All tasks completed successfully."
 
+    # Guarantee clean response without unparsed raw JSON leaks
+    if isinstance(final_reply, str):
+        fr_strip = final_reply.strip()
+        if fr_strip.startswith('{"reply"') or fr_strip.startswith('{\n"reply"') or fr_strip.startswith('{\r\n"reply"'):
+            try:
+                p = json.loads(fr_strip)
+                if "reply" in p and isinstance(p["reply"], str):
+                    final_reply = p["reply"]
+            except Exception:
+                m_rep = re.search(r'"reply"\s*:\s*"([\s\S]*?)(?="\s*,\s*"actions"|"\s*\}\s*$)', fr_strip)
+                if m_rep:
+                    final_reply = m_rep.group(1).replace(r'\"', '"').replace(r'\n', '\n')
+
     return final_reply, primary_action_type, primary_data

@@ -141,19 +141,25 @@ def build_system_prompt(user_name: str, os_name: str, memory_summary: str = "") 
    - Если пользователь допускает опечатки («бразуер», «спотифий», «телегарм», «дискрод», «хромчик»), безошибочно понимай его намерение и запускай правильное приложение (браузер -> launch_app: chrome, спотифай -> spotify, телеграм -> telegram).
    - СРАЗУ добавляй нужные команды в массив 'actions'!
    - В поле 'reply' давай только КРАТКОЕ, уверенное, естественное подтверждение на 1 короткую фразу (НЕ длинный отчет!): «Открываю Telegram, сэр.», «Запустил Spotify и включил музыку, сэр.», «Вкладка закрыта, сэр.», «Скриншот сделан, сэр.».
-6. ЛИЧНЫЕ ДАННЫЕ И ЗАМЕТКИ:
-   Если пользователь спрашивает о друзьях, возрасте, городах или паролях — найди точный факт в блоке заметок и ответь прямо и конкретно в 1 предложение.
-7. КОД И СЛОЖНЫЕ ВОПРОСЫ:
-   Если пользователь просит написать код, программу, скрипт или задает сложный технический/жизненный вопрос — отвечай полно, умно, с готовым кодом в блоках ```язык ... ```, а поле 'actions' оставь пустым [].
+6. ЛИЧНЫЕ ДАННЫЕ И ЗАМЕТКИ ПОЛЬЗОВАТЕЛЯ:
+   - Личные заметки содержат личную конфиденциальную информацию пользователя.
+   - ИСПОЛЬЗУЙ ИХ ТОЛЬКО И ИСКЛЮЧИТЕЛЬНО тогда, когда пользователь ЯВНО спрашивает о своих сохраненных данных («что у меня в заметках», «напомни мой пароль», «какой у меня адрес», «что я записал»).
+   - ЕСЛИ ПОЛЬЗОВАТЕЛЬ ПРОСИТ РАССКАЗАТЬ ИСТОРИЮ, СКАЗКУ, АНЕКДОТ, ФАКТ («расскажи историю», «расскажи интересную историю», «сочини рассказ», «случайную историю») — КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО использовать или пересказывать текст из заметок! Вместо этого ВСЕГДА сочини и расскажи совершенно новую, случайную, увлекательную и оригинальную историю сам!
+7. КОД И ТЕХНИЧЕСКИЕ ВОПРОСЫ:
+   Если пользователь просит написать код, программу, скрипт, бэкенд, функцию или задает технический вопрос — пиши полный, готовый к запуску код внутри блоков ```<язык> ... ```.
 
 ФОРМАТ ОТВЕТА:
-Ты ВСЕГДА возвращаешь ответ строго в формате валидного JSON со следующей структурой:
+1. ЕСЛИ НУЖНО ВЫПОЛНИТЬ ДЕЙСТВИЕ НА КОМПЬЮТЕРЕ (запустить программу, закрыть окно/вкладку, сделать скриншот, поставить таймер, нажать клавиши, управлять звуком):
+Верни ответ строго в формате JSON:
 {{
-  "reply": "Умный, естественный и живой ответ пользователю на Вы на русском языке строго БЕЗ ЭМОДЗИ",
+  "reply": "Краткое подтверждение действия пользователю на русском языке на «Вы» строго БЕЗ ЭМОДЗИ",
   "actions": [
     {{"type": "...", ...}}
   ]
 }}
+
+2. ЕСЛИ ДЕЙСТВИЕ НА КОМПЬЮТЕРЕ НЕ ТРЕБУЕТСЯ (пользователь просит написать код, программу, скрипт, объяснить что-либо, рассказать историю или задает вопрос):
+ОТВЕЧАЙ НАПРЯМУЮ ОБЫЧНЫМ ТЕКСТОМ (MARKDOWN) С БЛОКАМИ КОДА ```язык ... ```, КАТЕГОРИЧЕСКИ БЕЗ ОБЁРТКИ В JSON И БЕЗ ПОЛЯ ACTIONS!
 
 ПРАВИЛА И ТИПЫ ДЕЙСТВИЙ:
 1. Если пользователь задает вопрос, просит совета, кода, объяснения или ведет диалог — отвечай развернуто, умно и по делу в поле 'reply', а поле 'actions' оставь пустым массивом [].
@@ -232,16 +238,20 @@ def query_openrouter(
     except Exception:
         mem_summary = ""
 
-    try:
+    is_creative_query = any(k in prompt.lower() for k in [
+        "истори", "сказк", "рассказ", "анекдот", "сочини", "придумай", "случайн", "рандом"
+    ])
+    if not is_creative_query:
         try:
-            import backend.extras_manager as em
-        except ImportError:
-            import extras_manager as em
-        extras_ctx = em.format_notes_context_for_ai()
-        if extras_ctx:
-            mem_summary = (mem_summary + "\n\n" + extras_ctx).strip()
-    except Exception:
-        pass
+            try:
+                import backend.extras_manager as em
+            except ImportError:
+                import extras_manager as em
+            extras_ctx = em.format_notes_context_for_ai()
+            if extras_ctx:
+                mem_summary = (mem_summary + "\n\n" + extras_ctx).strip()
+        except Exception:
+            pass
 
     sys_prompt = system_override or build_system_prompt(user_name, os_name, memory_summary=mem_summary)
 
@@ -416,6 +426,23 @@ def parse_model_response(raw_text: str) -> Tuple[Optional[str], List[Dict[str, A
         except Exception:
             pass
         idx = cleaned.find('{', idx + 1)
+
+    # 2.5 Robust regex fallback if model produced malformed JSON with "reply"
+    if '"reply"' in cleaned:
+        m_rep = re.search(r'"reply"\s*:\s*"([\s\S]*?)(?="\s*,\s*"actions"|"\s*\}\s*$)', cleaned)
+        if m_rep:
+            clean_rep = m_rep.group(1).replace(r'\"', '"').replace(r'\n', '\n')
+            if not is_reasoning_leak(clean_rep):
+                return clean_rep.strip(), []
+        parts = cleaned.split('"reply"', 1)
+        if len(parts) > 1:
+            val = parts[1].lstrip(' :\t\r\n')
+            if val.startswith('"'):
+                val = val[1:]
+            val = re.sub(r"""["']?\s*,\s*["']actions[\s\S]*$""", "", val)
+            val = re.sub(r"""["']?\s*\}\s*$""", "", val).strip()
+            if len(val) > 1 and not is_reasoning_leak(val):
+                return val.replace(r'\"', '"').replace(r'\n', '\n'), []
 
     # 3. Strip markdown reasoning / analysis blocks
     cleaned = re.sub(r'(?:\d+\.\s*)?\*\*(?:Analyze the Request|Thinking|Reasoning|Chain of Thought|Thought Process|Constraints|Goal)[\s\S]*?(?=(?:\{\s*"reply"|\{\s*"actions"|```json|\n\n[А-ЯA-Z]|\Z))', '', cleaned, flags=re.IGNORECASE).strip()

@@ -664,6 +664,9 @@ function createDictationHudWindow() {
 
   dictationHudWindow.setAlwaysOnTop(false);
   dictationHudWindow.setIgnoreMouseEvents(true, { forward: true });
+  if (isMac) {
+    dictationHudWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  }
 
   try {
     const primaryDisplay = screen.getPrimaryDisplay();
@@ -739,12 +742,14 @@ function createDictationHudWindow() {
       align-items: center;
       gap: 10px;
       width: 100%;
-      justify-content: space-between;
+      justify-content: center;
+      text-align: center;
       white-space: nowrap;
     }
 
     .hud-pill:hover .pill-header, .hud-pill.is-expanded .pill-header {
       justify-content: space-between;
+      text-align: left;
     }
 
     .online-dot {
@@ -896,7 +901,7 @@ function createDictationHudWindow() {
 <body>
   <div class="hud-pill" id="pill">
     <div class="pill-header">
-      <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;">
+      <div style="display:flex;align-items:center;justify-content:center;gap:8px;min-width:0;text-align:center;">
         <div class="online-dot" id="online-dot"></div>
         <div class="dot" id="dot" style="display:none;"></div>
         <div id="thinking-dots" style="display:none;align-items:center;gap:3px;margin-right:2px;">
@@ -910,7 +915,7 @@ function createDictationHudWindow() {
           <span class="wave-bar" style="height:10px;animation-delay:0.36s;"></span>
         </div>
         <div id="icon" style="display:none;align-items:center;"></div>
-        <span id="text" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Argus AI</span>
+        <span id="text" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center;">Argus AI</span>
       </div>
       <button id="pill-stop-dictation-btn" class="action-btn" style="display:none;padding:3px 10px;font-size:11px;" onclick="stopDictationFromIsland(event)" title="Остановить запись">
         Остановить
