@@ -525,6 +525,16 @@ function registerIpcHandlers() {
     }
   });
 
+  ipcMain.on('stop-dictation', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('stop-dictation');
+    }
+    if (dictationHudWindow && !dictationHudWindow.isDestroyed()) {
+      dictationHudWindow.webContents.send('hud-update', { active: false });
+      dictationHudWindow.webContents.send('island-notify', { text: 'Запись остановлена', type: 'info', duration: 1800 });
+    }
+  });
+
   ipcMain.on('show-island-notification', (event, data) => {
     if (!dictationHudWindow || dictationHudWindow.isDestroyed()) createDictationHudWindow();
     if (dictationHudWindow) {
@@ -690,29 +700,33 @@ function createDictationHudWindow() {
       box-shadow: 0 16px 36px rgba(0, 0, 0, 0.72), 0 0 1px rgba(255, 255, 255, 0.25);
       border-radius: 9999px;
       padding: 8px 18px;
-      display: flex;
+      display: inline-flex;
       flex-direction: column;
       align-items: center;
       color: #ffffff;
       font-size: 13px;
       font-weight: 600;
       letter-spacing: 0.02em;
-      width: 220px;
+      min-width: 170px;
+      max-width: 500px;
+      width: fit-content;
       box-sizing: border-box;
       transition: width 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+                  max-width 0.35s cubic-bezier(0.16, 1, 0.3, 1),
                   border-radius 0.35s cubic-bezier(0.16, 1, 0.3, 1),
                   background 0.3s ease,
                   border-color 0.3s ease,
                   box-shadow 0.35s ease,
                   padding 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-      will-change: width, border-radius;
+      will-change: width, max-width, border-radius;
       transform: translateZ(0);
       overflow: hidden;
     }
 
     /* Hover expanded state with butter-smooth width transition */
     .hud-pill:hover, .hud-pill.is-expanded {
-      width: 450px;
+      width: 460px;
+      min-width: 460px;
       border-radius: 20px;
       padding: 14px 20px;
       background: rgba(16, 16, 22, 0.97);
@@ -725,7 +739,8 @@ function createDictationHudWindow() {
       align-items: center;
       gap: 10px;
       width: 100%;
-      justify-content: center;
+      justify-content: space-between;
+      white-space: nowrap;
     }
 
     .hud-pill:hover .pill-header, .hud-pill.is-expanded .pill-header {
@@ -881,7 +896,7 @@ function createDictationHudWindow() {
 <body>
   <div class="hud-pill" id="pill">
     <div class="pill-header">
-      <div style="display:flex;align-items:center;gap:8px;">
+      <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;">
         <div class="online-dot" id="online-dot"></div>
         <div class="dot" id="dot" style="display:none;"></div>
         <div id="thinking-dots" style="display:none;align-items:center;gap:3px;margin-right:2px;">
@@ -897,6 +912,9 @@ function createDictationHudWindow() {
         <div id="icon" style="display:none;align-items:center;"></div>
         <span id="text" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Argus AI</span>
       </div>
+      <button id="pill-stop-dictation-btn" class="action-btn" style="display:none;padding:3px 10px;font-size:11px;" onclick="stopDictationFromIsland(event)" title="Остановить запись">
+        Остановить
+      </button>
       <span class="badge-tag" id="header-tag" style="display:none;">OS</span>
     </div>
 
@@ -904,6 +922,20 @@ function createDictationHudWindow() {
     <div class="expanded-wrapper" id="expanded-wrapper">
       <div class="expanded-inner">
         <div class="divider"></div>
+
+        <!-- Dictation details and cancellation button -->
+        <div id="expanded-dictation-section" style="display:none;margin-bottom:8px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div>
+              <div style="font-size:12px;color:#cbd5e1;font-weight:600;">Голосовой ввод в окно</div>
+              <div style="font-size:11px;color:#ef4444;font-weight:600;margin-top:2px;">Идет запись речи (Double-Ctrl)...</div>
+            </div>
+            <button class="action-btn" onclick="stopDictationFromIsland(event)" title="Остановить запись">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+              Остановить
+            </button>
+          </div>
+        </div>
         
         <!-- Timer details and cancellation button -->
         <div id="expanded-timer-section" style="display:none;margin-bottom:8px;">
@@ -941,8 +973,8 @@ function createDictationHudWindow() {
             <span class="badge-tag">На связи • Готов</span>
           </div>
           <div class="sub-hint" id="exp-hint">
-            ⌨️ Двойной Ctrl: голосовой ввод в любую программу<br>
-            ⚡ Быстрый ответ • Монохромный дизайн
+            • Двойной Ctrl: голосовой ввод в любую программу<br>
+            • Быстрый ответ • Монохромный дизайн
           </div>
         </div>
       </div>
@@ -978,6 +1010,15 @@ function createDictationHudWindow() {
       try {
         ipcRenderer.send('cancel-ai-action');
         isThinking = false;
+        renderActiveState();
+      } catch (err) {}
+    }
+
+    function stopDictationFromIsland(e) {
+      if (e) e.stopPropagation();
+      try {
+        ipcRenderer.send('stop-dictation');
+        isDictating = false;
         renderActiveState();
       } catch (err) {}
     }
@@ -1072,7 +1113,11 @@ function createDictationHudWindow() {
       pill.style.borderColor = 'rgba(255, 255, 255, 0.12)';
       text.innerText = 'Argus AI';
       expTimerSec.style.display = 'none';
-      expHint.innerHTML = '⌨️ Двойной Ctrl: голосовой ввод в любую программу<br>⚡ Все системы работают в штатном режиме';
+      const sdb = document.getElementById('pill-stop-dictation-btn');
+      if (sdb) sdb.style.display = 'none';
+      const eds = document.getElementById('expanded-dictation-section');
+      if (eds) eds.style.display = 'none';
+      expHint.innerHTML = '• Двойной Ctrl: голосовой ввод в любую программу<br>• Все системы функционируют в штатном режиме';
     }
 
     ipcRenderer.on('island-timer', (event, timer) => {
@@ -1099,19 +1144,25 @@ function createDictationHudWindow() {
       expTimerSec.style.display = 'none';
       expThinkingSec.style.display = 'none';
 
+      const sdb = document.getElementById('pill-stop-dictation-btn');
+      const eds = document.getElementById('expanded-dictation-section');
+
       if (state.active) {
         isDictating = true;
         dot.style.display = 'block';
         dot.style.background = '#ef4444';
         dot.style.boxShadow = '0 0 10px #ef4444';
         icon.style.display = 'none';
-        headerTag.style.display = 'block';
-        headerTag.innerText = 'REC';
+        headerTag.style.display = 'none';
+        if (sdb) sdb.style.display = 'inline-flex';
+        if (eds) eds.style.display = 'block';
         pill.style.borderColor = 'rgba(239, 68, 68, 0.6)';
         text.innerText = 'Голосовой ввод Argus... (Double-Ctrl)';
-        expHint.innerText = 'Идет запись речи с микрофона. Нажмите Double-Ctrl для завершения.';
+        expHint.innerText = 'Идет запись речи. Нажмите «Остановить» или Double-Ctrl для завершения.';
       } else if (state.success) {
         isDictating = false;
+        if (sdb) sdb.style.display = 'none';
+        if (eds) eds.style.display = 'none';
         dot.style.display = 'none';
         icon.style.display = 'flex';
         icon.innerHTML = ICONS.check;
@@ -1120,6 +1171,11 @@ function createDictationHudWindow() {
         text.innerText = 'Вставлено: «' + (state.text || '') + '»';
         expHint.innerText = 'Текст успешно введен в активное окно приложения.';
         setTimeout(renderActiveState, 1800);
+      } else {
+        isDictating = false;
+        if (sdb) sdb.style.display = 'none';
+        if (eds) eds.style.display = 'none';
+        renderActiveState();
       }
     });
 

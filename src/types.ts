@@ -122,6 +122,8 @@ export interface AppSettings {
   default_browser: string;
   auto_heal_plugins: boolean;
   default_shell: string;
+  openrouter_api_key?: string;
+  openrouter_model?: string;
 }
 
 export interface TerminalExecResult {

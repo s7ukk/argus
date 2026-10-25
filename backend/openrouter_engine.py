@@ -19,20 +19,42 @@ import backend.app_paths as app_paths
 _OPENROUTER_CACHE: Dict[str, Tuple[str, List[Dict[str, Any]]]] = {}
 _LAST_KEY: Optional[str] = None
 
-# Free models router and top-tier free fallback models (OpenRouter enforces max 3 models in 'models' list)
-FREE_PRIMARY_MODEL = "openrouter/free"
+# Model settings & User configuration
+FREE_PRIMARY_MODEL = "meta-llama/llama-3.3-70b-instruct"
 FREE_FALLBACK_MODELS = [
-    "openrouter/free",
-    "google/gemma-4-31b-it:free",
-    "nvidia/nemotron-3-ultra-550b-a55b:free"
+    "meta-llama/llama-3.3-70b-instruct",
+    "google/gemini-2.0-flash-001",
+    "deepseek/deepseek-chat",
+    "qwen/qwen-2.5-coder-32b-instruct",
+    "mistralai/mistral-small-24b-instruct-2501",
+    "openrouter/free"
 ]
+
+def get_user_settings_api_key_and_model() -> Tuple[Optional[str], Optional[str]]:
+    """Retrieves user custom openrouter key and model from settings.json if configured."""
+    try:
+        settings_path = os.path.join(app_paths.get_argus_data_dir(), "settings.json")
+        if os.path.exists(settings_path):
+            with open(settings_path, "r", encoding="utf-8") as f:
+                s = json.load(f)
+                k = (s.get("openrouter_api_key") or "").strip()
+                m = (s.get("openrouter_model") or "").strip()
+                return (k if len(k) > 10 else None), (m if m else None)
+    except Exception:
+        pass
+    return None, None
 
 def load_openrouter_api_keys() -> List[str]:
     """
-    Safely retrieves all OPENROUTER_API_KEYs from environment or .env files.
-    Supports comma-separated keys and multiple env variables.
+    Safely retrieves all OPENROUTER_API_KEYs from settings.json, environment or .env files.
+    User configured key takes top priority.
     """
     found_keys = []
+    
+    # 0. User configured key in Settings
+    u_key, _ = get_user_settings_api_key_and_model()
+    if u_key and u_key not in found_keys:
+        found_keys.append(u_key)
     
     # 1. Environment variables
     for env_var in ["OPENROUTER_API_KEY", "OPENROUTER_API_KEYS", "OPENROUTER_KEY"]:
@@ -248,6 +270,21 @@ def query_openrouter(
     url = "https://openrouter.ai/api/v1/chat/completions"
     raw_content = None
 
+    user_key, user_model = get_user_settings_api_key_and_model()
+    models_to_try = []
+    if user_model:
+        models_to_try.append(user_model)
+    for m in [
+        "meta-llama/llama-3.3-70b-instruct",
+        "google/gemini-2.0-flash-001",
+        "deepseek/deepseek-chat",
+        "qwen/qwen-2.5-coder-32b-instruct",
+        "mistralai/mistral-small-24b-instruct-2501",
+        "openrouter/free"
+    ]:
+        if m not in models_to_try:
+            models_to_try.append(m)
+
     for candidate_key in keys:
         headers = {
             "Authorization": f"Bearer {candidate_key}",
@@ -256,50 +293,20 @@ def query_openrouter(
             "Content-Type": "application/json"
         }
 
-        # Attempt 1: primary model with fallback routing list of max 3 items
-        body = {
-            "model": FREE_PRIMARY_MODEL,
-            "models": FREE_FALLBACK_MODELS[:3],
-            "messages": messages,
-            "temperature": 0.3,
-            "max_tokens": 1500
-        }
-
-        try:
-            req = urllib.request.Request(
-                url,
-                data=json.dumps(body).encode("utf-8"),
-                headers=headers
-            )
-            with urllib.request.urlopen(req, timeout=5.0) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-                if data.get("choices") and data["choices"][0].get("message"):
-                    msg = data["choices"][0]["message"]
-                    cnt = msg.get("content")
-                    if cnt and isinstance(cnt, str) and cnt.strip():
-                        # Strip thinking tags if model returned reasoning in content
-                        cleaned_cnt = re.sub(r'<think>[\s\S]*?</think>', '', cnt, flags=re.IGNORECASE).strip()
-                        if cleaned_cnt:
-                            raw_content = cleaned_cnt
-                            break
-        except urllib.error.HTTPError as e:
-            if e.code == 429:
-                # Key rate limit exceeded, rotate to next candidate key
-                continue
-            # If 400 or other HTTP error with 'models' array, try single model directly
+        for model_name in models_to_try:
+            body = {
+                "model": model_name,
+                "messages": messages,
+                "temperature": 0.3,
+                "max_tokens": 2500
+            }
             try:
-                body_single = {
-                    "model": FREE_PRIMARY_MODEL,
-                    "messages": messages,
-                    "temperature": 0.3,
-                    "max_tokens": 1500
-                }
-                req_s = urllib.request.Request(
+                req = urllib.request.Request(
                     url,
-                    data=json.dumps(body_single).encode("utf-8"),
+                    data=json.dumps(body).encode("utf-8"),
                     headers=headers
                 )
-                with urllib.request.urlopen(req_s, timeout=5.0) as resp:
+                with urllib.request.urlopen(req, timeout=18.0) as resp:
                     data = json.loads(resp.read().decode("utf-8"))
                     if data.get("choices") and data["choices"][0].get("message"):
                         msg = data["choices"][0]["message"]
@@ -309,36 +316,23 @@ def query_openrouter(
                             if cleaned_cnt:
                                 raw_content = cleaned_cnt
                                 break
-            except Exception:
-                pass
-        except Exception:
-            # Fallback to direct model request
-            try:
-                body_fallback = {
-                    "model": "openrouter/free",
-                    "messages": messages,
-                    "temperature": 0.3,
-                    "max_tokens": 1200
-                }
-                req_fb = urllib.request.Request(
-                    url,
-                    data=json.dumps(body_fallback).encode("utf-8"),
-                    headers=headers
-                )
-                with urllib.request.urlopen(req_fb, timeout=5.0) as resp:
-                    data = json.loads(resp.read().decode("utf-8"))
-                    if data.get("choices") and data["choices"][0].get("message"):
-                        msg = data["choices"][0]["message"]
-                        cnt = msg.get("content")
-                        if cnt and isinstance(cnt, str) and cnt.strip():
-                            raw_content = cnt.strip()
-                            break
                         rsn = msg.get("reasoning")
                         if rsn and isinstance(rsn, str) and rsn.strip():
                             raw_content = rsn.strip()
                             break
+            except urllib.error.HTTPError as e:
+                # 429 means rate limit exceeded on this model (e.g. daily free limit), rotate model
+                if e.code == 429:
+                    continue
+                # 401 or 403 means bad key, break to try next key
+                if e.code in (401, 403):
+                    break
+                continue
             except Exception:
-                pass
+                continue
+
+        if raw_content:
+            break
 
     if raw_content:
         reply, actions = parse_model_response(raw_content)

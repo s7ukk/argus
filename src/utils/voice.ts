@@ -196,7 +196,17 @@ export class VoiceAssistant {
         this.audioContext = null;
       }
 
-      if (this.audioChunks.length === 0) return;
+      if (this.audioChunks.length === 0) {
+        if (wasDictating) {
+          if ((window as any).electronAPI?.hideDictationHud) {
+            (window as any).electronAPI.hideDictationHud();
+          }
+          window.dispatchEvent(new CustomEvent('argus_dictation_state', {
+            detail: { active: false, success: false }
+          }));
+        }
+        return;
+      }
 
       // Merge recorded chunks
       let totalLength = 0;
@@ -210,7 +220,17 @@ export class VoiceAssistant {
       this.audioChunks = [];
 
       // Only process if user actually spoke (> 0.25s)
-      if (totalLength / inputSampleRate < 0.25) return;
+      if (totalLength / inputSampleRate < 0.25) {
+        if (wasDictating) {
+          if ((window as any).electronAPI?.hideDictationHud) {
+            (window as any).electronAPI.hideDictationHud();
+          }
+          window.dispatchEvent(new CustomEvent('argus_dictation_state', {
+            detail: { active: false, success: false }
+          }));
+        }
+        return;
+      }
 
       // Downsample float32 samples from hardware rate to 16kHz
       const downsampled = this.downsampleBuffer(merged, inputSampleRate, 16000);
@@ -309,6 +329,18 @@ export class VoiceAssistant {
       detail: { active: true, status: 'listening' }
     }));
     await this.startListening(true);
+  }
+
+  public cancelDictation() {
+    this.audioChunks = [];
+    this.isDictating = false;
+    this.stopListening();
+    if ((window as any).electronAPI?.hideDictationHud) {
+      (window as any).electronAPI.hideDictationHud();
+    }
+    window.dispatchEvent(new CustomEvent('argus_dictation_state', {
+      detail: { active: false, success: false }
+    }));
   }
 
   public toggleListening() {

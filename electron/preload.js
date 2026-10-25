@@ -16,8 +16,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   updateIslandTimer: (timer) => ipcRenderer.send('update-island-timer', timer),
   onStopActiveTimer: (cb) => ipcRenderer.on('stop-active-timer', cb),
   onCancelAiAction: (cb) => ipcRenderer.on('cancel-ai-action', cb),
+  onStopDictation: (cb) => ipcRenderer.on('stop-dictation', cb),
   stopActiveTimer: () => ipcRenderer.send('stop-active-timer'),
   cancelAiAction: () => ipcRenderer.send('cancel-ai-action'),
+  stopDictation: () => ipcRenderer.send('stop-dictation'),
   isElectron: true,
   isMac: process.platform === 'darwin',
   platform: process.platform

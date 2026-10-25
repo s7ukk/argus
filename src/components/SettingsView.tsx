@@ -50,6 +50,8 @@ export const SettingsView: React.FC = () => {
     default_browser: 'auto',
     auto_heal_plugins: true,
     default_shell: 'powershell',
+    openrouter_api_key: '',
+    openrouter_model: 'meta-llama/llama-3.3-70b-instruct',
   });
 
   const [loading, setLoading] = useState(true);
@@ -70,6 +72,11 @@ export const SettingsView: React.FC = () => {
   // Fish Audio preview test state
   const [testingFish, setTestingFish] = useState(false);
   const [fishTestError, setFishTestError] = useState<string | null>(null);
+
+  // OpenRouter test state
+  const [testingOpenRouter, setTestingOpenRouter] = useState(false);
+  const [openRouterStatus, setOpenRouterStatus] = useState<{ success?: boolean; message?: string } | null>(null);
+  const [showOrKey, setShowOrKey] = useState(false);
 
   // Edge-TTS preview test state
   const [testingEdge, setTestingEdge] = useState(false);
@@ -138,6 +145,37 @@ export const SettingsView: React.FC = () => {
       setEdgeTestError(e.message || 'Не удалось воспроизвести голос');
     } finally {
       setTestingEdge(false);
+    }
+  };
+
+  const handleTestOpenRouter = async () => {
+    const key = (settings.openrouter_api_key || '').trim();
+    if (!key) {
+      setOpenRouterStatus({ success: false, message: 'Укажите API ключ OpenRouter' });
+      return;
+    }
+    setTestingOpenRouter(true);
+    setOpenRouterStatus(null);
+    try {
+      const res = await fetch(`${LOCAL_SERVER_URL}/api/ai/test-key`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ api_key: key })
+      });
+      const data = await res.json();
+      if (data.valid) {
+        const bal = data.limit_usd ? `$${data.limit_usd.toFixed(2)}` : 'Free Tier';
+        setOpenRouterStatus({
+          success: true,
+          message: `Ключ активен! Баланс/Лимит: ${bal}. Осталось бесплатных запросов на сегодня: ${data.free_remaining}/${data.free_limit}`
+        });
+      } else {
+        setOpenRouterStatus({ success: false, message: data.error || 'Ошибка проверки ключа' });
+      }
+    } catch (e: any) {
+      setOpenRouterStatus({ success: false, message: e.message || 'Ошибка подключения' });
+    } finally {
+      setTestingOpenRouter(false);
     }
   };
 
@@ -882,6 +920,159 @@ export const SettingsView: React.FC = () => {
               </div>
             </div>
           )}
+        </div>
+
+        {/* AI Neural Engine & Reasoning (OpenRouter) */}
+        <div
+          className="glass-card"
+          style={{
+            padding: 22,
+            borderRadius: 18,
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 18
+          }}
+        >
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+              <span style={{ fontSize: 16, fontWeight: 700, color: '#ffffff' }}>
+                Нейросетевой интеллект и OpenRouter API
+              </span>
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  letterSpacing: '0.04em',
+                  padding: '2px 8px',
+                  borderRadius: 6,
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  color: '#e2e8f0',
+                  border: '1px solid rgba(255, 255, 255, 0.12)'
+                }}
+              >
+                AI CORE
+              </span>
+            </div>
+            <p style={{ margin: 0, fontSize: 13, color: '#94a3b8', lineHeight: 1.5 }}>
+              Подключение к передовым LLM (Llama 3.3 70B, Gemini 2.0 Flash, DeepSeek V3, Qwen Coder) для живого динамического написания кода на Golang, Python, JS, создания ботов и сайтов без шаблонных ограничений.
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: '#cbd5e1', display: 'block', marginBottom: 6 }}>
+                OpenRouter API Key
+              </label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showOrKey ? 'text' : 'password'}
+                  value={settings.openrouter_api_key || ''}
+                  onChange={(e) => setSettings({ ...settings, openrouter_api_key: e.target.value })}
+                  placeholder="sk-or-v1-xxxxxxxxxxxxxxxx (оставьте пустым для встроенного ключа)"
+                  style={{
+                    width: '100%',
+                    padding: '10px 80px 10px 14px',
+                    borderRadius: 12,
+                    background: 'rgba(255, 255, 255, 0.04)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    color: '#ffffff',
+                    fontSize: 13,
+                    fontFamily: 'monospace',
+                    outline: 'none',
+                    boxSizing: 'border-box'
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowOrKey(!showOrKey)}
+                  style={{
+                    position: 'absolute',
+                    right: 12,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    color: '#94a3b8',
+                    cursor: 'pointer',
+                    fontSize: 11,
+                    fontWeight: 600
+                  }}
+                >
+                  {showOrKey ? 'Скрыть' : 'Показать'}
+                </button>
+              </div>
+              <p style={{ margin: '6px 0 0', fontSize: 11, color: '#64748b' }}>
+                Укажите собственный API ключ с openrouter.ai для неограниченной генерации любого кода и ответов.
+              </p>
+            </div>
+
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: '#cbd5e1', display: 'block', marginBottom: 6 }}>
+                Основная нейросетевая модель
+              </label>
+              <select
+                value={settings.openrouter_model || 'meta-llama/llama-3.3-70b-instruct'}
+                onChange={(e) => setSettings({ ...settings, openrouter_model: e.target.value })}
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  borderRadius: 12,
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  color: '#ffffff',
+                  fontSize: 13,
+                  outline: 'none'
+                }}
+              >
+                <option value="meta-llama/llama-3.3-70b-instruct" style={{ background: '#121217', color: '#fff' }}>
+                  Meta Llama 3.3 70B Instruct (Рекомендуется • Высокий интеллект)
+                </option>
+                <option value="google/gemini-2.0-flash-001" style={{ background: '#121217', color: '#fff' }}>
+                  Google Gemini 2.0 Flash (Молниеносный • Код и веб)
+                </option>
+                <option value="deepseek/deepseek-chat" style={{ background: '#121217', color: '#fff' }}>
+                  DeepSeek V3 (Глубокая логика и сложные алгоритмы)
+                </option>
+                <option value="qwen/qwen-2.5-coder-32b-instruct" style={{ background: '#121217', color: '#fff' }}>
+                  Qwen 2.5 Coder 32B (Специализированная разработка)
+                </option>
+                <option value="openrouter/free" style={{ background: '#121217', color: '#fff' }}>
+                  OpenRouter Free (Бесплатный авто-роутер моделей)
+                </option>
+              </select>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4 }}>
+              <button
+                type="button"
+                onClick={handleTestOpenRouter}
+                disabled={testingOpenRouter || !(settings.openrouter_api_key || '').trim()}
+                className="btn-secondary"
+                style={{
+                  padding: '9px 18px',
+                  borderRadius: 10,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: (testingOpenRouter || !(settings.openrouter_api_key || '').trim()) ? 'not-allowed' : 'pointer',
+                  opacity: (testingOpenRouter || !(settings.openrouter_api_key || '').trim()) ? 0.5 : 1
+                }}
+              >
+                {testingOpenRouter ? 'Проверка...' : 'Проверить ключ и баланс'}
+              </button>
+              {openRouterStatus && (
+                <span
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 500,
+                    color: openRouterStatus.success ? '#4ade80' : '#ef4444'
+                  }}
+                >
+                  {openRouterStatus.message}
+                </span>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* 3. Browser & App Intelligence */}

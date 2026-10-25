@@ -593,8 +593,14 @@ export const App: React.FC = () => {
       handleStop();
     };
 
+    const handleStopDictation = () => {
+      voiceAssistantRef.current?.cancelDictation?.();
+      setDictationState(null);
+    };
+
     (window as any).electronAPI?.onStopActiveTimer?.(handleStopTimer);
     (window as any).electronAPI?.onCancelAiAction?.(handleCancelAi);
+    (window as any).electronAPI?.onStopDictation?.(handleStopDictation);
 
     return () => {
       clearInterval(interval);

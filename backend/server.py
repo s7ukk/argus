@@ -46,7 +46,9 @@ DEFAULT_SETTINGS = {
     "browser_mode": "ask",
     "default_browser": "safari" if sys.platform == "darwin" else "auto",
     "auto_heal_plugins": True,
-    "default_shell": "zsh" if sys.platform == "darwin" else "powershell"
+    "default_shell": "zsh" if sys.platform == "darwin" else "powershell",
+    "openrouter_api_key": "",
+    "openrouter_model": "meta-llama/llama-3.3-70b-instruct"
 }
 
 def _load_settings() -> dict:
@@ -202,6 +204,11 @@ class AppSettingsRequest(BaseModel):
     default_browser: Optional[str] = None
     auto_heal_plugins: Optional[bool] = None
     default_shell: Optional[str] = None
+    openrouter_api_key: Optional[str] = None
+    openrouter_model: Optional[str] = None
+
+class OpenRouterKeyTestRequest(BaseModel):
+    api_key: str
 
 @app.get("/api/health")
 async def health():
@@ -429,6 +436,33 @@ async def delete_existing_chat(
 @app.get("/api/chats/{chat_id}/messages")
 async def get_chat_messages(chat_id: str):
     return await db.get_messages(chat_id)
+
+@app.post("/api/ai/test-key")
+async def test_openrouter_key(req: OpenRouterKeyTestRequest):
+    key = req.api_key.strip()
+    if not key:
+        raise HTTPException(status_code=400, detail="Ключ API не указан")
+    url = "https://openrouter.ai/api/v1/auth/key"
+    try:
+        import urllib.request
+        rq = urllib.request.Request(url, headers={"Authorization": f"Bearer {key}"})
+        with urllib.request.urlopen(rq, timeout=7.0) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            kdata = data.get("data", {})
+            budgets = kdata.get("budgets", [])
+            limit_usd = budgets[0].get("limit_usd", 0) if budgets else kdata.get("limit", 0)
+            free_reqs = kdata.get("free_model_daily_requests", {})
+            return {
+                "valid": True,
+                "label": kdata.get("label", "Key"),
+                "limit_usd": limit_usd,
+                "usage": kdata.get("usage", 0),
+                "free_used": free_reqs.get("used", 0),
+                "free_limit": free_reqs.get("limit", 50),
+                "free_remaining": free_reqs.get("remaining", 0)
+            }
+    except Exception as e:
+        return {"valid": False, "error": str(e)}
 
 # Settings Endpoints
 @app.get("/api/settings")
