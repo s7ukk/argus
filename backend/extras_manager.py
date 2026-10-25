@@ -223,7 +223,7 @@ def delete_note(identifier: str) -> Tuple[bool, Optional[Dict[str, Any]]]:
     data = load_extras_data()
     notes = data.get("notes", [])
     ident_lower = identifier.strip().lower()
-    if ident_lower in ["all", "все", "всё", "все заметки", "всё заметки", "каждую заметку", "очисти заметки", "очисти все заметки"]:
+    if ident_lower in ["all", "все", "всё", "все заметки", "всё заметки", "каждую заметку", "очисти заметки", "очисти все заметки", "удали все заметки", "удалить все заметки"]:
         count = len(notes)
         data["notes"] = []
         save_extras_data(data)
@@ -268,44 +268,62 @@ def extract_specific_answer_from_notes(question: str) -> Optional[str]:
             if found:
                 notes = found
                 break
+    # If still not found, search all notes
+    if not notes:
+        data = load_extras_data()
+        notes = data.get("notes", [])
     if not notes:
         return None
 
-    best = notes[0]
-    title = best.get("title", "Заметка")
-    text = best.get("content", "").strip()
+    # Check each matching note
+    for best in notes:
+        title = best.get("title", "Заметка")
+        text = best.get("content", "").strip()
+        full_text = f"{title}. {text}"
 
-    # 1. Question about Name: "как зовут моего друга", "имя друга", "как зовут девушку", "как зовут маму"
-    if any(k in q for k in ["как зовут", "как звать", "какое имя", "имя"]):
-        m = re.search(r'\b(?:друг|друга|зовут|имя|подруга|девушка|мама|папа)\s+([А-ЯЁ][а-яё]+|[A-Z][a-z0-9_]+)', text)
-        if m:
-            name = m.group(1)
+        # 1. Question about Name: "как зовут моего друга", "имя друга", "как зовут девушку", "как зовут маму"
+        if any(k in q for k in ["как зовут", "как звать", "какое имя", "имя"]):
             target = "друга" if "друг" in q else "девушку" if "девушк" in q else "маму" if "мам" in q else "человека"
-            return f"Вашего {target} зовут {name}, сэр."
+            # Pattern A: "друг Илья", "друга зовут Илья", "зовут Илья"
+            m = re.search(r'\b(?:друг|друга|подруга|девушка|мама|папа)\s+([А-ЯЁ][а-яё]+|[A-Z][a-z0-9_]+)', full_text)
+            if not m:
+                m = re.search(r'\b(?:зовут|имя)\s+([А-ЯЁ][а-яё]+|[A-Z][a-z0-9_]+)', full_text)
+            if not m:
+                m = re.search(r'\b([А-ЯЁ][а-яё]+)\s+(?:ему|ей)\s+\d+', full_text)
+            if m:
+                name = m.group(1)
+                return f"Вашего {target} зовут {name}, сэр."
 
-    # 2. Question about Age: "сколько лет другу", "возраст друга", "сколько ему лет"
-    if any(k in q for k in ["сколько лет", "возраст", "сколько ему лет", "сколько ей лет"]):
-        m = re.search(r'(\d+)\s+(?:лет|года|год)', text)
-        if m:
-            age = m.group(1)
-            return f"Ему {age} лет, сэр."
+        # 2. Question about Age: "сколько лет другу", "возраст друга", "сколько ему лет", "сколько лет моему другу"
+        if any(k in q for k in ["сколько лет", "возраст", "сколько ему лет", "сколько ей лет"]):
+            target = "Вашему другу" if "друг" in q else "Вашей девушке" if "девушк" in q else "Ему"
+            m = re.search(r'(\d+)\s*(?:лет|года|год)', full_text)
+            if not m:
+                m = re.search(r'(?:ему|ей|возраст)\s*(?:составляет|:|=|\s+)?\s*(\d+)', full_text, re.IGNORECASE)
+            if m:
+                age = m.group(1)
+                return f"{target} {age} лет, сэр."
 
-    # 3. Question about Location / City: "где живет мой друг", "в каком городе живет", "где живет"
-    if any(k in q for k in ["где живет", "где живёт", "в каком городе", "откуда"]):
-        m = re.search(r'\b(?:живет\s+в|живёт\s+в|в\s+городе|из|в)\s+([А-ЯЁа-яёA-Za-z\-]+)', text, re.IGNORECASE)
-        if m:
-            city = m.group(1).capitalize()
-            return f"Ваш друг живет в городе {city}, сэр."
+        # 3. Question about Location / City: "где живет мой друг", "в каком городе живет", "где живет"
+        if any(k in q for k in ["где живет", "где живёт", "в каком городе", "откуда", "место жительства"]):
+            target = "Ваш друг" if "друг" in q else "Человек"
+            m = re.search(r'\b(?:живет\s+в|живёт\s+в|проживает\s+в|в\s+городе|из)\s+([А-ЯЁа-яёA-Za-z\-]+)', full_text, re.IGNORECASE)
+            if m:
+                city = m.group(1).strip().capitalize()
+                return f"{target} живет в городе {city}, сэр."
 
-    # 4. Question about Password / Pin / Code: "какой пароль от роутера", "пароль от вайфая"
-    if any(k in q for k in ["пароль", "пин", "код", "pass", "password", "ключ"]):
-        m = re.search(r'\b(?:пароль|пин|код|pass|password|ключ)(?:\s*(?:от|для|:|=)\s*|\s+)([^\s,;\.]+)', text, re.IGNORECASE)
-        if m:
-            pwd = m.group(1)
-            return f"Пароль: {pwd}, сэр."
+        # 4. Question about Password / Pin / Code: "какой пароль от роутера", "пароль от вайфая"
+        if any(k in q for k in ["пароль", "пин", "код", "pass", "password", "ключ"]):
+            m = re.search(r'(?:пароль|пин|код|pass|password|ключ)[^\n:=-]*?(?:[:=]|\s+это\s+|\s+—\s+|\s+-\s+|\.\s+)\s*([^\s,;\.]+)', full_text, re.IGNORECASE)
+            if not m:
+                m = re.search(r'\b(?:пароль|пин|код|pass|password|ключ)(?:\s*(?:от|для|:|=)\s*|\s+)([^\s,;\.]+)', full_text, re.IGNORECASE)
+            if m:
+                pwd = m.group(1)
+                return f"Пароль: {pwd}, сэр."
 
-    # Concise answer fallback
-    return f"Судя по вашей заметке «{title}», сэр: {text}"
+    # If asking specific question and direct pattern didn't match, return first relevant note snippet
+    best = notes[0]
+    return f"Судя по вашей заметке «{best.get('title')}», сэр: {best.get('content')}"
 
 def delete_timer(identifier: str) -> Tuple[bool, Optional[Dict[str, Any]]]:
     """Deletes or stops timer by id or matching title, or clears all if 'all'/'все'."""

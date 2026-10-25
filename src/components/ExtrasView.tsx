@@ -96,6 +96,7 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
   const [editNoteTitle, setEditNoteTitle] = useState('');
   const [editNoteContent, setEditNoteContent] = useState('');
   const [editNoteColor, setEditNoteColor] = useState<'purple' | 'blue' | 'emerald' | 'amber' | 'rose'>('purple');
+  const [viewingNote, setViewingNote] = useState<NoteItem | null>(null);
 
   // Sound chime synthesizer via Web Audio API
   const playAlarmSound = () => {
@@ -187,8 +188,15 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
           v.lang.startsWith('ru') && 
           (v.name.toLowerCase().includes('dmitry') || v.name.toLowerCase().includes('pavel') || v.name.toLowerCase().includes('yuri') || v.name.toLowerCase().includes('юрий') || v.name.toLowerCase().includes('male'))
         );
-        if (maleRu) utt.voice = maleRu;
-      } catch {}
+        if (maleRu) {
+          utt.voice = maleRu;
+        } else {
+          // If only female Irina is available locally, lower pitch to 0.55 so voice sounds deep/masculine
+          utt.pitch = 0.55;
+        }
+      } catch {
+        utt.pitch = 0.55;
+      }
       window.speechSynthesis.speak(utt);
     }
   };
@@ -1992,18 +2000,45 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
                           </div>
                         </div>
 
-                        {/* Content text */}
+                        {/* Content text (Truncated preview: 3 lines max) */}
                         <div
+                          onClick={() => setViewingNote(note)}
                           style={{
                             fontSize: 13,
                             color: '#cbd5e1',
-                            whiteSpace: 'pre-wrap',
-                            lineHeight: 1.5,
-                            wordBreak: 'break-word'
+                            lineHeight: 1.45,
+                            wordBreak: 'break-word',
+                            display: '-webkit-box',
+                            WebkitLineClamp: 3,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            cursor: 'pointer'
                           }}
+                          title="Нажмите, чтобы прочитать заметку полностью"
                         >
                           {note.content}
                         </div>
+                        {note.content && note.content.length > 70 && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setViewingNote(note); }}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: '#c084fc',
+                              fontSize: 11,
+                              fontWeight: 500,
+                              cursor: 'pointer',
+                              padding: '4px 0 0 0',
+                              textAlign: 'left',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4
+                            }}
+                          >
+                            Развернуть заметку →
+                          </button>
+                        )}
                       </div>
 
                       {/* Footer tags */}
@@ -2021,6 +2056,170 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
           </div>
         )}
       </div>
+
+      {/* Full Note View Modal Popup */}
+      {viewingNote && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: 20
+          }}
+          onClick={() => setViewingNote(null)}
+        >
+          <div
+            style={{
+              background: '#13111c',
+              border: '1px solid rgba(168, 85, 247, 0.35)',
+              borderRadius: 20,
+              maxWidth: 640,
+              width: '100%',
+              maxHeight: '85vh',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 25px 60px rgba(0, 0, 0, 0.8), 0 0 30px rgba(168, 85, 247, 0.15)',
+              overflow: 'hidden'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div
+              style={{
+                padding: '18px 24px',
+                borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                background: 'rgba(255, 255, 255, 0.02)'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 10, height: 10, borderRadius: '50%', background: (noteColorMap[viewingNote.color] || noteColorMap.purple).dot }} />
+                <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#ffffff', wordBreak: 'break-word' }}>
+                  {viewingNote.title}
+                </h3>
+              </div>
+              <button
+                onClick={() => setViewingNote(null)}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.06)',
+                  border: 'none',
+                  borderRadius: 8,
+                  color: '#94a3b8',
+                  width: 32,
+                  height: 32,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer'
+                }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Full text */}
+            <div
+              style={{
+                padding: '22px 24px',
+                overflowY: 'auto',
+                fontSize: 14.5,
+                color: '#e2e8f0',
+                lineHeight: 1.6,
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+                userSelect: 'text'
+              }}
+            >
+              {viewingNote.content}
+            </div>
+
+            {/* Footer */}
+            <div
+              style={{
+                padding: '14px 24px',
+                borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                background: 'rgba(255, 255, 255, 0.02)'
+              }}
+            >
+              <span style={{ fontSize: 11.5, color: '#64748b' }}>
+                {viewingNote.category || 'Заметка'} • {viewingNote.created_at ? new Date(viewingNote.created_at).toLocaleDateString() : ''}
+              </span>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={() => handleCopyNote(viewingNote)}
+                  style={{
+                    padding: '8px 14px',
+                    borderRadius: 8,
+                    background: 'rgba(255, 255, 255, 0.06)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    color: copiedNoteId === viewingNote.id ? '#34d399' : '#cbd5e1',
+                    fontSize: 12,
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6
+                  }}
+                >
+                  {copiedNoteId === viewingNote.id ? <Check size={14} /> : <Copy size={14} />}
+                  {copiedNoteId === viewingNote.id ? 'Скопировано!' : 'Копировать'}
+                </button>
+                <button
+                  onClick={() => {
+                    const toEdit = viewingNote;
+                    setViewingNote(null);
+                    handleStartEditNote(toEdit);
+                  }}
+                  style={{
+                    padding: '8px 14px',
+                    borderRadius: 8,
+                    background: 'rgba(168, 85, 247, 0.15)',
+                    border: '1px solid rgba(168, 85, 247, 0.35)',
+                    color: '#c084fc',
+                    fontSize: 12,
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6
+                  }}
+                >
+                  <Edit2 size={14} />
+                  Редактировать
+                </button>
+                <button
+                  onClick={() => setViewingNote(null)}
+                  style={{
+                    padding: '8px 18px',
+                    borderRadius: 8,
+                    background: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)',
+                    border: 'none',
+                    color: '#ffffff',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Закрыть
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -104,16 +104,18 @@ def build_system_prompt(user_name: str, os_name: str, memory_summary: str = "") 
         f"Пользователь: {user_name}.\n"
         f"{memory_summary}\n\n"
         "СТИЛЬ И ТОН ОБЩЕНИЯ:\n"
-        "1. Обращайся к пользователю строго уважительно на «Вы» (с заглавной или строчной буквы), вежливо, тактично и сдержанно.\n"
-        "2. Добавляй уважительное обращение «сэр» там, где это естественно («Слушаю вас, сэр», «Готово, сэр», «Как прикажете, сэр», «Чем могу помочь, сэр?», «Вот готовый код, сэр»).\n"
-        "3. Категорически запрещено использовать эмодзи (никаких роботов, смайликов и т.д.).\n\n"
+        "1. Обращайся к пользователю строго уважительно на «Вы» (всегда с заглавной буквы: «Вы», «Вас», «Вам», «Вами», «Ваш»), вежливо, тактично и благородно.\n"
+        "2. Всегда добавляй уважительное обращение «сэр» («Здравствуйте, сэр! Рад приветствовать Вас», «Слушаю Вас, сэр», «Готово, сэр», «Как прикажете, сэр», «Чем могу помочь Вам, сэр?»).\n"
+        "3. На приветствие (например «привет», «как дела») всегда отвечай официально и тепло: «Здравствуйте, сэр! Рад приветствовать Вас. Все системы работают в штатном режиме. Чем могу быть полезен Вам сегодня?» (НИКОГДА не отвечай фамильярно «Привет, сэр»).\n"
+        "4. Категорически запрещено использовать эмодзи (никаких смайликов и значков).\n"
+        "5. Если пользователь спрашивает о личных данных, друзьях, возрасте, городах, паролях или заметках — внимательно найди факт в блоке заметок и ответь точно и кратко (например: «Вашего друга зовут Илья, сэр», «Вашему другу 45 лет, сэр», «Ваш друг живет в городе Караганде, сэр»).\n\n"
         "ТВОЯ ЦЕЛЬ:\n"
         "Полноценно помогать пользователю работать со всем компьютером: отвечать на любые вопросы, писать полный рабочий код, "
         "решать математику, находить информацию, запускать и контролировать программы, окна, браузер, файлы и звук.\n\n"
         "ФОРМАТ ОТВЕТА:\n"
         "Ты ВСЕГДА возвращаешь ответ строго в формате валидного JSON со следующей структурой:\n"
         "{\n"
-        "  \"reply\": \"Интеллектуальный, грамотный, полезный и вежливый ответ пользователю на Вы на русском языке строго БЕЗ ЭМОДЗИ\",\n"
+        "  \"reply\": \"Интеллектуальный, грамотный, полезный и вежливый ответ пользователю на Вы с обращением сэр на русском языке строго БЕЗ ЭМОДЗИ\",\n"
         "  \"actions\": [\n"
         "    {\"type\": \"...\", ...}\n"
         "  ]\n"
@@ -161,7 +163,7 @@ def build_system_prompt(user_name: str, os_name: str, memory_summary: str = "") 
         "   - Для закрытия конкретной программы используй action: 'close_app'.\n"
         "5. ФОРМАТ И СТИЛЬ:\n"
         "   - Возвращай ТОЛЬКО чистый JSON строго формата {\"reply\": \"...\", \"actions\": [...]}.\n"
-        "   - КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО выводить рассуждения, шаги анализа или черновики (Analyze the Request, Thinking, Constraints и т.д.). Сразу готовый результат!\n"
+        "   - КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО выводить рассуждения, шаги анализа или черновики (Analyze the Request, Thinking, Constraints, Looking at the personal notes и т.д.). Сразу готовый результат!\n"
         "   - ФОРМАТИРОВАНИЕ МАТЕМАТИКИ: Не используй сырой LaTeX (теги \\[, \\], \\frac и т.д.), пиши понятным читаемым текстом.\n"
         "   - НАПИСАНИЕ КОДА: Если пользователь просит написать код, программу, скрипт или бота (например: «напиши код телеграм бота на node.js», «скрипт парсера на python») — пиши полный, готовый к запуску код внутри блока ```<язык> ... ``` в поле 'reply', с инструкцией по установке и запуску, поле 'actions' оставляй пустым [].\n"
         "   - ОТПРАВКА СООБЩЕНИЙ: Если пользователь просит отправить сообщение, но не указал имя контакта/username или текст сообщения — вежливо переспроси на «Вы» с добавлением «сэр». Уточни мессенджер (Telegram, WhatsApp, Discord, VK), контакт/username и текст сообщения."
@@ -259,13 +261,11 @@ def query_openrouter(
                     msg = data["choices"][0]["message"]
                     cnt = msg.get("content")
                     if cnt and isinstance(cnt, str) and cnt.strip():
-                        raw_content = cnt.strip()
-                        break
-                    # Fallback for thinking models that place generation in reasoning field
-                    rsn = msg.get("reasoning")
-                    if rsn and isinstance(rsn, str) and rsn.strip():
-                        raw_content = rsn.strip()
-                        break
+                        # Strip thinking tags if model returned reasoning in content
+                        cleaned_cnt = re.sub(r'<think>[\s\S]*?</think>', '', cnt, flags=re.IGNORECASE).strip()
+                        if cleaned_cnt:
+                            raw_content = cleaned_cnt
+                            break
         except urllib.error.HTTPError as e:
             if e.code == 429:
                 # Key rate limit exceeded, rotate to next candidate key
@@ -289,12 +289,10 @@ def query_openrouter(
                         msg = data["choices"][0]["message"]
                         cnt = msg.get("content")
                         if cnt and isinstance(cnt, str) and cnt.strip():
-                            raw_content = cnt.strip()
-                            break
-                        rsn = msg.get("reasoning")
-                        if rsn and isinstance(rsn, str) and rsn.strip():
-                            raw_content = rsn.strip()
-                            break
+                            cleaned_cnt = re.sub(r'<think>[\s\S]*?</think>', '', cnt, flags=re.IGNORECASE).strip()
+                            if cleaned_cnt:
+                                raw_content = cleaned_cnt
+                                break
             except Exception:
                 pass
         except Exception:
@@ -365,7 +363,14 @@ def is_reasoning_leak(text: str) -> bool:
         "let me re-read rule",
         "the user asked to close",
         "chain of thought",
-        "thought process"
+        "thought process",
+        "the user provided",
+        "looking at the personal notes",
+        "looking at personal notes",
+        "personal notes provided",
+        "in the system prompt",
+        "provided as input",
+        "as input."
     ]
     return any(marker in low for marker in leak_markers)
 

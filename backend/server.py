@@ -636,7 +636,7 @@ async def ai_chat(req: ChatMessageRequest):
                         fish_api_key=settings.get("fish_api_key") if settings.get("voice_provider") == "fish-audio" else None,
                         fish_model_id=settings.get("fish_model_id") if settings.get("voice_provider") == "fish-audio" else None,
                     ),
-                    timeout=1.4
+                    timeout=8.0
                 )
             except Exception as e:
                 print(f"[Argus TTS Notice]: {e}")

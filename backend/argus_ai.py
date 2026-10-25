@@ -28,6 +28,7 @@ except ImportError:
 
 _AI_QUERY_CACHE: Dict[str, str] = {}
 _MESSENGER_WIZARD_STATE: Dict[str, Dict[str, Any]] = {}
+_NOTE_CREATION_STATE: Dict[str, Dict[str, Any]] = {}
 
 INVALID_CONTACT_KEYWORDS = {
     'контакт', 'контакту', 'контакта', 'контактом', 'контакте', 'контакты',
@@ -952,21 +953,47 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
             msg = f"Задача «{title_disp}» успешно добавлена в меню Дополнительно, сэр."
             return {"type": "create_task", "title": title_disp, "message": msg}
 
-    # Note creation e.g. "создай заметку купить хлеб", "запиши заметку номер телефона 123"
-    m_note = re.match(
-        r'^(?:добавь|создай|запиши|новая)?\s*заметк[ауие]?[:\s]+(.*)$',
+    # Note creation: full single-turn or simple creation
+    m_full_note = re.match(
+        r'^(?:добавь|создай|запиши|новая)?\s*заметк[ауие]?\s+(?:«([^»]+)»|"([^"]+)"|(.+?))\s*(?:[:\-–—]|\s+с\s+текстом\s+|\s+текст\s+)\s*(.+)$',
         c, re.IGNORECASE
     )
-    if m_note:
-        raw_note = m_note.group(1).strip()
+    if m_full_note:
+        t_name = (m_full_note.group(1) or m_full_note.group(2) or m_full_note.group(3)).strip().capitalize()
+        content_txt = m_full_note.group(4).strip()
+        try:
+            extras_mgr.add_note(t_name, content_txt)
+        except Exception:
+            pass
+        msg = f"Заметка «{t_name}» успешно создана и сохранена, сэр!"
+        return {"type": "create_note", "title": t_name, "content": content_txt, "message": msg}
+
+    m_simple_note = re.match(
+        r'^(?:добавь|создай|запиши|новая)\s+заметк[ауие]?\s+(.*)$',
+        c, re.IGNORECASE
+    )
+    if m_simple_note:
+        raw_note = m_simple_note.group(1).strip()
         if raw_note:
-            title_disp = raw_note.capitalize()
+            t_name = raw_note[:30].strip().capitalize()
             try:
-                    extras_mgr.add_note(title_disp, raw_note)
+                extras_mgr.add_note(t_name, raw_note)
             except Exception:
                 pass
-            msg = f"Заметка «{title_disp}» успешно сохранена в меню Дополнительно, сэр."
-            return {"type": "create_note", "title": title_disp, "content": raw_note, "message": msg}
+            msg = f"Заметка «{t_name}» успешно создана и сохранена, сэр."
+            return {"type": "create_note", "title": t_name, "content": raw_note, "message": msg}
+
+    # Interactive note creation trigger (without title/content)
+    if any(k == c for k in [
+        "создай заметку", "добавь заметку", "запиши заметку", "новая заметка",
+        "создать заметку", "добавить заметку", "записать заметку", "сделать заметку", "хочу создать заметку"
+    ]):
+        _NOTE_CREATION_STATE["default"] = {
+            "stage": "awaiting_title",
+            "title": "",
+            "created_at": time.time()
+        }
+        return {"type": "clarify", "message": "Как назовём новую заметку, сэр? Назовите заголовок."}
 
     # Task completion e.g. "выполнил задачу сделать дз", "заверши задачу сделать дз", "отметь задачу сделать дз выполненной", "сделал задачу ..."
     m_comp_task = re.match(
@@ -1000,9 +1027,13 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         return {"type": "delete_task", "title": target_t, "message": msg}
 
     # Note deletion e.g. "удали все заметки", "удали заметку про роутер", "очисти заметки", "сотри все заметки"
-    if any(k == c for k in ["удали все заметки", "удалить все заметки", "удали заметки", "удалить заметки", "очисти заметки", "очисти все заметки", "сотри все заметки", "стереть все заметки"]):
+    if any(k == c or c.startswith(k) for k in [
+        "удали все заметки", "удалить все заметки", "удали заметки", "удалить заметки",
+        "очисти заметки", "очисти все заметки", "сотри все заметки", "стереть все заметки",
+        "удали всё из заметок", "очистить все заметки", "удали мои заметки"
+    ]):
         ok, found = extras_mgr.delete_note("all")
-        msg = "Все сохранённые заметки успешно удалены, сэр."
+        msg = "Все ваши сохранённые заметки успешно удалены, сэр."
         return {"type": "delete_note", "title": "all", "message": msg}
 
     m_del_note = re.match(
@@ -1046,15 +1077,50 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
             msg = "Ваши текущие задачи, сэр:\n" + "\n".join(lines)
         return {"type": "list_tasks", "message": msg}
 
-    # Smart Search / Questions about personal notes (checked before generic listing):
-    # e.g. "что в заметках про проект", "найди в заметках пароль", "какой пароль от роутера", "где мои ключи", "что я записал про..."
+    # List all notes (checked BEFORE keyword search so 'в заметках просмотри' lists all notes)
+    if any(k == c or c.startswith(k + " ") or k in c for k in [
+        "в заметках просмотри", "посмотри в заметках", "просмотри заметки",
+        "проверь заметки", "проверь в заметках", "загляни в заметки",
+        "что в моих заметках", "что в заметках", "покажи заметки",
+        "покажи все заметки", "список заметок", "все заметки",
+        "мои заметки", "прочитай заметки", "посмотреть заметки", "какие заметки"
+    ]):
+        data = extras_mgr.load_extras_data()
+        notes = data.get("notes", [])
+        if not notes:
+            msg = "В ваших сохранённых заметках пока пусто, сэр."
+        else:
+            lines = [f"• «{n.get('title')}»: {n.get('content')[:90]}" for n in notes[:12]]
+            msg = f"Ваши сохранённые заметки, сэр ({len(notes)} шт.):\n" + "\n".join(lines)
+        return {"type": "list_notes", "message": msg}
+
+    # Personal Questions & Specific Note Search:
+    # e.g. "как зовут моего друга", "сколько лет моему другу", "где живет мой друг", "какой пароль от роутера", "что в заметках про..."
+    is_personal_q = any(k in c for k in [
+        "как зовут", "сколько лет", "где живет", "где живёт", "какой пароль",
+        "где мои", "где мой", "когда др", "когда день рождения", "пароль от", "имя друга", "возраст друга"
+    ])
+    if is_personal_q:
+        ans = extras_mgr.extract_specific_answer_from_notes(c)
+        if ans:
+            return {"type": "search_notes", "query": c, "message": ans}
+
     m_search_note = re.match(
         r'^(?:найди|поищи|что|подскажи|скажи)?\s*(?:у\s+меня\s+)?(?:в\s+заметках\s+|в\s+моих\s+заметках\s+)(?:про\s+|о\s+|по\s+поводу\s+)?(.+)$',
         c, re.IGNORECASE
     )
-    is_personal_q = bool(m_search_note and m_search_note.group(1).strip()) or any(c.startswith(k) for k in ["какой пароль", "где мои", "где мой", "когда др", "когда день рождения", "что я записал"])
-    if is_personal_q:
-        q_target = m_search_note.group(1).strip() if (m_search_note and m_search_note.group(1).strip()) else c
+    if m_search_note:
+        q_target = m_search_note.group(1).strip()
+        if q_target.lower() in ["просмотри", "посмотри", "все", "всё", "список"]:
+            data = extras_mgr.load_extras_data()
+            notes = data.get("notes", [])
+            if not notes:
+                msg = "В ваших сохранённых заметках пока пусто, сэр."
+            else:
+                lines = [f"• «{n.get('title')}»: {n.get('content')[:90]}" for n in notes[:12]]
+                msg = f"Ваши сохранённые заметки, сэр ({len(notes)} шт.):\n" + "\n".join(lines)
+            return {"type": "list_notes", "message": msg}
+
         matches = extras_mgr.search_notes(q_target)
         ans = extras_mgr.extract_specific_answer_from_notes(q_target)
         if ans:
@@ -1063,23 +1129,9 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
             best = matches[0]
             msg = f"Судя по вашей заметке «{best.get('title')}», сэр:\n{best.get('content')}"
             return {"type": "search_notes", "query": q_target, "message": msg}
-        elif m_search_note:
+        else:
             msg = f"В ваших заметках не найдено информации по запросу «{q_target}», сэр."
             return {"type": "search_notes", "query": q_target, "message": msg}
-
-    # List notes e.g. "покажи заметки", "какие заметки", "список заметок"
-    if any(k == c or c.startswith(k + " ") for k in [
-        "покажи заметки", "какие заметки", "какие у меня заметки", "список заметок",
-        "мои заметки", "что в заметках", "посмотреть заметки", "все заметки"
-    ]) and not is_personal_q:
-        data = extras_mgr.load_extras_data()
-        notes = data.get("notes", [])
-        if not notes:
-            msg = "В ваших заметках пока пусто, сэр."
-        else:
-            lines = [f"• «{n.get('title')}»: {n.get('content')[:60]}" for n in notes[:8]]
-            msg = "Ваши сохранённые заметки, сэр:\n" + "\n".join(lines)
-        return {"type": "list_notes", "message": msg}
 
     # List timers e.g. "покажи таймеры", "активные таймеры"
     if any(k == c or c.startswith(k + " ") for k in [
@@ -2484,28 +2536,31 @@ def query_free_ai(prompt: str, user_name: str = "Пользователь", hist
 
 # ─── LOCAL PERSONA KNOWLEDGE BASE (OFFLINE FALLBACK) ────────────
 CONVERSATIONAL_KNOWLEDGE = {
-    "привет": "Приветствую, сэр. Все системы Argus активны и готовы к работе. Чем могу помочь?",
-    "hello": "Hello. All Argus systems are operational and ready. How can I assist you?",
-    "как дела": "Все модули Argus функционируют в штатном режиме, сэр. Ожидаю ваших указаний.",
-    "how are you": "All systems operating at peak performance. Ready for your instructions.",
-    "что делаешь": "Работаю в фоновом режиме, сэр. Жду ваших команд. Чем могу помочь?",
-    "чем занимаешься": "Работаю в фоновом режиме, сэр. Жду ваших команд. Готов к любой задаче.",
-    "что делаем": "Жду ваших указаний, сэр. Готов запустить приложение, открыть сайт, написать код или выполнить любую задачу.",
-    "кто ты": "Я Argus, сэр — ваш персональный автономный ИИ-ассистент для глубокого управления Windows и macOS, автоматизации задач, работы с браузером и написания кода.",
-    "who are you": "I am Argus, sir — your personal autonomous AI assistant for Windows and macOS control, workflow automation, and productivity.",
-    "что ты умеешь": "Я умею полноценно управлять компьютером: открывать любые сайты и нажимать кнопки на страницах, запускать и закрывать любые программы (Chrome, Telegram, Discord, VS Code, GoLand, Postman, Steam и др.), создавать и удалять файлы и папки на компьютере, анализировать содержимое файлов, делать скриншоты в любую папку (Загрузки, Рабочий стол), настраивать громкость и яркость экрана («на полную», «в ноль»), закрывать программы с фильтрами исключений («кроме vs code»), очищать корзину, блокировать ПК, искать в Google, YouTube, Wildberries и Ozon, а также управлять плагинами.",
+    "привет": "Здравствуйте, сэр! Рад приветствовать Вас. Все системы Argus активны и готовы к работе. Чем могу быть полезен Вам сегодня?",
+    "здравствуй": "Здравствуйте, сэр! Рад приветствовать Вас. Все системы Argus активны и готовы к работе. Чем могу быть полезен Вам сегодня?",
+    "hello": "Hello, sir. All Argus systems are operational and ready. How can I assist you today?",
+    "как дела": "Здравствуйте, сэр! Все модули Argus функционируют в штатном режиме, благодарю Вас за вопрос. Чем могу помочь Вам?",
+    "how are you": "All systems operating at peak performance, sir. Ready for your instructions.",
+    "что делаешь": "Работаю в фоновом режиме, сэр. Жду Ваших указаний. Чем могу помочь Вам?",
+    "чем занимаешься": "Работаю в фоновом режиме, сэр. Жду Ваших команд. Готов к любой задаче.",
+    "что делаем": "Жду Ваших указаний, сэр. Готов запустить приложение, открыть сайт, написать код или выполнить любую задачу.",
+    "кто ты": "Я Argus, сэр — Ваш персональный автономный ИИ-ассистент для глубокого управления компьютером, автоматизации задач и работы.",
+    "who are you": "I am Argus, sir — your personal autonomous AI assistant for system control, workflow automation, and productivity.",
+    "что ты умеешь": "Я умею полноценно управлять компьютером: открывать любые сайты и нажимать кнопки на страницах, запускать и закрывать любые программы (Chrome, Telegram, Discord, VS Code, GoLand, Postman, Steam и др.), создавать и удалять файлы и папки на компьютере, анализировать содержимое файлов, делать скриншоты в любую папку (Загрузки, Рабочий стол), настраивать громкость и яркость экрана («на полную», «в ноль»), закрывать программы с фильтрами исключений («кроме vs code»), очищать корзину, блокировать ПК, искать в Google, YouTube, Wildberries и Ozon, а также создавать и вести задачи, заметки и таймеры.",
     "почему небо синее": "Небо кажется синим из-за рэлеевского рассеяния солнечного света в атмосфере: газы атмосферы рассеивают короткие синие и фиолетовые волны значительно сильнее, чем длинные красные.",
     "почему небо голубое": "Небо голубое благодаря рэлеевскому рассеянию: солнечный свет рассеивается молекулами воздуха, при этом коротковолновые синие и голубые лучи рассеиваются сильнее всего.",
-    "нет": "Хорошо, сэр, отменил. Ожидаю ваших указаний.",
-    "не надо": "Понял вас, сэр, отменяю. Чем могу помочь?",
+    "нет": "Хорошо, сэр, отменил. Ожидаю Ваших указаний.",
+    "не надо": "Понял Вас, сэр, отменяю. Чем могу помочь Вам?",
     "не нужно": "Хорошо, сэр, не буду. Ожидаю следующих команд.",
-    "отмена": "Действие отменено, сэр. Жду ваших указаний.",
+    "отмена": "Действие отменено, сэр. Жду Ваших указаний.",
     "отбой": "Принято, сэр, отбой. Системы готовы к работе.",
     "стоп": "Остановил выполнение, сэр. Ожидаю дальнейших указаний.",
     "хватит": "Хорошо, сэр, остановился. Чем займёмся дальше?",
     "понял": "Отлично, сэр. Всегда готов к новым задачам.",
     "понятно": "Договорились, сэр. Если что-то понадобится — обращайтесь.",
     "ясно": "Принято, сэр. Готов к выполнению любых команд.",
+    "спасибо": "Всегда к Вашим услугам, сэр! Рад быть полезен Вам.",
+    "благодарю": "Всегда рад служить Вам, сэр. Обращайтесь в любое время.",
     "ок": "Принято, сэр. Что делаем дальше?",
     "хорошо": "Вас понял, сэр. Готов продолжить работу.",
     "ладно": "Хорошо, сэр. Ожидаю ваших команд.",
@@ -2837,15 +2892,15 @@ def get_conversational_reply(raw_text: str, en: bool, user_name: str = "Поль
     else:
         low_t = raw_text.lower().strip()
         if any(g in low_t for g in ["спасибо", "благодарю"]):
-            return "Пожалуйста, сэр. Всегда к вашим услугам. Чем ещё могу быть полезен?"
+            return "Пожалуйста, сэр. Всегда к Вашим услугам! Чем ещё могу быть полезен Вам?"
         if any(g in low_t for g in ["отлично", "хорошо", "супер", "класс", "молодец"]):
-            return "Рад помочь, сэр. Все системы функционируют штатно и ждут ваших задач."
+            return "Рад помочь, сэр. Все системы функционируют штатно и ждут Ваших задач."
         if any(g in low_t for g in ["пока", "до свидания", "до встречи"]):
-            return "До связи, сэр. Все службы Argus остаются на страже и ждут ваших указаний."
+            return "До связи, сэр. Все службы Argus остаются на страже и ждут Ваших указаний."
         if any(h in low_t for h in ["привет", "здравствуй", "добрый день", "добрый вечер", "доброе утро"]):
-            return f"Здравствуйте, сэр! Чем могу помочь вам сегодня за компьютером?"
+            return "Здравствуйте, сэр! Рад приветствовать Вас. Чем могу быть полезен Вам сегодня?"
         if any(re.search(r'\b' + re.escape(w) + r'\b', low_t) for w in ["нет", "не", "не надо", "не нужно", "отмена", "отбой"]):
-            return "Хорошо, сэр, отменил. Ожидаю ваших указаний."
+            return "Хорошо, сэр, отменил. Ожидаю Ваших указаний."
         if any(re.search(r'\b' + re.escape(w) + r'\b', low_t) for w in ["стоп", "хватит", "остановись", "прекрати"]):
             return "Остановил выполнение, сэр. Ожидаю дальнейших указаний."
 
@@ -2853,7 +2908,7 @@ def get_conversational_reply(raw_text: str, en: bool, user_name: str = "Поль
         is_q = "?" in raw_text or any(low_t.startswith(w + " ") or low_t == w for w in [
             "как", "кто", "где", "когда", "почему", "зачем", "сколько",
             "какой", "какая", "какое", "какие", "что", "чем", "куда", "откуда"
-        ])
+        ]) or any(k in low_t for k in ["друг", "друга", "пароль", "возраст", "имя"])
         if is_q:
             try:
                 ans = extras_mgr.extract_specific_answer_from_notes(raw_text)
@@ -2861,7 +2916,7 @@ def get_conversational_reply(raw_text: str, en: bool, user_name: str = "Поль
                     return ans
             except Exception:
                 pass
-            return "В ваших сохранённых заметках и памяти пока нет информации по этому вопросу, сэр. Вы можете сказать мне нужные данные или добавить заметку, и я обязательно сохраню их."
+            return "В Ваших сохранённых заметках и памяти пока нет информации по этому вопросу, сэр. Вы можете назвать нужные данные или добавить заметку, и я обязательно сохраню их."
 
         return f"Готов к выполнению ваших задач, сэр. Скажите, что требуется сделать, или задайте вопрос."
 
@@ -2874,6 +2929,59 @@ def process_command(user_text: str, user_name: str = "Пользователь",
     """
     raw = user_text.strip()
     en = is_english(raw)
+    raw_low = raw.lower()
+
+    # 0.1 Interactive Stateful Note Creation State Machine (asks Title -> then asks Text)
+    if any(k == raw_low or raw_low.startswith(k + " ") for k in ["отмена", "отбой", "стоп", "назад", "хватит", "не надо", "забудь", "cancel"]):
+        if user_name in _NOTE_CREATION_STATE or "default" in _NOTE_CREATION_STATE:
+            _NOTE_CREATION_STATE.pop(user_name, None)
+            _NOTE_CREATION_STATE.pop("default", None)
+            return "Создание заметки отменено, сэр. Ожидаю Ваших указаний.", "clarify", {}
+
+    active_note_key = user_name if user_name in _NOTE_CREATION_STATE else ("default" if "default" in _NOTE_CREATION_STATE else None)
+    if active_note_key:
+        note_state = _NOTE_CREATION_STATE[active_note_key]
+        if time.time() - note_state.get("created_at", 0) > 300:
+            _NOTE_CREATION_STATE.pop(active_note_key, None)
+        else:
+            stage = note_state.get("stage")
+            if stage == "awaiting_title":
+                title_val = raw.strip().strip('"\'«»')
+                if not title_val:
+                    title_val = "Заметка"
+                note_state["title"] = title_val
+                note_state["stage"] = "awaiting_content"
+                note_state["created_at"] = time.time()
+                return (
+                    f"Принято, сэр. Теперь назовите или продиктуйте текст для заметки «{title_val}»:",
+                    "clarify",
+                    {"step": "note_content", "title": title_val}
+                )
+            elif stage == "awaiting_content":
+                content_val = raw.strip()
+                title_val = note_state.get("title") or "Заметка"
+                _NOTE_CREATION_STATE.pop(active_note_key, None)
+                try:
+                    extras_mgr.add_note(title_val, content_val)
+                except Exception as e:
+                    print(f"[Argus Note Error]: {e}")
+                return (
+                    f"Заметка «{title_val}» успешно создана и сохранена, сэр!",
+                    "create_note",
+                    {"title": title_val, "content": content_val}
+                )
+
+    # 0.2 Trigger interactive note creation if user asks "создай заметку" without title/text
+    if any(k == raw_low or raw_low in [k, f"{k}!", f"{k}?"] for k in [
+        "создай заметку", "добавь заметку", "запиши заметку", "новая заметка",
+        "создать заметку", "добавить заметку", "записать заметку", "сделать заметку", "хочу создать заметку"
+    ]):
+        _NOTE_CREATION_STATE[user_name or "default"] = {
+            "stage": "awaiting_title",
+            "title": "",
+            "created_at": time.time()
+        }
+        return "Как назовём новую заметку, сэр? Назовите заголовок:", "clarify", {"step": "note_title"}
 
     # 0. User Memory & Learning (0ms response time)
     learned_reply = user_memory.extract_and_learn(raw)

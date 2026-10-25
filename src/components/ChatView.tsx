@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Send, Mic, Square, CheckCircle2, ArrowUpRight, Volume2, Sun, Lock, Camera, Radio } from 'lucide-react';
+import { Send, Mic, Square, CheckCircle2, ArrowUpRight, Volume2, VolumeX, Sun, Lock, Camera, Radio } from 'lucide-react';
+import { smartFetch } from '../api';
 import { ChatMessage, UserProfile } from '../types';
 import { StarburnCore } from './StarburnCore';
 import { StarburnLogo, TelegramIcon, SpotifyIcon } from './Icons';
@@ -89,6 +90,64 @@ export const ChatView: React.FC<ChatViewProps> = ({
   onFinishStreaming,
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
+  const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
+
+  const handlePlayMessageAudio = async (msg: ChatMessage) => {
+    if (playingAudioId === msg.id) {
+      if (audioPlayerRef.current) {
+        audioPlayerRef.current.pause();
+        audioPlayerRef.current = null;
+      }
+      setPlayingAudioId(null);
+      return;
+    }
+
+    if (audioPlayerRef.current) {
+      audioPlayerRef.current.pause();
+      audioPlayerRef.current = null;
+    }
+
+    try {
+      setPlayingAudioId(msg.id);
+      let b64 = msg.audio_base64;
+      if (!b64) {
+        const res = await smartFetch('/api/voice/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: msg.content,
+            voice: 'ru-RU-DmitryNeural'
+          })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.audio_base64) {
+            b64 = data.audio_base64;
+          }
+        }
+      }
+
+      if (b64) {
+        const cleanB64 = b64.replace(/\s+/g, '');
+        const audio = new Audio(`data:audio/mpeg;base64,${cleanB64}`);
+        audioPlayerRef.current = audio;
+        audio.onended = () => {
+          setPlayingAudioId(null);
+          audioPlayerRef.current = null;
+        };
+        audio.onerror = () => {
+          setPlayingAudioId(null);
+          audioPlayerRef.current = null;
+        };
+        await audio.play();
+      } else {
+        setPlayingAudioId(null);
+      }
+    } catch {
+      setPlayingAudioId(null);
+    }
+  };
 
   const scrollToBottom = (behavior: ScrollBehavior = 'auto') => {
     messagesEndRef.current?.scrollIntoView({ behavior });
@@ -373,28 +432,54 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     </div>
                   )}
 
-                  {/* System Action Badge */}
-                  {msg.action_type && (
-                    <div
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        padding: '3px 10px',
-                        borderRadius: 9999,
-                        background: 'rgba(16, 185, 129, 0.12)',
-                        border: '1px solid rgba(16, 185, 129, 0.3)',
-                        color: '#34d399',
-                        fontSize: 10.5,
-                        fontFamily: 'ui-monospace, monospace',
-                        fontWeight: 600,
-                        boxShadow: '0 0 12px rgba(16, 185, 129, 0.15)',
-                      }}
-                    >
-                      <CheckCircle2 size={12} />
-                      <span>{msg.action_type}</span>
-                    </div>
-                  )}
+                  {/* Assistant Actions Bar: Listen / Replay Voice + System Action Badge */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
+                    {msg.role === 'assistant' && (
+                      <button
+                        onClick={() => handlePlayMessageAudio(msg)}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 5,
+                          padding: '3px 9px',
+                          borderRadius: 8,
+                          background: playingAudioId === msg.id ? 'rgba(168, 85, 247, 0.25)' : 'rgba(255, 255, 255, 0.04)',
+                          border: `1px solid ${playingAudioId === msg.id ? 'rgba(168, 85, 247, 0.5)' : 'rgba(255, 255, 255, 0.08)'}`,
+                          color: playingAudioId === msg.id ? '#c084fc' : '#94a3b8',
+                          fontSize: 11,
+                          fontWeight: 500,
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                        title={playingAudioId === msg.id ? 'Остановить воспроизведение' : 'Озвучить ответ голосом Дмитрия'}
+                      >
+                        {playingAudioId === msg.id ? <VolumeX size={12} /> : <Volume2 size={12} />}
+                        <span>{playingAudioId === msg.id ? 'Остановить' : 'Озвучить'}</span>
+                      </button>
+                    )}
+
+                    {msg.action_type && (
+                      <div
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          padding: '3px 10px',
+                          borderRadius: 9999,
+                          background: 'rgba(16, 185, 129, 0.12)',
+                          border: '1px solid rgba(16, 185, 129, 0.3)',
+                          color: '#34d399',
+                          fontSize: 10.5,
+                          fontFamily: 'ui-monospace, monospace',
+                          fontWeight: 600,
+                          boxShadow: '0 0 12px rgba(16, 185, 129, 0.15)',
+                        }}
+                      >
+                        <CheckCircle2 size={12} />
+                        <span>{msg.action_type}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             );

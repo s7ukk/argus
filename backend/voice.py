@@ -75,7 +75,9 @@ def speak_windows_sapi(text: str):
             ps_code = f"""
             Add-Type -AssemblyName System.Speech
             $s = New-Object System.Speech.Synthesis.SpeechSynthesizer
-            try {{ $s.SelectVoice('Microsoft Irina Desktop') }} catch {{}}
+            $male = $s.GetInstalledVoices() | Where-Object {{ $_.VoiceInfo.Gender -eq 'Male' -or $_.VoiceInfo.Name -match 'Dmitry|Pavel|Stefan|David|Male' }} | Select-Object -First 1
+            if ($male) {{ try {{ $s.SelectVoice($male.VoiceInfo.Name) }} catch {{}} }}
+            $s.Rate = -1
             $s.Speak('{clean}')
             """
             subprocess.run(['powershell', '-NoProfile', '-Command', ps_code], timeout=15)
@@ -209,14 +211,14 @@ def clean_text_for_speech(text: str) -> str:
     sentences = re.split(r'(?<=[.!?])\s+', t)
     shortened = ""
     for s in sentences:
-        if len(shortened) + len(s) < 85:
+        if len(shortened) + len(s) < 220:
             shortened += (s + " ")
         else:
             break
     if shortened.strip():
         t = shortened.strip()
-    elif len(t) > 85:
-        t = t[:80] + "..."
+    elif len(t) > 220:
+        t = t[:215] + "..."
     return t
 
 async def generate_speech_base64(
@@ -270,7 +272,7 @@ async def generate_speech_base64(
                         buf.extend(chunk["data"])
                 return buf
 
-            audio_data = await asyncio.wait_for(_stream_voice(target_voice), timeout=7.0)
+            audio_data = await asyncio.wait_for(_stream_voice(target_voice), timeout=15.0)
             if audio_data and len(audio_data) > 100:
                 b64_res = base64.b64encode(audio_data).decode("utf-8")
                 if len(_VOICE_AUDIO_CACHE) > 500:
