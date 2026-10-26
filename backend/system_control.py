@@ -3500,74 +3500,123 @@ def list_folder_files(target: str = "desktop") -> Dict[str, Any]:
 
 def get_popular_and_installed_apps() -> List[Dict[str, Any]]:
     """
-    Returns curated, categorized applications for Windows and macOS,
-    enriched with local installation detection status.
+    Returns curated, categorized applications strictly filtered and customized
+    for the current operating system (Windows or macOS).
+    Never mixes Windows and macOS system apps together!
     """
     detected_catalog = scan_all_installed_apps()
     is_mac = sys.platform == "darwin"
 
-    curated = [
-        # Messengers
-        {"id": "telegram", "name": "Telegram", "desc": "Мессенджер и каналы", "category": "chat", "icon": "MessageSquare"},
-        {"id": "discord", "name": "Discord", "desc": "Голосовой и текстовый чат", "category": "chat", "icon": "Headphones"},
-        {"id": "whatsapp", "name": "WhatsApp", "desc": "Мессенджер и звонки", "category": "chat", "icon": "MessageCircle"},
-        {"id": "slack", "name": "Slack", "desc": "Рабочие пространства и чаты", "category": "chat", "icon": "Hash"},
-        {"id": "zoom", "name": "Zoom", "desc": "Видеоконференции", "category": "chat", "icon": "Video"},
-        {"id": "skype", "name": "Skype", "desc": "Звонки и видеочат", "category": "chat", "icon": "Phone"},
-        {"id": "vk", "name": "VK Мессенджер", "desc": "Мессенджер ВКонтакте", "category": "chat", "icon": "MessageSquare"},
+    if is_mac:
+        # macOS ONLY curated apps
+        curated = [
+            # Messengers
+            {"id": "telegram", "name": "Telegram", "desc": "Мессенджер и каналы", "category": "chat", "icon": "MessageSquare"},
+            {"id": "discord", "name": "Discord", "desc": "Голосовой и текстовый чат", "category": "chat", "icon": "Headphones"},
+            {"id": "whatsapp", "name": "WhatsApp", "desc": "Мессенджер и звонки", "category": "chat", "icon": "MessageCircle"},
+            {"id": "slack", "name": "Slack", "desc": "Рабочие пространства и чаты", "category": "chat", "icon": "Hash"},
+            {"id": "zoom", "name": "Zoom", "desc": "Видеоконференции", "category": "chat", "icon": "Video"},
+            {"id": "skype", "name": "Skype", "desc": "Звонки и видеочат", "category": "chat", "icon": "Phone"},
+            {"id": "vk", "name": "VK Мессенджер", "desc": "Мессенджер ВКонтакте", "category": "chat", "icon": "MessageSquare"},
 
-        # Music & Media
-        {"id": "spotify", "name": "Spotify", "desc": "Стриминг музыки и подкастов", "category": "music", "icon": "Music"},
-        {"id": "yandex_music", "name": "Яндекс Музыка", "desc": "Музыка, треки и подкасты", "category": "music", "icon": "Radio"},
-        {"id": "soundcloud", "name": "SoundCloud", "desc": "Треки, ремиксы и сеты", "category": "music", "icon": "Cloud"},
-        {"id": "apple_music", "name": "Apple Music", "desc": "Музыкальный сервис Apple", "category": "music", "icon": "Music2"},
-        {"id": "youtube_music", "name": "YouTube Music", "desc": "Музыкальный сервис YouTube", "category": "music", "icon": "PlayCircle"},
-        {"id": "vlc", "name": "VLC Media Player", "desc": "Универсальный видеоплеер", "category": "music", "icon": "Film"},
-        {"id": "aimp", "name": "AIMP", "desc": "Легковесный аудиоплеер", "category": "music", "icon": "Disc"},
-        {"id": "obs", "name": "OBS Studio", "desc": "Запись экрана и стриминг", "category": "music", "icon": "Cast"},
+            # Music & Media
+            {"id": "apple_music", "name": "Apple Music", "desc": "Музыка и радио Apple", "category": "music", "icon": "Music2", "installed": True},
+            {"id": "spotify", "name": "Spotify", "desc": "Стриминг музыки и подкастов", "category": "music", "icon": "Music"},
+            {"id": "yandex_music", "name": "Яндекс Музыка", "desc": "Музыка, треки и подкасты", "category": "music", "icon": "Radio"},
+            {"id": "soundcloud", "name": "SoundCloud", "desc": "Треки, ремиксы и сеты", "category": "music", "icon": "Cloud"},
+            {"id": "youtube_music", "name": "YouTube Music", "desc": "Музыкальный сервис YouTube", "category": "music", "icon": "PlayCircle"},
+            {"id": "vlc", "name": "VLC Media Player", "desc": "Универсальный видеоплеер", "category": "music", "icon": "Film"},
+            {"id": "obs", "name": "OBS Studio", "desc": "Запись экрана и стриминг", "category": "music", "icon": "Cast"},
 
-        # Browsers
-        {"id": "chrome", "name": "Google Chrome", "desc": "Быстрый веб-браузер", "category": "browser", "icon": "Globe"},
-        {"id": "yandex", "name": "Яндекс Браузер", "desc": "Браузер с Алисой", "category": "browser", "icon": "Compass"},
-        {"id": "safari", "name": "Safari", "desc": "Фирменный браузер Apple", "category": "browser", "icon": "Navigation", "mac_only": True},
-        {"id": "msedge", "name": "Microsoft Edge", "desc": "Встроенный браузер Windows", "category": "browser", "icon": "Globe2"},
-        {"id": "firefox", "name": "Mozilla Firefox", "desc": "Приватный браузер", "category": "browser", "icon": "Flame"},
-        {"id": "opera", "name": "Opera", "desc": "Браузер со встроенным VPN", "category": "browser", "icon": "CircleDot"},
-        {"id": "brave", "name": "Brave", "desc": "Браузер с защитой от рекламы", "category": "browser", "icon": "Shield"},
+            # Browsers
+            {"id": "safari", "name": "Safari", "desc": "Фирменный браузер Apple", "category": "browser", "icon": "Navigation", "installed": True},
+            {"id": "chrome", "name": "Google Chrome", "desc": "Быстрый веб-браузер", "category": "browser", "icon": "Globe"},
+            {"id": "yandex", "name": "Яндекс Браузер", "desc": "Браузер с Алисой", "category": "browser", "icon": "Compass"},
+            {"id": "firefox", "name": "Mozilla Firefox", "desc": "Приватный браузер", "category": "browser", "icon": "Flame"},
+            {"id": "opera", "name": "Opera", "desc": "Браузер со встроенным VPN", "category": "browser", "icon": "CircleDot"},
+            {"id": "brave", "name": "Brave", "desc": "Браузер с защитой от рекламы", "category": "browser", "icon": "Shield"},
 
-        # Development & Productivity
-        {"id": "vscode", "name": "Visual Studio Code", "desc": "Редактор кода и расширений", "category": "dev", "icon": "Code2"},
-        {"id": "cursor", "name": "Cursor", "desc": "AI-редактор кода", "category": "dev", "icon": "Cpu"},
-        {"id": "obsidian", "name": "Obsidian", "desc": "Вторая память и Markdown заметки", "category": "dev", "icon": "BookOpen"},
-        {"id": "notion", "name": "Notion", "desc": "Документы, задачи и базы данных", "category": "dev", "icon": "Layers"},
-        {"id": "sublime", "name": "Sublime Text", "desc": "Быстрый редактор текста", "category": "dev", "icon": "FileCode"},
-        {"id": "pycharm", "name": "PyCharm", "desc": "Профессиональная Python IDE", "category": "dev", "icon": "TerminalSquare"},
-        {"id": "webstorm", "name": "WebStorm", "desc": "JavaScript и TypeScript IDE", "category": "dev", "icon": "FileCode2"},
-        {"id": "terminal", "name": "Терминал / PowerShell", "desc": "Командная строка системы", "category": "dev", "icon": "Terminal"},
+            # Development & Productivity
+            {"id": "vscode", "name": "Visual Studio Code", "desc": "Редактор кода и расширений", "category": "dev", "icon": "Code2"},
+            {"id": "cursor", "name": "Cursor", "desc": "AI-редактор кода", "category": "dev", "icon": "Cpu"},
+            {"id": "xcode", "name": "Xcode", "desc": "Среда разработки Apple", "category": "dev", "icon": "Code2"},
+            {"id": "obsidian", "name": "Obsidian", "desc": "Вторая память и Markdown заметки", "category": "dev", "icon": "BookOpen"},
+            {"id": "notion", "name": "Notion", "desc": "Документы, задачи и базы данных", "category": "dev", "icon": "Layers"},
+            {"id": "sublime", "name": "Sublime Text", "desc": "Быстрый редактор текста", "category": "dev", "icon": "FileCode"},
+            {"id": "pycharm", "name": "PyCharm", "desc": "Профессиональная Python IDE", "category": "dev", "icon": "TerminalSquare"},
+            {"id": "webstorm", "name": "WebStorm", "desc": "JavaScript и TypeScript IDE", "category": "dev", "icon": "FileCode2"},
+            {"id": "terminal", "name": "Терминал macOS", "desc": "Командная строка zsh / bash", "category": "dev", "icon": "Terminal", "installed": True},
 
-        # Games & Launchers
-        {"id": "steam", "name": "Steam", "desc": "Магазин и лаунчер игр", "category": "games", "icon": "Gamepad2"},
-        {"id": "epicgames", "name": "Epic Games Launcher", "desc": "Игровая библиотека Epic", "category": "games", "icon": "Trophy"},
-        {"id": "battlenet", "name": "Battle.net", "desc": "Лаунчер игр Blizzard", "category": "games", "icon": "ShieldCheck"},
+            # Games & Launchers
+            {"id": "steam", "name": "Steam", "desc": "Магазин и лаунчер игр", "category": "games", "icon": "Gamepad2"},
+            {"id": "epicgames", "name": "Epic Games Launcher", "desc": "Игровая библиотека Epic", "category": "games", "icon": "Trophy"},
+            {"id": "battlenet", "name": "Battle.net", "desc": "Лаунчер игр Blizzard", "category": "games", "icon": "ShieldCheck"},
 
-        # System Utilities
-        {"id": "calc", "name": "Калькулятор", "desc": "Быстрые вычисления", "category": "system", "icon": "Calculator"},
-        {"id": "notepad", "name": "Блокнот / Заметки", "desc": "Простой текстовый редактор", "category": "system", "icon": "FileText"},
-        {"id": "explorer", "name": "Проводник / Finder", "desc": "Файлы и папки компьютера", "category": "system", "icon": "Folder"},
-        {"id": "taskmgr", "name": "Диспетчер задач", "desc": "Мониторинг процессов и памяти", "category": "system", "icon": "Activity"},
-        {"id": "settings", "name": "Параметры системы", "desc": "Настройки операционной системы", "category": "system", "icon": "Settings"},
-    ]
+            # System macOS
+            {"id": "finder", "name": "Finder", "desc": "Файловый менеджер macOS", "category": "system", "icon": "Folder", "installed": True},
+            {"id": "notes", "name": "Заметки Apple", "desc": "Фирменные заметки macOS", "category": "system", "icon": "FileText", "installed": True},
+            {"id": "calc", "name": "Калькулятор macOS", "desc": "Быстрые вычисления", "category": "system", "icon": "Calculator", "installed": True},
+            {"id": "activity_monitor", "name": "Мониторинг системы", "desc": "Activity Monitor macOS", "category": "system", "icon": "Activity", "installed": True},
+            {"id": "settings", "name": "Системные настройки", "desc": "Параметры macOS", "category": "system", "icon": "Settings", "installed": True},
+        ]
+    else:
+        # Windows ONLY curated apps
+        curated = [
+            # Messengers
+            {"id": "telegram", "name": "Telegram", "desc": "Мессенджер и каналы", "category": "chat", "icon": "MessageSquare"},
+            {"id": "discord", "name": "Discord", "desc": "Голосовой и текстовый чат", "category": "chat", "icon": "Headphones"},
+            {"id": "whatsapp", "name": "WhatsApp", "desc": "Мессенджер и звонки", "category": "chat", "icon": "MessageCircle"},
+            {"id": "slack", "name": "Slack", "desc": "Рабочие пространства и чаты", "category": "chat", "icon": "Hash"},
+            {"id": "zoom", "name": "Zoom", "desc": "Видеоконференции", "category": "chat", "icon": "Video"},
+            {"id": "skype", "name": "Skype", "desc": "Звонки и видеочат", "category": "chat", "icon": "Phone"},
+            {"id": "vk", "name": "VK Мессенджер", "desc": "Мессенджер ВКонтакте", "category": "chat", "icon": "MessageSquare"},
+
+            # Music & Media
+            {"id": "spotify", "name": "Spotify", "desc": "Стриминг музыки и подкастов", "category": "music", "icon": "Music"},
+            {"id": "yandex_music", "name": "Яндекс Музыка", "desc": "Музыка, треки и подкасты", "category": "music", "icon": "Radio"},
+            {"id": "soundcloud", "name": "SoundCloud", "desc": "Треки, ремиксы и сеты", "category": "music", "icon": "Cloud"},
+            {"id": "youtube_music", "name": "YouTube Music", "desc": "Музыкальный сервис YouTube", "category": "music", "icon": "PlayCircle"},
+            {"id": "vlc", "name": "VLC Media Player", "desc": "Универсальный видеоплеер", "category": "music", "icon": "Film"},
+            {"id": "aimp", "name": "AIMP", "desc": "Легковесный аудиоплеер", "category": "music", "icon": "Disc"},
+            {"id": "obs", "name": "OBS Studio", "desc": "Запись экрана и стриминг", "category": "music", "icon": "Cast"},
+
+            # Browsers
+            {"id": "chrome", "name": "Google Chrome", "desc": "Быстрый веб-браузер", "category": "browser", "icon": "Globe"},
+            {"id": "yandex", "name": "Яндекс Браузер", "desc": "Браузер с Алисой", "category": "browser", "icon": "Compass"},
+            {"id": "msedge", "name": "Microsoft Edge", "desc": "Встроенный браузер Windows", "category": "browser", "icon": "Globe2", "installed": True},
+            {"id": "firefox", "name": "Mozilla Firefox", "desc": "Приватный браузер", "category": "browser", "icon": "Flame"},
+            {"id": "opera", "name": "Opera", "desc": "Браузер со встроенным VPN", "category": "browser", "icon": "CircleDot"},
+            {"id": "brave", "name": "Brave", "desc": "Браузер с защитой от рекламы", "category": "browser", "icon": "Shield"},
+
+            # Development & Productivity
+            {"id": "vscode", "name": "Visual Studio Code", "desc": "Редактор кода и расширений", "category": "dev", "icon": "Code2"},
+            {"id": "cursor", "name": "Cursor", "desc": "AI-редактор кода", "category": "dev", "icon": "Cpu"},
+            {"id": "obsidian", "name": "Obsidian", "desc": "Вторая память и Markdown заметки", "category": "dev", "icon": "BookOpen"},
+            {"id": "notion", "name": "Notion", "desc": "Документы, задачи и базы данных", "category": "dev", "icon": "Layers"},
+            {"id": "sublime", "name": "Sublime Text", "desc": "Быстрый редактор текста", "category": "dev", "icon": "FileCode"},
+            {"id": "pycharm", "name": "PyCharm", "desc": "Профессиональная Python IDE", "category": "dev", "icon": "TerminalSquare"},
+            {"id": "webstorm", "name": "WebStorm", "desc": "JavaScript и TypeScript IDE", "category": "dev", "icon": "FileCode2"},
+            {"id": "terminal", "name": "PowerShell / Терминал", "desc": "Командная строка Windows", "category": "dev", "icon": "Terminal", "installed": True},
+
+            # Games & Launchers
+            {"id": "steam", "name": "Steam", "desc": "Магазин и лаунчер игр", "category": "games", "icon": "Gamepad2"},
+            {"id": "epicgames", "name": "Epic Games Launcher", "desc": "Игровая библиотека Epic", "category": "games", "icon": "Trophy"},
+            {"id": "battlenet", "name": "Battle.net", "desc": "Лаунчер игр Blizzard", "category": "games", "icon": "ShieldCheck"},
+
+            # System Windows
+            {"id": "notepad", "name": "Блокнот", "desc": "Текстовый редактор Windows", "category": "system", "icon": "FileText", "installed": True},
+            {"id": "explorer", "name": "Проводник", "desc": "Файлы и папки Windows", "category": "system", "icon": "Folder", "installed": True},
+            {"id": "taskmgr", "name": "Диспетчер задач", "desc": "Мониторинг процессов Windows", "category": "system", "icon": "Activity", "installed": True},
+            {"id": "calc", "name": "Калькулятор Windows", "desc": "Калькулятор системы", "category": "system", "icon": "Calculator", "installed": True},
+            {"id": "settings", "name": "Параметры Windows", "desc": "Настройки системы Windows", "category": "system", "icon": "Settings", "installed": True},
+            {"id": "paint", "name": "Paint", "desc": "Графический редактор Windows", "category": "system", "icon": "Film"},
+        ]
 
     result = []
     for app in curated:
-        # Filter mac_only if on windows
-        if app.get("mac_only") and not is_mac:
-            continue
         app_id = app["id"]
         canonical = APP_CANONICAL_KEYS.get(app_id, app_id)
-        is_installed = canonical in detected_catalog or app_id in detected_catalog
-        if app_id in ["calc", "notepad", "explorer", "taskmgr", "settings", "terminal"]:
-            is_installed = True
+        is_installed = app.get("installed", False) or canonical in detected_catalog or app_id in detected_catalog
         app_copy = dict(app)
         app_copy["installed"] = is_installed
         result.append(app_copy)

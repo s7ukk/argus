@@ -25,12 +25,13 @@ const LOCAL_EXCLUSIVE_ROUTES = [
 export async function smartFetch(endpointPath: string, options: RequestInit = {}): Promise<Response> {
   const normPath = endpointPath.startsWith('/') ? endpointPath : `/${endpointPath}`;
 
-  // 1. Try local server first (fast 1500ms timeout for telemetry/health, 15000ms for voice/AI)
+  // 1. Try local server first (fast 2500ms timeout for health, 35000ms for scenario run, 15000ms for voice/AI)
   try {
     const controller = new AbortController();
     const signal = options.signal || controller.signal;
-    const isHeavyEndpoint = normPath.startsWith('/api/voice') || normPath.startsWith('/api/ai') || normPath.startsWith('/api/plugins');
-    const timeoutMs = isHeavyEndpoint ? 15000 : 1500;
+    const isScenarioRun = normPath.includes('/scenarios/') && normPath.includes('/run');
+    const isHeavyEndpoint = isScenarioRun || normPath.startsWith('/api/voice') || normPath.startsWith('/api/ai') || normPath.startsWith('/api/plugins') || normPath.startsWith('/api/scenarios') || normPath.startsWith('/api/system');
+    const timeoutMs = isScenarioRun ? 35000 : (isHeavyEndpoint ? 15000 : 2500);
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     const res = await fetch(`${LOCAL_SERVER_URL}${normPath}`, { ...options, signal });
     clearTimeout(timer);
@@ -39,6 +40,10 @@ export async function smartFetch(endpointPath: string, options: RequestInit = {}
     return res;
   } catch (err: any) {
     if (options.signal?.aborted && !options.signal) throw err;
+    const isLocalOnly = normPath.startsWith('/api/scenarios') || normPath.startsWith('/api/system');
+    if (isLocalOnly) {
+      throw new Error('Локальный сервис Argus не отвечает. Перезапустите приложение.');
+    }
   }
 
   // 2. Seamless Cloud Failover!
@@ -540,7 +545,14 @@ export async function runScenario(scenarioId: string): Promise<any> {
   const res = await smartFetch(`/api/scenarios/${scenarioId}/run`, {
     method: 'POST',
   });
-  if (!res.ok) throw new Error('Ошибка выполнения сценария');
+  if (!res.ok) {
+    let errMsg = 'Ошибка выполнения сценария';
+    try {
+      const data = await res.json();
+      errMsg = data.detail || data.error || data.message || errMsg;
+    } catch {}
+    throw new Error(errMsg);
+  }
   return res.json();
 }
 

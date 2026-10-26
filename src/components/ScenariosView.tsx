@@ -960,7 +960,7 @@ export const ScenariosView: React.FC = () => {
                   </h3>
                 </div>
                 <p style={{ fontSize: 12, color: '#94a3b8', margin: '4px 0 0' }}>
-                  Популярные приложения и установленные на вашем компьютере (Windows & macOS)
+                  Популярные и установленные приложения на вашем компьютере
                 </p>
               </div>
               <button
@@ -998,7 +998,7 @@ export const ScenariosView: React.FC = () => {
                 <Search size={16} color="#94a3b8" />
                 <input
                   type="text"
-                  placeholder="Поиск приложения (Telegram, Spotify, VS Code, Steam, Safari, etc)..."
+                  placeholder="Поиск приложения (Telegram, Spotify, VS Code, Steam, Chrome, etc)..."
                   value={appSearch}
                   onChange={(e) => setAppSearch(e.target.value)}
                   style={{

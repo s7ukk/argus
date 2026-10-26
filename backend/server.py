@@ -867,8 +867,12 @@ async def run_scenario_endpoint(scenario_id: str):
     all_s = sc_mgr.load_scenarios()
     matched = next((s for s in all_s if s["id"] == scenario_id), None)
     if not matched:
-        raise HTTPException(status_code=404, detail="Scenario not found")
-    return sc_mgr.execute_scenario(matched)
+        raise HTTPException(status_code=404, detail="Сценарий не найден")
+    try:
+        return await asyncio.to_thread(sc_mgr.execute_scenario, matched)
+    except Exception as e:
+        print(f"Error executing scenario {scenario_id}:", e)
+        raise HTTPException(status_code=500, detail=f"Ошибка выполнения сценария: {str(e)}")
 
 
 # ─── EXTRAS: TASKS, NOTES, TIMERS & REMINDERS ───────────────────
