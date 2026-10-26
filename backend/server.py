@@ -37,13 +37,13 @@ def _clear_local_session():
 
 DEFAULT_SETTINGS = {
     "voice_input_mode": "trigger",
-    "trigger_words": "аргус, argus, эй аргус, привет аргус",
+    "trigger_words": "джарвис, jarvis, аргус, argus, эй джарвис, эй аргус",
     "ptt_hotkey": "Space",
     "voice_provider": "edge-tts",
     "fish_api_key": "",
     "fish_model_id": "",
-    "edge_voice": "ru-RU-DmitryNeural",
-    "voice_speed": 1.0,
+    "edge_voice": "jarvis",
+    "voice_speed": 1.05,
     "browser_mode": "ask",
     "default_browser": "safari" if sys.platform == "darwin" else "auto",
     "auto_heal_plugins": True,
@@ -659,10 +659,8 @@ async def ai_chat(req: ChatMessageRequest):
         if speech_text and len(speech_text) > 1:
             try:
                 settings = _load_settings()
-                voice_name = settings.get("edge_voice") or "ru-RU-DmitryNeural"
-                if not voice_name or "Svetlana" in voice_name:
-                    voice_name = "ru-RU-DmitryNeural"
-                speed_val = settings.get("voice_speed", 1.0)
+                voice_name = settings.get("edge_voice") or "jarvis"
+                speed_val = float(settings.get("voice_speed", 1.05))
                 rate_str = f"+{int((speed_val - 1.0) * 100)}%" if speed_val >= 1.0 else f"{int((speed_val - 1.0) * 100)}%"
                 
                 audio_base64 = await asyncio.wait_for(
@@ -673,7 +671,7 @@ async def ai_chat(req: ChatMessageRequest):
                         fish_api_key=settings.get("fish_api_key") if settings.get("voice_provider") == "fish-audio" else None,
                         fish_model_id=settings.get("fish_model_id") if settings.get("voice_provider") == "fish-audio" else None,
                     ),
-                    timeout=2.2
+                    timeout=3.5
                 )
             except Exception as e:
                 print(f"[Argus TTS Notice]: {e}")
@@ -695,11 +693,8 @@ class STTRequest(BaseModel):
 @app.post("/api/voice/tts")
 async def generate_tts(req: TTSRequest):
     settings = _load_settings()
-    voice_name = req.voice or settings.get("edge_voice") or "ru-RU-DmitryNeural"
-    if not voice_name or not voice_name.strip() or "Svetlana" in voice_name:
-        voice_name = "ru-RU-DmitryNeural"
-    
-    speed_val = settings.get("voice_speed", 1.0)
+    voice_name = req.voice or settings.get("edge_voice") or "jarvis"
+    speed_val = float(settings.get("voice_speed", 1.05))
     rate_str = req.rate if req.rate and req.rate != "+0%" else (f"+{int((speed_val - 1.0) * 100)}%" if speed_val >= 1.0 else f"{int((speed_val - 1.0) * 100)}%")
 
     audio_b64 = await voice_engine.generate_speech_base64(

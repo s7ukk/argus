@@ -90,12 +90,20 @@ export const ChatView: React.FC<ChatViewProps> = ({
       setPlayingAudioId(msg.id);
       let b64 = msg.audio_base64;
       if (!b64) {
+        let currentVoice = 'jarvis';
+        try {
+          const sStr = localStorage.getItem('argus_settings');
+          if (sStr) {
+            const s = JSON.parse(sStr);
+            if (s.edge_voice) currentVoice = s.edge_voice;
+          }
+        } catch {}
         const res = await smartFetch('/api/voice/tts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             text: msg.content,
-            voice: 'ru-RU-DmitryNeural'
+            voice: currentVoice
           })
         });
         if (res.ok) {

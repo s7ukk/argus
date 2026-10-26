@@ -39,13 +39,13 @@ import {
 export const SettingsView: React.FC = () => {
   const [settings, setSettings] = useState<AppSettings>({
     voice_input_mode: 'trigger',
-    trigger_words: 'аргус, argus, эй аргус, привет аргус',
+    trigger_words: 'джарвис, jarvis, аргус, argus, эй джарвис, эй аргус',
     ptt_hotkey: 'Space',
     voice_provider: 'edge-tts',
     fish_api_key: '',
     fish_model_id: '',
-    edge_voice: 'ru-RU-DmitryNeural',
-    voice_speed: 1.0,
+    edge_voice: 'jarvis',
+    voice_speed: 1.05,
     browser_mode: 'ask',
     default_browser: 'auto',
     default_music_app: 'auto',
@@ -127,10 +127,14 @@ export const SettingsView: React.FC = () => {
     setEdgeTestError(null);
     setTestingEdge(true);
     try {
+      const isEnglish = settings.edge_voice === 'jarvis-en' || settings.edge_voice.includes('GB') || settings.edge_voice.includes('US');
+      const testPhrase = isEnglish
+        ? 'At your service, sir. All systems are fully operational.'
+        : 'На связи, сэр. Все системы функционируют в штатном режиме.';
       const res = await testEdgeTTS(
         settings.edge_voice,
         settings.voice_speed,
-        'Здравствуйте ! Голосовой синтез Аргус работает отлично. Выбранный голос настроен.'
+        testPhrase
       );
       if (res && res.audio_base64) {
         const cleanB64 = res.audio_base64.replace(/\s+/g, '');
@@ -832,10 +836,12 @@ export const SettingsView: React.FC = () => {
                     outline: 'none',
                   }}
                 >
-                  <option value="ru-RU-DmitryNeural">Дмитрий (ru-RU) — Уверенный мужской голос (Argus)</option>
+                  <option value="jarvis">J.A.R.V.I.S. (Интеллектуальный мужской) — Основной</option>
+                  <option value="jarvis-en">J.A.R.V.I.S. Original (British English / Paul Bettany style)</option>
+                  <option value="ru-RU-DmitryNeural">Дмитрий (ru-RU) — Уверенный мужской голос</option>
                   <option value="ru-RU-SvetlanaNeural">Светлана (ru-RU) — Мягкий и выразительный женский голос</option>
-                  <option value="en-US-ChristopherNeural">Christopher (en-US) — Чистый американский английский (мужской)</option>
-                  <option value="en-US-JennyNeural">Jenny (en-US) — Чистый американский английский (женский)</option>
+                  <option value="en-US-ChristopherNeural">Christopher (en-US) — Американский английский (мужской)</option>
+                  <option value="en-US-JennyNeural">Jenny (en-US) — Американский английский (женский)</option>
                   <option value="en-GB-RyanNeural">Ryan (en-GB) — Британский английский (мужской)</option>
                   <option value="en-GB-SoniaNeural">Sonia (en-GB) — Британский английский (женский)</option>
                 </select>

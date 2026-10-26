@@ -146,7 +146,7 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
     const phrase = `Время вышло, сэр ! Пора выполнять: ${title}.`;
     
     // Read user's chosen voice and speed from settings
-    let selectedVoice = 'ru-RU-DmitryNeural';
+    let selectedVoice = 'jarvis';
     let speedVal = 1.0;
     let provider = 'edge-tts';
     let fishKey = '';

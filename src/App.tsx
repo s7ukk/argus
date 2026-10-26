@@ -380,20 +380,29 @@ export const App: React.FC = () => {
     abortControllerRef.current = controller;
 
     try {
-      // Decouple TTS so chat text response returns immediately in <0.8s; Dmitry TTS streams concurrently in background
-      const res = await sendChatMessage(targetChatId, activeProf.key_code, textToSend, false, controller.signal);
+      const isVoiceActive = activeProf.voice_enabled !== false;
+      // Synthesize neural voice concurrently with chat message so playback begins with ZERO delay
+      const res = await sendChatMessage(targetChatId, activeProf.key_code, textToSend, isVoiceActive, controller.signal);
 
       // Start audio playback IMMEDIATELY at the exact moment the text begins rendering
-      if (voiceAssistantRef.current && activeProf.voice_enabled !== false) {
+      if (voiceAssistantRef.current && isVoiceActive) {
         if (res.audio_base64) {
           voiceAssistantRef.current.playBase64Audio(res.audio_base64, res.reply);
         } else {
+          let currentVoice = 'jarvis';
+          try {
+            const sStr = localStorage.getItem('argus_settings');
+            if (sStr) {
+              const s = JSON.parse(sStr);
+              if (s.edge_voice) currentVoice = s.edge_voice;
+            }
+          } catch {}
           smartFetch('/api/voice/tts', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               text: res.reply,
-              voice: 'ru-RU-DmitryNeural'
+              voice: currentVoice
             })
           })
             .then((r) => (r.ok ? r.json() : null))

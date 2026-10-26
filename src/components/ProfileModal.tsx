@@ -339,7 +339,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   Голосовые ответы ассистента
                 </div>
                 <div style={{ fontSize: 10.5, color: '#94a3b8' }}>
-                  Озвучивание нейросетью Edge-TTS (ru-RU-DmitryNeural)
+                  Озвучивание нейросетью Edge-TTS (J.A.R.V.I.S.)
                 </div>
               </div>
             </div>

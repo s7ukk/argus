@@ -246,29 +246,35 @@ def clean_text_for_speech(text: str) -> str:
         chosen = []
         cur_len = 0
         for s in sentences:
-            if cur_len + len(s) <= 240:
+            if cur_len + len(s) <= 160:
                 chosen.append(s)
                 cur_len += len(s)
             else:
                 if not chosen:
-                    m = re.match(r'^(.{40,200}?)[,;:\s]', s)
-                    chosen.append((m.group(1).strip() + '.') if m else s[:180].strip())
+                    m = re.match(r'^(.{35,150}?)[,;:\s]', s)
+                    chosen.append((m.group(1).strip() + '.') if m else s[:150].strip())
                 break
         t = ' '.join(chosen)
-    elif len(t) > 240:
-        m = re.match(r'^(.{40,200}?)[,;:\s]', t)
-        t = (m.group(1).strip() + '.') if m else t[:180].strip()
+    elif len(t) > 160:
+        m = re.match(r'^(.{35,150}?)[,;:\s]', t)
+        t = (m.group(1).strip() + '.') if m else t[:150].strip()
+
+    # Ensure clean terminal punctuation for crisp neural cadence and intonation
+    if t and not t[-1] in '.!?':
+        t += '.'
     return t.strip()
 
 async def generate_speech_base64(
     text: str,
     voice: Optional[str] = None,
     rate: str = "+0%",
+    pitch: str = "+0Hz",
     fish_api_key: Optional[str] = None,
     fish_model_id: Optional[str] = None
 ) -> Optional[str]:
     """
     Generate speech audio and return as Base64 MP3 for clean single-source playback in frontend.
+    Features J.A.R.V.I.S. voice tuning (crisp, intelligent, respectful cadence) as the flagship default.
     """
     if not text or not text.strip():
         return None
@@ -277,41 +283,84 @@ async def generate_speech_base64(
     if not clean_text or not clean_text.strip():
         return None
 
-    target_voice = "ru-RU-DmitryNeural"
-    if voice and "dmitry" in voice.lower():
-        target_voice = "ru-RU-DmitryNeural"
-    elif voice and "svetlana" not in voice.lower() and "christopher" not in voice.lower() and "jenny" not in voice.lower():
-        target_voice = voice.strip()
+    # Detect language: Russian (Cyrillic) or English
+    has_cyrillic = bool(re.search(r'[а-яА-ЯёЁ]', clean_text))
 
-    cache_key = f"{clean_text}_{target_voice}_{rate}"
+    v_lower = (voice or "").strip().lower()
+
+    # 0. J.A.R.V.I.S. and Named Voice Resolution
+    if not v_lower or v_lower in ["jarvis", "jarvis-ru", "default", "auto"]:
+        if has_cyrillic:
+            # J.A.R.V.I.S. Russian: Dmitry with resonant low-pitch and agile, articulate pace
+            target_voice = "ru-RU-DmitryNeural"
+            target_pitch = "-1Hz"
+            target_rate = rate if (rate and rate != "+0%") else "+8%"
+        else:
+            # J.A.R.V.I.S. Original (MCU / Paul Bettany): Ryan British English
+            target_voice = "en-GB-RyanNeural"
+            target_pitch = "-1Hz"
+            target_rate = rate if (rate and rate != "+0%") else "+6%"
+    elif v_lower in ["jarvis-en", "ryan", "en-gb-ryanneural"]:
+        target_voice = "en-GB-RyanNeural"
+        target_pitch = "-1Hz"
+        target_rate = rate if (rate and rate != "+0%") else "+6%"
+    elif "dmitry" in v_lower:
+        target_voice = "ru-RU-DmitryNeural"
+        target_pitch = pitch or "+0Hz"
+        target_rate = rate or "+0%"
+    elif "svetlana" in v_lower:
+        target_voice = "ru-RU-SvetlanaNeural"
+        target_pitch = pitch or "+0Hz"
+        target_rate = rate or "+0%"
+    elif "christopher" in v_lower:
+        target_voice = "en-US-ChristopherNeural"
+        target_pitch = pitch or "+0Hz"
+        target_rate = rate or "+0%"
+    elif "jenny" in v_lower:
+        target_voice = "en-US-JennyNeural"
+        target_pitch = pitch or "+0Hz"
+        target_rate = rate or "+0%"
+    elif "sonia" in v_lower:
+        target_voice = "en-GB-SoniaNeural"
+        target_pitch = pitch or "+0Hz"
+        target_rate = rate or "+0%"
+    else:
+        target_voice = voice.strip()
+        target_pitch = pitch or "+0Hz"
+        target_rate = rate or "+0%"
+
+    cache_key = f"{clean_text}_{target_voice}_{target_rate}_{target_pitch}"
     if cache_key in _VOICE_AUDIO_CACHE:
         return _VOICE_AUDIO_CACHE[cache_key]
 
-    # 1. Try Fish Audio if key is provided
+    # 1. Try Fish Audio if key is provided (or if configured in settings)
     if fish_api_key and fish_api_key.strip():
         fish_b64 = await generate_speech_fish_audio(clean_text, fish_api_key, fish_model_id)
         if fish_b64:
+            if len(_VOICE_AUDIO_CACHE) > 500:
+                _VOICE_AUDIO_CACHE.clear()
+            _VOICE_AUDIO_CACHE[cache_key] = fish_b64
             return fish_b64
 
-    # 2. High-quality Edge-TTS Neural Voices (Strictly Dmitry male voice: ru-RU-DmitryNeural)
-    # Never fallback to Svetlana or English voices - Dmitry ONLY!
-    target_voice = "ru-RU-DmitryNeural"
-    if voice and "dmitry" in voice.lower():
-        target_voice = "ru-RU-DmitryNeural"
-    elif voice and "svetlana" not in voice.lower() and "christopher" not in voice.lower() and "jenny" not in voice.lower():
-        target_voice = voice.strip()
-
+    # 2. High-quality Edge-TTS Neural Voices
     for attempt in range(2):
         try:
-            async def _stream_voice(v_name: str):
-                communicate = edge_tts.Communicate(clean_text, v_name, rate=rate)
+            async def _stream_voice(v_name: str, r_val: str, p_val: str):
+                communicate = edge_tts.Communicate(
+                    clean_text,
+                    v_name,
+                    rate=r_val,
+                    pitch=p_val,
+                    connect_timeout=6,
+                    receive_timeout=15
+                )
                 buf = bytearray()
                 async for chunk in communicate.stream():
                     if chunk["type"] == "audio":
                         buf.extend(chunk["data"])
                 return buf
 
-            audio_data = await asyncio.wait_for(_stream_voice(target_voice), timeout=15.0)
+            audio_data = await asyncio.wait_for(_stream_voice(target_voice, target_rate, target_pitch), timeout=6.0)
             if audio_data and len(audio_data) > 100:
                 b64_res = base64.b64encode(audio_data).decode("utf-8")
                 if len(_VOICE_AUDIO_CACHE) > 500:
@@ -319,8 +368,8 @@ async def generate_speech_base64(
                 _VOICE_AUDIO_CACHE[cache_key] = b64_res
                 return b64_res
         except Exception as e:
-            print(f"[Edge-TTS Voice Notice]: Attempt {attempt + 1} Dmitry error: {e}")
-            await asyncio.sleep(0.2)
+            print(f"[Edge-TTS Voice Notice]: Attempt {attempt + 1} voice ({target_voice}) error: {e}")
+            await asyncio.sleep(0.1)
             continue
 
     return None
@@ -357,24 +406,26 @@ def warmup_voice_cache():
     """Pre-generates in-memory audio for the most common responses in background thread for 0ms voice latency."""
     def _worker():
         common_phrases = [
-            "Здравствуйте!",
-            "Слушаю Вас.",
-            "Готово.",
-            "Все задачи успешно выполнены.",
-            "Действие отменено.",
-            "Остановил выполнение.",
-            "Все системы работают в штатном режиме.",
-            "Открываю.",
-            "Вкладка закрыта.",
-            "Скриншот сделан."
+            ("Здравствуйте! Чем могу быть полезен?", "ru-RU-DmitryNeural", "+8%", "-1Hz"),
+            ("Слушаю Вас.", "ru-RU-DmitryNeural", "+8%", "-1Hz"),
+            ("Все системы работают в штатном режиме.", "ru-RU-DmitryNeural", "+8%", "-1Hz"),
+            ("Готово.", "ru-RU-DmitryNeural", "+8%", "-1Hz"),
+            ("Выполняю.", "ru-RU-DmitryNeural", "+8%", "-1Hz"),
+            ("Секунду.", "ru-RU-DmitryNeural", "+8%", "-1Hz"),
+            ("Код выведен на экран.", "ru-RU-DmitryNeural", "+8%", "-1Hz"),
+            ("Вкладка закрыта.", "ru-RU-DmitryNeural", "+8%", "-1Hz"),
+            ("Скриншот сделан.", "ru-RU-DmitryNeural", "+8%", "-1Hz"),
+            ("Действие успешно выполнено.", "ru-RU-DmitryNeural", "+8%", "-1Hz"),
+            ("Остановил выполнение.", "ru-RU-DmitryNeural", "+8%", "-1Hz"),
+            ("At your service, sir.", "en-GB-RyanNeural", "+6%", "-1Hz"),
+            ("All systems are fully operational.", "en-GB-RyanNeural", "+6%", "-1Hz")
         ]
-        target_voice = "ru-RU-DmitryNeural"
-        for phrase in common_phrases:
-            cache_key = f"{phrase}_{target_voice}_+0%"
+        for phrase, target_voice, target_rate, target_pitch in common_phrases:
+            cache_key = f"{phrase}_{target_voice}_{target_rate}_{target_pitch}"
             if cache_key in _VOICE_AUDIO_CACHE:
                 continue
             try:
-                communicate = edge_tts.Communicate(phrase, target_voice, rate="+0%")
+                communicate = edge_tts.Communicate(phrase, target_voice, rate=target_rate, pitch=target_pitch, connect_timeout=5, receive_timeout=10)
                 loop = asyncio.new_event_loop()
                 async def _fetch():
                     b = bytearray()
@@ -389,7 +440,7 @@ def warmup_voice_cache():
                     _VOICE_AUDIO_CACHE[cache_key] = b64_res
             except Exception:
                 pass
-            time.sleep(0.1)
+            time.sleep(0.05)
 
     threading.Thread(target=_worker, daemon=True).start()
 
