@@ -148,7 +148,10 @@ def build_system_prompt(user_name: str, os_name: str, memory_summary: str = "") 
    - ИСПОЛЬЗУЙ ИХ ТОЛЬКО И ИСКЛЮЧИТЕЛЬНО тогда, когда пользователь ЯВНО спрашивает о своих сохраненных данных («что у меня в заметках», «напомни мой пароль», «какой у меня адрес», «что я записал»).
    - ЕСЛИ ПОЛЬЗОВАТЕЛЬ ПРОСИТ РАССКАЗАТЬ ИСТОРИЮ, СКАЗКУ, АНЕКДОТ, ФАКТ («расскажи историю», «расскажи интересную историю», «сочини рассказ», «случайную историю») — КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО использовать или пересказывать текст из заметок! Вместо этого ВСЕГДА сочини и расскажи совершенно новую, случайную, увлекательную и оригинальную историю сам!
 7. КОД И ТЕХНИЧЕСКИЕ ВОПРОСЫ:
-   Если пользователь просит написать код, программу, скрипт, бэкенд, функцию или задает технический вопрос — пиши полный, готовый к запуску код внутри блоков ```<язык> ... ```.
+   - Если пользователь просит написать код, программу, скрипт, бэкенд, функцию, архитектуру или задает технический вопрос:
+   - ВСЕГДА оборачивай ВЕСЬ программный код в блоки c тройными обратными кавычками ```<название_языка>\nкод\n``` (например, ```rust\n...\n```, ```python\n...\n```, ```go\n...\n```, ```cpp\n...\n```, ```javascript\n...\n```).
+   - КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО писать название языка без трёх открывающих обратных кавычек ```! Каждый блок кода ОБЯЗАТЕЛЬНО должен начинаться с ```<язык> и заканчиваться ```.
+   - Пиши качественный, полный, рабочий и готовый к компиляции/запуску код.
 
 ФОРМАТ ОТВЕТА:
 1. ЕСЛИ НУЖНО ВЫПОЛНИТЬ ДЕЙСТВИЕ НА КОМПЬЮТЕРЕ (запустить программу, закрыть окно/вкладку, сделать скриншот, поставить таймер, нажать клавиши, управлять звуком):
@@ -455,8 +458,10 @@ def parse_model_response(raw_text: str) -> Tuple[Optional[str], List[Dict[str, A
     cleaned = re.sub(r'(?:\d+\.\s*)?\*\*(?:Analyze the Request|Thinking|Reasoning|Chain of Thought|Thought Process|Constraints|Goal)[\s\S]*?(?=(?:\{\s*"reply"|\{\s*"actions"|```json|\n\n[А-ЯA-Z]|\Z))', '', cleaned, flags=re.IGNORECASE).strip()
     if "User Safety:" in cleaned:
         cleaned = re.sub(r'User Safety:\s*\w+', '', cleaned).strip()
-    cleaned = re.sub(r'^```(?:json)?\s*', '', cleaned)
-    cleaned = re.sub(r'\s*```$', '', cleaned).strip()
+    # Only unwrap outer fences IF they wrap a pure JSON object or JSON array (NEVER strip code blocks!)
+    if re.match(r'^```(?:json)?\s*[\{\[]', cleaned, flags=re.IGNORECASE) and re.search(r'[\}\]]\s*```$', cleaned):
+        cleaned = re.sub(r'^```(?:json)?\s*', '', cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r'\s*```$', '', cleaned).strip()
 
     # 4. Extract JSON array if model returned only actions
     # Never truncate code blocks: only check for actions if no code fences exist,

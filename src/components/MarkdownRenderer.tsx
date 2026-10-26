@@ -5,19 +5,42 @@ interface MarkdownRendererProps {
   content: string;
 }
 
+const KNOWN_LANGS = new Set([
+  'rust', 'golang', 'go', 'python', 'cpp', 'c++', 'c', 'javascript', 'typescript',
+  'js', 'ts', 'java', 'csharp', 'c#', 'bash', 'sh', 'html', 'css', 'sql', 'json',
+  'yaml', 'toml', 'php', 'ruby', 'swift', 'kotlin', 'shell', 'zsh', 'powershell', 'cmd'
+]);
+
 export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) => {
   if (!content) return null;
 
-  // Auto-close open code fences so unclosed blocks always render cleanly as CodeBlocks
   let safeContent = content;
+
+  // 1. Auto-fence paragraphs that begin with an unfenced language name (e.g. "rust\n// ...")
+  if (!safeContent.includes('```')) {
+    const paragraphs = safeContent.split(/\n\s*\n/);
+    const mapped = paragraphs.map((p) => {
+      const lines = p.trim().split(/\r?\n/);
+      if (lines.length > 1) {
+        const firstLine = lines[0].trim().toLowerCase();
+        if (KNOWN_LANGS.has(firstLine)) {
+          return '```' + firstLine + '\n' + lines.slice(1).join('\n') + '\n```';
+        }
+      }
+      return p;
+    });
+    safeContent = mapped.join('\n\n');
+  }
+
+  // 2. Auto-close open code fences so unclosed blocks always render cleanly as CodeBlocks
   const fenceMatches = safeContent.match(/```/g);
   if (fenceMatches && fenceMatches.length % 2 !== 0) {
     safeContent += '\n```';
   }
 
-  // Split content into blocks: code blocks vs text blocks
+  // 3. Split content into blocks: code blocks vs text blocks (supports whitespace after lang and CRLF)
   const parts: { type: 'code' | 'text'; lang?: string; text: string }[] = [];
-  const codeBlockRegex = /```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g;
+  const codeBlockRegex = /```[ \t]*([a-zA-Z0-9_#+-]*)[ \t]*\r?\n([\s\S]*?)```/g;
   let lastIndex = 0;
   let match;
 
