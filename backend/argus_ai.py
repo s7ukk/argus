@@ -2943,7 +2943,20 @@ def query_encyclopedia_knowledge(query: str, en: bool) -> Optional[str]:
 
 def get_conversational_reply(raw_text: str, en: bool, user_name: str = "Пользователь", history: Optional[List[Dict[str, Any]]] = None) -> str:
     """Provides high-quality, crisp, intelligent answers without default emojis."""
-    # 1. Primary: Query OpenRouter Free High-Intelligence Engine
+    # 1. Instant Smart Code Generation check (Golang, Rust, C++ Crow, Python, Node.js)
+    code_reply = generate_smart_code_reply(raw_text)
+    if code_reply:
+        return code_reply
+
+    # 1.1 Captivating & Authentic Storytelling
+    try:
+        story_reply = smart_knowledge.generate_interesting_story(raw_text)
+        if story_reply:
+            return story_reply
+    except Exception as e:
+        print(f"[Smart Knowledge Story Error]: {e}")
+
+    # 1.2 Primary: Query OpenRouter Free High-Intelligence Engine
     try:
         or_reply, _ = openrouter_engine.query_openrouter(raw_text, user_name=user_name, history=history)
         if or_reply and len(or_reply.strip()) > 1 and not openrouter_engine.is_reasoning_leak(or_reply):
@@ -2951,17 +2964,12 @@ def get_conversational_reply(raw_text: str, en: bool, user_name: str = "Поль
     except Exception as e:
         print(f"[Argus OpenRouter Brain Notice]: {e}")
 
-    # 1.1 Local conversational phrases & greetings
+    # 1.3 Local conversational phrases & greetings
     t = raw_text.lower().strip()
     clean_t = re.sub(r'[^\w\s]', '', t)
     for k, reply in CONVERSATIONAL_KNOWLEDGE.items():
         if re.search(r'(?:\b|^)' + re.escape(k) + r'(?:\b|$)', clean_t):
             return reply
-
-    # 1.2 Code Generation check
-    code_reply = generate_smart_code_reply(raw_text)
-    if code_reply:
-        return code_reply
 
     # 1.25 Captivating & Authentic Storytelling
     try:
@@ -3486,5 +3494,11 @@ def process_command(user_text: str, user_name: str = "Пользователь",
             final_reply = re.sub(r',\s*сэр\b', '', final_reply, flags=re.IGNORECASE)
             final_reply = re.sub(r'\bсэр\b[,.!?]?', '', final_reply, flags=re.IGNORECASE)
             final_reply = re.sub(r'\s*([.,!?])\s*', r'\1 ', final_reply).strip()
+
+    # Auto-close code blocks if odd number of ```
+    if isinstance(final_reply, str):
+        num_fences = len(re.findall(r'```', final_reply))
+        if num_fences % 2 != 0:
+            final_reply += "\n```"
 
     return final_reply, primary_action_type, primary_data

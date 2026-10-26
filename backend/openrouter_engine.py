@@ -360,6 +360,11 @@ def query_openrouter(
             reply = re.sub(r'\\sqrt\{([^}]+)\}', r'sqrt(\1)', reply)
             reply = re.sub(r'\\frac\{([^}]+)\}\{([^}]+)\}', r'(\1) / (\2)', reply)
 
+            # Auto-close code blocks if odd number of ```
+            num_fences = len(re.findall(r'```', reply))
+            if num_fences % 2 != 0:
+                reply += "\n```"
+
         if reply or actions:
             if len(_OPENROUTER_CACHE) > 300:
                 _OPENROUTER_CACHE.clear()
@@ -454,23 +459,32 @@ def parse_model_response(raw_text: str) -> Tuple[Optional[str], List[Dict[str, A
     cleaned = re.sub(r'\s*```$', '', cleaned).strip()
 
     # 4. Extract JSON array if model returned only actions
-    idx_arr = cleaned.find('[')
-    while idx_arr != -1:
-        try:
-            arr, _ = json.JSONDecoder().raw_decode(cleaned[idx_arr:])
-            if isinstance(arr, list):
-                actions = normalize_actions(arr)
-                text_part = cleaned[:idx_arr].strip()
-                if is_reasoning_leak(text_part):
-                    text_part = "Задачи приняты, сэр."
-                return text_part or "Задачи приняты, сэр.", actions
-        except Exception:
-            pass
-        idx_arr = cleaned.find('[', idx_arr + 1)
+    # Never truncate code blocks: only check for actions if no code fences exist,
+    # and require every item in the array to be a dict with a "type" field.
+    if "```" not in cleaned:
+        idx_arr = cleaned.find('[')
+        while idx_arr != -1:
+            try:
+                arr, _ = json.JSONDecoder().raw_decode(cleaned[idx_arr:])
+                if isinstance(arr, list) and len(arr) > 0 and all(isinstance(x, dict) and "type" in x for x in arr):
+                    actions = normalize_actions(arr)
+                    if actions:
+                        text_part = cleaned[:idx_arr].strip()
+                        if is_reasoning_leak(text_part):
+                            text_part = "Задачи приняты."
+                        return text_part or "Задачи приняты.", actions
+            except Exception:
+                pass
+            idx_arr = cleaned.find('[', idx_arr + 1)
 
     # 5. Check if text is a reasoning leak
     if is_reasoning_leak(cleaned):
         return None, []
+
+    # Auto-close code blocks if odd number of ```
+    num_fences = len(re.findall(r'```', cleaned))
+    if num_fences % 2 != 0:
+        cleaned += "\n```"
 
     return cleaned, []
 

@@ -276,14 +276,18 @@ export const NavDock: React.FC<NavDockProps> = ({
 
       <nav
         aria-label="Основное меню"
+        className="no-drag"
         style={{
           userSelect: 'none',
+          WebkitAppRegion: 'no-drag' as any,
+          pointerEvents: 'auto',
           ...floatingStyle,
         }}
       >
         {/* ─── FLOATING LIQUID GLASS CAPSULE ─── */}
         <div
           ref={containerRef}
+          className="no-drag"
           style={{
             position: 'relative',
             display: 'flex',
@@ -297,6 +301,8 @@ export const NavDock: React.FC<NavDockProps> = ({
             backdropFilter: 'blur(35px) saturate(210%)',
             WebkitBackdropFilter: 'blur(35px) saturate(210%)',
             border: '1px solid rgba(255, 255, 255, 0.14)',
+            WebkitAppRegion: 'no-drag' as any,
+            pointerEvents: 'auto',
             boxShadow: isScrubbing || isRepositioning
               ? '0 18px 45px rgba(0, 0, 0, 0.75), inset 0 1px 1px rgba(255, 255, 255, 0.45), inset 0 -1px 1px rgba(0, 0, 0, 0.4), 0 0 28px var(--accent-glow, rgba(255, 255, 255, 0.2))'
               : '0 16px 40px rgba(0, 0, 0, 0.7), inset 0 1px 1px rgba(255, 255, 255, 0.35), inset 0 -1px 1px rgba(0, 0, 0, 0.4), 0 0 20px var(--accent-glow, rgba(255, 255, 255, 0.08))',
@@ -378,6 +384,7 @@ export const NavDock: React.FC<NavDockProps> = ({
 
           {/* Sparkle Core Mini Icon (Index 0) */}
           <button
+            className="no-drag"
             onClick={() => handleTabClick('chat')}
             style={{
               position: 'relative',
@@ -393,6 +400,8 @@ export const NavDock: React.FC<NavDockProps> = ({
               cursor: 'pointer',
               color: 'var(--accent, #ffffff)',
               flexShrink: 0,
+              WebkitAppRegion: 'no-drag' as any,
+              pointerEvents: 'auto',
               transition: 'all 0.2s ease',
               animation: isRepositioning ? `liquidStreamAssemble 0.32s cubic-bezier(0.16, 1, 0.3, 1) 0ms both` : undefined,
               ['--pdx' as any]: `${morphDeltas.dx}px`,
@@ -427,6 +436,7 @@ export const NavDock: React.FC<NavDockProps> = ({
               <button
                 key={tab.id}
                 ref={(el) => { tabRefs.current[tab.id] = el; }}
+                className="no-drag"
                 onPointerDown={(e) => handlePointerDown(tab.id, e)}
                 onClick={() => handleTabClick(tab.id)}
                 style={{
@@ -447,6 +457,8 @@ export const NavDock: React.FC<NavDockProps> = ({
                   transition: 'color 0.2s ease, transform 0.2s ease',
                   whiteSpace: 'nowrap',
                   transform: isScrubbing && isActive ? 'scale(1.04)' : 'scale(1)',
+                  WebkitAppRegion: 'no-drag' as any,
+                  pointerEvents: 'auto',
                   touchAction: 'none',
                   animation: isRepositioning ? `liquidStreamAssemble 0.34s cubic-bezier(0.16, 1, 0.3, 1) ${staggerDelay}ms both` : undefined,
                   ['--pdx' as any]: `${morphDeltas.dx}px`,
@@ -486,6 +498,7 @@ export const NavDock: React.FC<NavDockProps> = ({
 
           {/* Profile Avatar Miniature Button (Index 10) */}
           <button
+            className="no-drag"
             onClick={onOpenProfile}
             style={{
               position: 'relative',
@@ -503,6 +516,8 @@ export const NavDock: React.FC<NavDockProps> = ({
               fontSize: 11,
               fontWeight: 700,
               flexShrink: 0,
+              WebkitAppRegion: 'no-drag' as any,
+              pointerEvents: 'auto',
               boxShadow: '0 0 10px var(--accent-glow, rgba(255, 255, 255, 0.15))',
               transition: 'all 0.18s ease',
               animation: isRepositioning ? `liquidStreamAssemble 0.32s cubic-bezier(0.16, 1, 0.3, 1) 176ms both` : undefined,

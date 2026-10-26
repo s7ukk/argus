@@ -8,17 +8,24 @@ interface MarkdownRendererProps {
 export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) => {
   if (!content) return null;
 
+  // Auto-close open code fences so unclosed blocks always render cleanly as CodeBlocks
+  let safeContent = content;
+  const fenceMatches = safeContent.match(/```/g);
+  if (fenceMatches && fenceMatches.length % 2 !== 0) {
+    safeContent += '\n```';
+  }
+
   // Split content into blocks: code blocks vs text blocks
   const parts: { type: 'code' | 'text'; lang?: string; text: string }[] = [];
   const codeBlockRegex = /```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g;
   let lastIndex = 0;
   let match;
 
-  while ((match = codeBlockRegex.exec(content)) !== null) {
+  while ((match = codeBlockRegex.exec(safeContent)) !== null) {
     if (match.index > lastIndex) {
       parts.push({
         type: 'text',
-        text: content.substring(lastIndex, match.index),
+        text: safeContent.substring(lastIndex, match.index),
       });
     }
     parts.push({
@@ -29,10 +36,10 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) =
     lastIndex = codeBlockRegex.lastIndex;
   }
 
-  if (lastIndex < content.length) {
+  if (lastIndex < safeContent.length) {
     parts.push({
       type: 'text',
-      text: content.substring(lastIndex),
+      text: safeContent.substring(lastIndex),
     });
   }
 

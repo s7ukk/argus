@@ -654,9 +654,12 @@ export const App: React.FC = () => {
         centerContent={
           profile ? (
             <div
+              className="no-drag"
               style={{
-                width: themeConfig.navPosition === 'top' ? 560 : 0,
+                width: themeConfig.navPosition === 'top' ? 820 : 0,
                 height: 36,
+                WebkitAppRegion: 'no-drag' as any,
+                pointerEvents: 'auto',
                 transition: 'width 0.5s cubic-bezier(0.34, 1.25, 0.64, 1)',
               }}
             />
