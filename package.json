@@ -52,7 +52,6 @@
       }
     ],
     "win": {
-      "electronDist": "node_modules/electron/dist",
       "target": [
         {
           "target": "nsis",
