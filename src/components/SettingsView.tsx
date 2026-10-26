@@ -999,7 +999,7 @@ export const SettingsView: React.FC = () => {
                 cursor: 'pointer',
               }}
             >
-              <option value="auto">Автоматически (Spotify / Яндекс Музыка)</option>
+              <option value="auto">Спрашивать при первом запросе (или авто)</option>
               <option value="spotify">Spotify (Спотифай)</option>
               <option value="yandex">Яндекс Музыка (Yandex Music)</option>
               <option value="soundcloud">SoundCloud (Саундклауд)</option>

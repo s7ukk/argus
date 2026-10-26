@@ -206,6 +206,7 @@ class AppSettingsRequest(BaseModel):
     default_browser: Optional[str] = None
     auto_heal_plugins: Optional[bool] = None
     default_shell: Optional[str] = None
+    default_music_app: Optional[str] = None
     openrouter_api_key: Optional[str] = None
     openrouter_model: Optional[str] = None
 

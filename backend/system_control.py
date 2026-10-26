@@ -877,7 +877,7 @@ def activate_running_window(app_query: str) -> bool:
                 "vscode": "Visual Studio Code", "код": "Visual Studio Code", "вскод": "Visual Studio Code", "vs code": "Visual Studio Code",
                 "terminal": "Terminal", "терминал": "Terminal", "консоль": "Terminal",
                 "finder": "Finder", "файндер": "Finder", "проводник": "Finder",
-                "music": "Music", "музыка": "Music",
+                "music": "Music", "музыка": "Music", "apple music": "Music", "эпл музыка": "Music", "yandex music": "Yandex Music", "яндекс музыка": "Yandex Music", "soundcloud": "SoundCloud", "саундклауд": "SoundCloud",
                 "spotify": "Spotify", "спотифай": "Spotify",
                 "calculator": "Calculator", "калькулятор": "Calculator",
                 "reminders": "Reminders", "напоминания": "Reminders",
@@ -1161,7 +1161,7 @@ def launch_application(app_name: str) -> Dict[str, Any]:
             "activity monitor": "Activity Monitor", "диспетчер задач": "Activity Monitor", "мониторинг системы": "Activity Monitor",
             "taskmgr": "Activity Monitor", "taskmgr.exe": "Activity Monitor",
             "settings": "System Settings", "настройки": "System Settings", "параметры": "System Settings",
-            "music": "Music", "музыка": "Music",
+            "music": "Music", "музыка": "Music", "apple music": "Music", "эпл музыка": "Music", "yandex music": "Yandex Music", "яндекс музыка": "Yandex Music", "soundcloud": "SoundCloud", "саундклауд": "SoundCloud",
             "яндекс": "Yandex", "яндекс браузер": "Yandex",
                         "яндекс музыка": "Yandex Music", "саундклауд": "SoundCloud", "sound cloud": "SoundCloud", "soundcloud": "SoundCloud",
             "apple music": "Music", "эпл музыка": "Music", "xcode": "Xcode", "икскод": "Xcode",
@@ -1705,7 +1705,7 @@ def close_application(app_name: str) -> Dict[str, Any]:
             "notes": "Notes", "заметки": "Notes", "блокнот": "TextEdit", "textedit": "TextEdit",
             "terminal": "Terminal", "терминал": "Terminal",
             "activity monitor": "Activity Monitor", "диспетчер задач": "Activity Monitor", "мониторинг системы": "Activity Monitor", "taskmgr": "Activity Monitor", "taskmgr.exe": "Activity Monitor",
-            "music": "Music", "музыка": "Music",
+            "music": "Music", "музыка": "Music", "apple music": "Music", "эпл музыка": "Music", "yandex music": "Yandex Music", "яндекс музыка": "Yandex Music", "soundcloud": "SoundCloud", "саундклауд": "SoundCloud",
             "finder": "Finder", "explorer": "Finder", "explorer.exe": "Finder"
         }
         target_mac = mac_close_map.get(app_lower, app_name)
@@ -1911,75 +1911,111 @@ def open_folder(folder_name: str) -> bool:
     return False
 
 # ─── MEDIA PLAYBACK & MUSIC SERVICES ────────────────────────────
+
+def get_user_preferred_music_app() -> Optional[str]:
+    """Returns the user's preferred music player from settings, or None if unset/auto."""
+    paths_to_check = []
+    try:
+        import backend.app_paths as app_paths
+        paths_to_check.append(app_paths.get_data_file_path("user_settings.json"))
+    except Exception:
+        pass
+    paths_to_check.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "user_settings.json"))
+
+    for sett_f in paths_to_check:
+        if os.path.exists(sett_f):
+            try:
+                with open(sett_f, "r", encoding="utf-8") as f:
+                    sett = json.load(f)
+                    val = (sett.get("default_music_app") or "").strip().lower()
+                    if val and val not in ["auto", "ask", "none"]:
+                        return val
+            except Exception:
+                pass
+    return None
+
+def set_user_preferred_music_app(service: str) -> bool:
+    """Saves the user's preferred music player into user_settings.json."""
+    paths_to_try = []
+    try:
+        import backend.app_paths as app_paths
+        paths_to_try.append(app_paths.get_data_file_path("user_settings.json"))
+    except Exception:
+        pass
+    paths_to_try.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "user_settings.json"))
+
+    saved = False
+    for sett_f in paths_to_try:
+        try:
+            sett = {}
+            if os.path.exists(sett_f):
+                try:
+                    with open(sett_f, "r", encoding="utf-8") as f:
+                        sett = json.load(f)
+                except Exception:
+                    sett = {}
+            sett["default_music_app"] = (service or "").strip().lower()
+            with open(sett_f, "w", encoding="utf-8") as f:
+                json.dump(sett, f, ensure_ascii=False, indent=2)
+            saved = True
+        except Exception:
+            continue
+    return saved
+
 def media_control(action: str) -> bool:
     """Control system media playback with cross-platform support."""
     action = action.lower()
+    pref = get_user_preferred_music_app()
     if sys.platform == "darwin":
+        order = ["Spotify", "Music"]
+        if pref in ["apple_music", "apple"]:
+            order = ["Music", "Spotify"]
+
         if any(k in action for k in ["stop", "стоп", "pause", "пауз", "выключи", "останови", "выруби"]):
-            script = '''
-            if application "Spotify" is running then
-                tell application "Spotify" to pause
-            else if application "Music" is running then
-                tell application "Music" to pause
-            end if
-            '''
-            try:
-                subprocess.run(["osascript", "-e", script], check=False)
-                return True
-            except Exception:
-                return False
+            for app_name in order:
+                try:
+                    res = subprocess.run(["osascript", "-e", f'if application "{app_name}" is running then tell application "{app_name}" to pause'], capture_output=True, timeout=2)
+                    if res.returncode == 0:
+                        return True
+                except Exception:
+                    pass
+            return False
         elif any(k in action for k in ["play", "воспроизве", "продолжи", "играй"]):
-            script = '''
-            if application "Spotify" is running then
-                tell application "Spotify" to play
-            else if application "Music" is running then
-                tell application "Music" to play
-            end if
-            '''
-            try:
-                subprocess.run(["osascript", "-e", script], check=False)
-                return True
-            except Exception:
-                return False
+            for app_name in order:
+                try:
+                    res = subprocess.run(["osascript", "-e", f'if application "{app_name}" is running then tell application "{app_name}" to play'], capture_output=True, timeout=2)
+                    if res.returncode == 0:
+                        return True
+                except Exception:
+                    pass
+            return False
         elif any(k in action for k in ["next", "след", "скип"]):
-            script = '''
-            if application "Spotify" is running then
-                tell application "Spotify" to next track
-            else if application "Music" is running then
-                tell application "Music" to next track
-            end if
-            '''
-            try:
-                subprocess.run(["osascript", "-e", script], check=False)
-                return True
-            except Exception:
-                return False
+            for app_name in order:
+                try:
+                    res = subprocess.run(["osascript", "-e", f'if application "{app_name}" is running then tell application "{app_name}" to next track'], capture_output=True, timeout=2)
+                    if res.returncode == 0:
+                        return True
+                except Exception:
+                    pass
+            return False
         elif any(k in action for k in ["replay", "заново", "сначала", "повтори"]):
-            script = '''
-            if application "Spotify" is running then
-                tell application "Spotify" to set player position to 0
-            else if application "Music" is running then
-                tell application "Music" to set player position to 0
-            end if
-            '''
-            try:
-                subprocess.run(["osascript", "-e", script], check=False)
-                return True
-            except Exception:
-                return False
+            for app_name in order:
+                try:
+                    res = subprocess.run(["osascript", "-e", f'if application "{app_name}" is running then tell application "{app_name}" to set player position to 0'], capture_output=True, timeout=2)
+                    if res.returncode == 0:
+                        return True
+                except Exception:
+                    pass
+            return False
         elif any(k in action for k in ["prev", "пред", "back", "назад"]):
-            script = '''
-            if application "Spotify" is running then
-                tell application "Spotify" to previous track
-            else if application "Music" is running then
-                tell application "Music" to previous track
-            end if
-            '''
-            try:
-                subprocess.run(["osascript", "-e", script], check=False)
-                return True
-            except Exception:
-                return False
+            for app_name in order:
+                try:
+                    res = subprocess.run(["osascript", "-e", f'if application "{app_name}" is running then tell application "{app_name}" to previous track'], capture_output=True, timeout=2)
+                    if res.returncode == 0:
+                        return True
+                except Exception:
+                    pass
+            return False
         return False
 
     if any(k in action for k in ["stop", "стоп"]):
@@ -2094,22 +2130,13 @@ def play_music(service: str = "auto", query: str = "", playlist: str = "", actio
         target_service = "youtube"
         service_label = "YouTube Music"
     else:
-        # Auto service resolution: check if Spotify desktop app is running
-        spotify_running = False
-        try:
-            for p in psutil.process_iter(['name']):
-                if "spotify" in (p.name() or "").lower():
-                    spotify_running = True
-                    break
-        except Exception:
-            pass
-
-        if spotify_running:
+        # Auto service resolution when no preference was explicitly saved
+        if sys.platform == "darwin":
+            target_service = "apple_music"
+            service_label = "Apple Music"
+        else:
             target_service = "spotify"
             service_label = "Spotify"
-        else:
-            target_service = "yandex"
-            service_label = "Яндекс Музыке"
 
     target_url = ""
     app_to_launch = ""
@@ -2164,11 +2191,30 @@ def play_music(service: str = "auto", query: str = "", playlist: str = "", actio
     # Launch desktop app if available (for generic play without query) or open target URL
     desktop_launched = False
     if app_to_launch and not playlist and not query:
-        res = launch_application(app_to_launch)
-        if res.get("success"):
-            desktop_launched = True
-            time.sleep(0.8)
-            _press_key(VK_MEDIA_PLAY_PAUSE)
+        if sys.platform == "darwin":
+            if target_service == "apple_music":
+                try:
+                    subprocess.run(["osascript", "-e", 'tell application "Music" to activate'], capture_output=True, timeout=2)
+                    time.sleep(0.5)
+                    subprocess.run(["osascript", "-e", 'tell application "Music" to play'], capture_output=True, timeout=2)
+                    desktop_launched = True
+                except Exception:
+                    pass
+            elif target_service == "spotify":
+                try:
+                    subprocess.run(["osascript", "-e", 'tell application "Spotify" to activate'], capture_output=True, timeout=2)
+                    time.sleep(0.5)
+                    subprocess.run(["osascript", "-e", 'tell application "Spotify" to play'], capture_output=True, timeout=2)
+                    desktop_launched = True
+                except Exception:
+                    pass
+
+        if not desktop_launched:
+            res = launch_application(app_to_launch)
+            if res.get("success"):
+                desktop_launched = True
+                time.sleep(0.8)
+                _press_key(VK_MEDIA_PLAY_PAUSE)
 
     if not desktop_launched and target_url:
         open_url(target_url)

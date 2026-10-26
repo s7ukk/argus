@@ -34,6 +34,16 @@ _AI_QUERY_CACHE: Dict[str, str] = {}
 _MESSENGER_WIZARD_STATE: Dict[str, Dict[str, Any]] = {}
 _NOTE_CREATION_STATE: Dict[str, Dict[str, Any]] = {}
 _PENDING_CONFIRMATION_STATE: Dict[str, Dict[str, Any]] = {}
+_MUSIC_PLAYER_CHOICE_STATE: Dict[str, Dict[str, Any]] = {}
+
+MUSIC_SERVICE_INFO = {
+    "spotify": {"name": "Spotify", "label": "Spotify", "aliases": ["spotify", "спотифай", "спотик", "1", "первый"]},
+    "yandex": {"name": "Яндекс Музыка", "label": "Яндекс Музыке", "aliases": ["yandex", "яндекс", "я.музыка", "ямузыка", "яндекс музыка", "2", "второй"]},
+    "apple_music": {"name": "Apple Music", "label": "Apple Music", "aliases": ["apple", "apple music", "эпл", "эппл", "эпл музыка", "музыка эпл", "3", "третий"]},
+    "soundcloud": {"name": "SoundCloud", "label": "SoundCloud", "aliases": ["soundcloud", "саундклауд", "саунд", "саунд клауд", "4", "четвертый", "четвёртый"]},
+    "vk": {"name": "VK Музыка", "label": "VK Музыке", "aliases": ["vk", "вк", "vk music", "вк музыка", "вконтакте", "5", "пятый"]},
+    "youtube": {"name": "YouTube Music", "label": "YouTube Music", "aliases": ["youtube", "ютуб", "youtube music", "ютуб музыка", "6", "шестой"]},
+}
 
 INVALID_CONTACT_KEYWORDS = {
     'контакт', 'контакту', 'контакта', 'контактом', 'контакте', 'контакты',
@@ -1660,8 +1670,17 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
     if any(k in c for k in ["саундклауд", "саунд клауд", "soundcloud"]) and any(verb in c for verb in ["открой", "запусти", "включи", "open", "launch"]):
         return {"type": "play_music", "service": "soundcloud", "action": "play"}
 
+    if any(k in c for k in ["эпл музыка", "эпл музыку", "apple music", "эппл музыка", "музыка эпл"]) and any(verb in c for verb in ["открой", "запусти", "включи", "open", "launch"]):
+        return {"type": "play_music", "service": "apple_music", "action": "play"}
+
     # General "включи музыку" / "поставь музыку"
-    if any(k in c for k in ["включи музыку", "включить музыку", "поставь музыку", "поставить музыку", "запусти музыку", "запустить музыку", "play music"]):
+    if any(k in c for k in [
+        "включи музыку", "включить музыку", "поставь музыку", "поставить музыку",
+        "запусти музыку", "запустить музыку", "вруби музыку", "врубить музыку",
+        "сыграй музыку", "включи трек", "поставь трек", "поиграй музыку", "play music", "music"
+    ]):
+        return {"type": "play_music", "service": "auto", "action": "play"}
+    if c in ["музыку", "музыка", "включи что-нибудь", "включи что то", "включи трек", "музон", "вруби музон"]:
         return {"type": "play_music", "service": "auto", "action": "play"}
 
     # 11. Direct Web URLs & Popular Sites (Evaluated BEFORE general search & app launch to prevent URLs from becoming apps)
@@ -3196,6 +3215,70 @@ def process_command(user_text: str, user_name: str = "Пользователь",
         }
         return "Как назовём новую заметку? Назовите заголовок:", "clarify", {"step": "note_title"}
 
+    # 0.12 Chat settings inspection & modifications for Music Player
+    if any(k in raw_low for k in ["какой плеер по умолчанию", "какая музыка по умолчанию", "текущий музыкальный плеер", "какой музыкальный сервис", "какой сервис музыки"]):
+        curr = sc.get_user_preferred_music_app()
+        if curr and curr in MUSIC_SERVICE_INFO:
+            return f"Текущий музыкальный плеер по умолчанию: **{MUSIC_SERVICE_INFO[curr]['name']}**. Вы можете изменить его в Настройках приложения или сказать: «Смени плеер на Spotify».", "get_setting", {"default_music_app": curr}
+        return "Музыкальный плеер по умолчанию пока не выбран (Argus предложит выбор при первом включении музыки). Вы также можете выбрать его в Настройках приложения.", "get_setting", {"default_music_app": "auto"}
+
+    if any(k in raw_low for k in ["сбрось плеер по умолчанию", "сбросить плеер по умолчанию", "сбрось музыкальный плеер", "сбросить музыкальный сервис", "сбрось музыку по умолчанию"]):
+        sc.set_user_preferred_music_app("auto")
+        return "Настройка музыкального плеера сброшена. При следующем запросе музыки я снова предложу выбрать сервис.", "set_setting", {"default_music_app": "auto"}
+
+    if any(phrase in raw_low for phrase in ["плеер по умолчанию", "музыка по умолчанию", "смени плеер", "поменяй плеер", "выбери плеер", "измени плеер", "поставь плеер"]):
+        for s_id, s_info in MUSIC_SERVICE_INFO.items():
+            if any(a in raw_low for a in s_info["aliases"] if len(a) > 2) or any(f" {a} " in f" {raw_low} " for a in s_info["aliases"]):
+                sc.set_user_preferred_music_app(s_id)
+                return f"Музыкальный плеер по умолчанию успешно установлен: **{s_info['name']}**. Все команды воспроизведения музыки будут использовать этот сервис.", "set_setting", {"default_music_app": s_id}
+
+    # 0.15 Interactive Music Player Choice State Machine
+    if any(k == raw_low or raw_low.startswith(k + " ") for k in ["отмена", "отбой", "стоп", "назад", "хватит", "не надо", "забудь", "cancel"]):
+        if user_name in _MUSIC_PLAYER_CHOICE_STATE or "default" in _MUSIC_PLAYER_CHOICE_STATE:
+            _MUSIC_PLAYER_CHOICE_STATE.pop(user_name, None)
+            _MUSIC_PLAYER_CHOICE_STATE.pop("default", None)
+            return "Выбор музыкального плеера отменен. Ожидаю Ваших указаний.", "clarify", {}
+
+    active_music_key = user_name if user_name in _MUSIC_PLAYER_CHOICE_STATE else ("default" if "default" in _MUSIC_PLAYER_CHOICE_STATE else None)
+    if active_music_key:
+        m_state = _MUSIC_PLAYER_CHOICE_STATE[active_music_key]
+        if time.time() - m_state.get("created_at", 0) > 300:
+            _MUSIC_PLAYER_CHOICE_STATE.pop(active_music_key, None)
+        else:
+            chosen_svc = None
+            for s_id, s_info in MUSIC_SERVICE_INFO.items():
+                if any(a == raw_low or f" {a} " in f" {raw_low} " or (len(a) > 2 and a in raw_low) for a in s_info["aliases"]):
+                    chosen_svc = s_id
+                    break
+
+            if chosen_svc:
+                _MUSIC_PLAYER_CHOICE_STATE.pop(active_music_key, None)
+                sc.set_user_preferred_music_app(chosen_svc)
+                svc_title = MUSIC_SERVICE_INFO[chosen_svc]["name"]
+                pending_act = m_state.get("pending_action") or {"type": "play_music", "action": "play"}
+                pending_act["service"] = chosen_svc
+
+                # Execute the pending music action
+                msg, a_type, a_data = execute_single_action(pending_act)
+                return (
+                    f"Запомнил Ваш выбор: **{svc_title}**. При необходимости Вы можете изменить плеер в Настройках приложения.\n\n{msg}",
+                    "play_music",
+                    {"preferred_service": chosen_svc, "music_result": a_data}
+                )
+            else:
+                return (
+                    "Пожалуйста, назовите желаемый музыкальный сервис:\n\n"
+                    "1. **Spotify**\n"
+                    "2. **Яндекс Музыка**\n"
+                    "3. **Apple Music**\n"
+                    "4. **SoundCloud**\n"
+                    "5. **VK Музыка**\n"
+                    "6. **YouTube Music**\n\n"
+                    "(Или напишите «отмена», чтобы отменить выбор).",
+                    "clarify",
+                    {"step": "music_choice"}
+                )
+
     # 0. User Memory & Learning (0ms response time)
     learned_reply = user_memory.extract_and_learn(raw)
     if learned_reply:
@@ -3471,6 +3554,34 @@ def process_command(user_text: str, user_name: str = "Пользователь",
                 {"label": "❌ Отклонить", "cmd": "отмена"}
             ]
         }
+
+    # 5.8 Intercept generic play_music action when default service is not configured yet
+    pref_music = sc.get_user_preferred_music_app()
+    for act in actions_to_run:
+        if act.get("type") == "play_music" and act.get("action", "play") == "play":
+            if act.get("service", "auto") == "auto":
+                if pref_music:
+                    act["service"] = pref_music
+                else:
+                    _MUSIC_PLAYER_CHOICE_STATE[user_name or "default"] = {
+                        "pending_action": dict(act),
+                        "created_at": time.time()
+                    }
+                    choice_prompt = (
+                        "Какой музыкальный плеер или сервис Вы предпочитаете использовать?\n\n"
+                        "1. **Spotify**\n"
+                        "2. **Яндекс Музыка**\n"
+                        "3. **Apple Music**\n"
+                        "4. **SoundCloud**\n"
+                        "5. **VK Музыка**\n"
+                        "6. **YouTube Music**\n\n"
+                        "Назовите желаемый сервис (например, «Яндекс Музыка» или «Spotify») — я запомню Ваш выбор и сразу включу музыку. Вы также сможете в любой момент изменить его в Настройках приложения."
+                    )
+                    return choice_prompt, "music_player_choice", {
+                        "options": ["Spotify", "Яндекс Музыка", "Apple Music", "SoundCloud", "VK Музыка", "YouTube Music"],
+                        "pending_query": act.get("query", ""),
+                        "pending_playlist": act.get("playlist", "")
+                    }
 
     # 6. Sequentially execute all planned actions
     executed_results = []
