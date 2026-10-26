@@ -39,6 +39,37 @@ export const NavDock: React.FC<NavDockProps> = ({
   const [scrubTab, setScrubTab] = useState<NavTab>(activeTab);
   const [isScrubbing, setIsScrubbing] = useState(false);
 
+  // Position morphing & particle assembly state
+  const [isRepositioning, setIsRepositioning] = useState(false);
+  const [morphDeltas, setMorphDeltas] = useState<{ dx: number; dy: number }>({ dx: 0, dy: 0 });
+  const prevPositionRef = useRef<NavPosition>(position);
+
+  useEffect(() => {
+    if (prevPositionRef.current !== position) {
+      const prev = prevPositionRef.current;
+      const next = position;
+      prevPositionRef.current = position;
+
+      // Calculate directional particle stream vector
+      let dx = 0;
+      let dy = 0;
+      if (prev === 'top' && next === 'left') { dx = 55; dy = -35; }
+      else if (prev === 'top' && next === 'right') { dx = -55; dy = -35; }
+      else if (prev === 'left' && next === 'right') { dx = -90; dy = 0; }
+      else if (prev === 'right' && next === 'left') { dx = 90; dy = 0; }
+      else if (prev === 'left' && next === 'top') { dx = -45; dy = 45; }
+      else if (prev === 'right' && next === 'top') { dx = 45; dy = 45; }
+
+      setMorphDeltas({ dx, dy });
+      setIsRepositioning(true);
+
+      const timer = setTimeout(() => {
+        setIsRepositioning(false);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [position]);
+
   // Liquid glass sliding lens geometry (relative to container)
   const [lensStyle, setLensStyle] = useState<{
     left: number;
@@ -163,10 +194,10 @@ export const NavDock: React.FC<NavDockProps> = ({
     ? {
         position: 'fixed',
         zIndex: 99,
-        transition: 'top 0.55s cubic-bezier(0.34, 1.25, 0.64, 1), left 0.55s cubic-bezier(0.34, 1.25, 0.64, 1), transform 0.55s cubic-bezier(0.34, 1.25, 0.64, 1), width 0.4s ease, height 0.4s ease',
+        transition: 'top 0.38s cubic-bezier(0.2, 0.9, 0.3, 1.2), left 0.38s cubic-bezier(0.2, 0.9, 0.3, 1.2), transform 0.38s cubic-bezier(0.2, 0.9, 0.3, 1.2)',
         ...(position === 'top'
           ? {
-              top: 6,
+              top: 7,
               left: '50%',
               transform: 'translate(-50%, 0)',
               width: 'auto',
@@ -197,181 +228,267 @@ export const NavDock: React.FC<NavDockProps> = ({
       };
 
   return (
-    <nav
-      className="no-drag"
-      style={{
-        userSelect: 'none',
-        ...floatingStyle,
-      }}
-    >
-      {/* ─── FLOATING LIQUID GLASS CAPSULE ─── */}
-      <div
-        ref={containerRef}
+    <>
+      <style>{`
+        @keyframes navParticleAssemble {
+          0% {
+            opacity: 0.15;
+            transform: translate(var(--pdx, 0px), var(--pdy, 0px)) scale(0.65);
+            filter: blur(5px) brightness(1.9);
+          }
+          65% {
+            opacity: 1;
+            transform: translate(calc(var(--pdx, 0px) * 0.12), calc(var(--pdy, 0px) * 0.12)) scale(1.09);
+            filter: blur(0.5px) brightness(1.25);
+          }
+          100% {
+            opacity: 1;
+            transform: translate(0, 0) scale(1);
+            filter: blur(0px) brightness(1);
+          }
+        }
+        @keyframes navSparkBurst {
+          0% {
+            opacity: 0;
+            transform: translate(calc(var(--pdx, 0px) * 0.8), calc(var(--pdy, 0px) * 0.8)) scale(0.4);
+          }
+          40% {
+            opacity: 0.95;
+            transform: translate(var(--sx), var(--sy)) scale(1.4);
+            filter: blur(0.5px);
+          }
+          100% {
+            opacity: 0;
+            transform: translate(0, 0) scale(0.2);
+          }
+        }
+      `}</style>
+
+      <nav
+        className="no-drag"
         style={{
-          position: 'relative',
-          display: 'flex',
-          flexDirection: isVertical ? 'column' : 'row',
-          alignItems: 'center',
-          gap: 3,
-          padding: isVertical ? '8px 5px' : '4px 6px',
-          height: isVertical ? 'auto' : 36,
-          borderRadius: 9999,
-          background: 'rgba(12, 12, 18, 0.82)',
-          backdropFilter: 'blur(35px) saturate(210%)',
-          WebkitBackdropFilter: 'blur(35px) saturate(210%)',
-          border: '1px solid rgba(255, 255, 255, 0.14)',
-          boxShadow: isScrubbing
-            ? '0 18px 45px rgba(0, 0, 0, 0.75), inset 0 1px 1px rgba(255, 255, 255, 0.45), inset 0 -1px 1px rgba(0, 0, 0, 0.4), 0 0 28px var(--accent-glow, rgba(255, 255, 255, 0.2))'
-            : '0 16px 40px rgba(0, 0, 0, 0.7), inset 0 1px 1px rgba(255, 255, 255, 0.35), inset 0 -1px 1px rgba(0, 0, 0, 0.4), 0 0 20px var(--accent-glow, rgba(255, 255, 255, 0.08))',
-          transition: 'box-shadow 0.3s ease, border-color 0.3s ease, gap 0.4s ease, padding 0.4s ease',
-          touchAction: 'none',
+          userSelect: 'none',
+          ...floatingStyle,
         }}
       >
-        {/* ─── LIQUID GLASS SLIDING LENS (iOS 27 Fluid Indicator) ─── */}
+        {/* ─── FLOATING LIQUID GLASS CAPSULE ─── */}
         <div
+          ref={containerRef}
           style={{
-            position: 'absolute',
-            left: lensStyle.left,
-            top: lensStyle.top,
-            width: lensStyle.width,
-            height: lensStyle.height,
-            opacity: lensStyle.opacity,
+            position: 'relative',
+            display: 'flex',
+            flexDirection: isVertical ? 'column' : 'row',
+            alignItems: 'center',
+            gap: 3,
+            padding: isVertical ? '8px 5px' : '4px 6px',
+            height: isVertical ? 'auto' : 36,
             borderRadius: 9999,
-            background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.08) 100%)',
-            border: '1px solid rgba(255, 255, 255, 0.32)',
-            boxShadow: '0 4px 18px rgba(0, 0, 0, 0.45), inset 0 1px 1.5px rgba(255, 255, 255, 0.5), inset 0 -1px 1px rgba(0, 0, 0, 0.3), 0 0 18px var(--accent-glow, rgba(255, 255, 255, 0.15))',
-            transform: isScrubbing ? 'scale(1.05)' : 'scale(1)',
-            transition: isScrubbing
-              ? 'left 0.12s cubic-bezier(0.2, 0.9, 0.3, 1.2), top 0.12s cubic-bezier(0.2, 0.9, 0.3, 1.2), width 0.18s ease, height 0.18s ease, transform 0.2s cubic-bezier(0.34, 1.4, 0.64, 1)'
-              : 'all 0.32s cubic-bezier(0.34, 1.4, 0.64, 1)',
-            pointerEvents: 'none',
-            zIndex: 1,
-            willChange: 'left, top, width, height, transform',
-          }}
-        />
-
-        {/* Sparkle Core Mini Icon */}
-        <button
-          onClick={() => onTabChange('chat')}
-          style={{
-            position: 'relative',
-            zIndex: 2,
-            width: 28,
-            height: 28,
-            borderRadius: '50%',
-            background: 'rgba(255, 255, 255, 0.06)',
+            background: 'rgba(12, 12, 18, 0.82)',
+            backdropFilter: 'blur(35px) saturate(210%)',
+            WebkitBackdropFilter: 'blur(35px) saturate(210%)',
             border: '1px solid rgba(255, 255, 255, 0.14)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            color: 'var(--accent, #ffffff)',
-            flexShrink: 0,
-            transition: 'all 0.2s ease',
+            boxShadow: isScrubbing || isRepositioning
+              ? '0 18px 45px rgba(0, 0, 0, 0.75), inset 0 1px 1px rgba(255, 255, 255, 0.45), inset 0 -1px 1px rgba(0, 0, 0, 0.4), 0 0 28px var(--accent-glow, rgba(255, 255, 255, 0.2))'
+              : '0 16px 40px rgba(0, 0, 0, 0.7), inset 0 1px 1px rgba(255, 255, 255, 0.35), inset 0 -1px 1px rgba(0, 0, 0, 0.4), 0 0 20px var(--accent-glow, rgba(255, 255, 255, 0.08))',
+            transition: 'box-shadow 0.3s ease, border-color 0.3s ease, gap 0.35s ease, padding 0.35s ease',
+            touchAction: 'none',
           }}
-          title="Argus Core"
         >
-          <Sparkles size={13} />
-        </button>
+          {/* ─── QUANTUM PARTICLES (Световые частицы при сборке) ─── */}
+          {isRepositioning && (
+            <div style={{ position: 'absolute', inset: -15, pointerEvents: 'none', overflow: 'visible', zIndex: 0 }}>
+              {Array.from({ length: 14 }).map((_, pIdx) => {
+                const angle = (pIdx / 14) * Math.PI * 2;
+                const dist = 24 + (pIdx % 3) * 16;
+                const sx = Math.round(Math.cos(angle) * dist);
+                const sy = Math.round(Math.sin(angle) * dist);
+                return (
+                  <div
+                    key={pIdx}
+                    style={{
+                      position: 'absolute',
+                      left: '50%',
+                      top: '50%',
+                      width: pIdx % 2 === 0 ? 3.5 : 2.5,
+                      height: pIdx % 2 === 0 ? 3.5 : 2.5,
+                      borderRadius: '50%',
+                      background: pIdx % 2 === 0 ? 'var(--accent, #ffffff)' : '#60a5fa',
+                      boxShadow: '0 0 8px var(--accent, #ffffff)',
+                      opacity: 0,
+                      animation: `navSparkBurst 0.38s cubic-bezier(0.2, 0.9, 0.3, 1.2) ${pIdx * 16}ms both`,
+                      ['--pdx' as any]: `${morphDeltas.dx}px`,
+                      ['--pdy' as any]: `${morphDeltas.dy}px`,
+                      ['--sx' as any]: `${sx}px`,
+                      ['--sy' as any]: `${sy}px`,
+                    }}
+                  />
+                );
+              })}
+            </div>
+          )}
 
-        {/* Subtle Separator */}
-        <div
-          style={{
-            position: 'relative',
-            zIndex: 2,
-            background: 'rgba(255, 255, 255, 0.12)',
-            flexShrink: 0,
-            ...(isVertical
-              ? { width: 18, height: 1, margin: '2px 0' }
-              : { width: 1, height: 18, margin: '0 3px' }),
-          }}
-        />
+          {/* ─── LIQUID GLASS SLIDING LENS (iOS 27 Fluid Indicator) ─── */}
+          <div
+            style={{
+              position: 'absolute',
+              left: lensStyle.left,
+              top: lensStyle.top,
+              width: lensStyle.width,
+              height: lensStyle.height,
+              opacity: lensStyle.opacity,
+              borderRadius: 9999,
+              background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.08) 100%)',
+              border: '1px solid rgba(255, 255, 255, 0.32)',
+              boxShadow: '0 4px 18px rgba(0, 0, 0, 0.45), inset 0 1px 1.5px rgba(255, 255, 255, 0.5), inset 0 -1px 1px rgba(0, 0, 0, 0.3), 0 0 18px var(--accent-glow, rgba(255, 255, 255, 0.15))',
+              transform: isScrubbing ? 'scale(1.05)' : 'scale(1)',
+              transition: isScrubbing
+                ? 'left 0.12s cubic-bezier(0.2, 0.9, 0.3, 1.2), top 0.12s cubic-bezier(0.2, 0.9, 0.3, 1.2), width 0.18s ease, height 0.18s ease, transform 0.2s cubic-bezier(0.34, 1.4, 0.64, 1)'
+                : 'all 0.32s cubic-bezier(0.34, 1.4, 0.64, 1)',
+              pointerEvents: 'none',
+              zIndex: 1,
+              willChange: 'left, top, width, height, transform',
+            }}
+          />
 
-        {/* Tab Buttons (Supports direct click + continuous drag scrubbing) */}
-        {tabs.map((tab) => {
-          const isActive = scrubTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              ref={(el) => { tabRefs.current[tab.id] = el; }}
-              onPointerDown={(e) => handlePointerDown(tab.id, e)}
-              onClick={() => onTabChange(tab.id)}
-              style={{
-                position: 'relative',
-                zIndex: 2,
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: isVertical ? '8px 10px' : '5px 12px',
-                borderRadius: 9999,
-                fontSize: 11.5,
-                fontWeight: isActive ? 600 : 500,
-                letterSpacing: '0.01em',
-                cursor: 'pointer',
-                border: '1px solid transparent',
-                background: 'transparent',
-                color: isActive ? '#ffffff' : '#94a3b8',
-                transition: 'color 0.2s ease, transform 0.2s ease',
-                whiteSpace: 'nowrap',
-                transform: isScrubbing && isActive ? 'scale(1.04)' : 'scale(1)',
-                touchAction: 'none',
-              }}
-              title={tab.label}
-            >
-              <span
+          {/* Sparkle Core Mini Icon (Index 0) */}
+          <button
+            onClick={() => onTabChange('chat')}
+            style={{
+              position: 'relative',
+              zIndex: 2,
+              width: 28,
+              height: 28,
+              borderRadius: '50%',
+              background: 'rgba(255, 255, 255, 0.06)',
+              border: '1px solid rgba(255, 255, 255, 0.14)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              color: 'var(--accent, #ffffff)',
+              flexShrink: 0,
+              transition: 'all 0.2s ease',
+              animation: isRepositioning ? `navParticleAssemble 0.36s cubic-bezier(0.34, 1.4, 0.64, 1) 0ms both` : undefined,
+              ['--pdx' as any]: `${morphDeltas.dx}px`,
+              ['--pdy' as any]: `${morphDeltas.dy}px`,
+            }}
+            title="Argus Core"
+          >
+            <Sparkles size={13} />
+          </button>
+
+          {/* Subtle Separator 1 (Index 1) */}
+          <div
+            style={{
+              position: 'relative',
+              zIndex: 2,
+              background: 'rgba(255, 255, 255, 0.12)',
+              flexShrink: 0,
+              ...(isVertical
+                ? { width: 18, height: 1, margin: '2px 0' }
+                : { width: 1, height: 18, margin: '0 3px' }),
+              animation: isRepositioning ? `navParticleAssemble 0.36s cubic-bezier(0.34, 1.4, 0.64, 1) 20ms both` : undefined,
+              ['--pdx' as any]: `${morphDeltas.dx}px`,
+              ['--pdy' as any]: `${morphDeltas.dy}px`,
+            }}
+          />
+
+          {/* Tab Buttons (Indices 2..8 — Staggered Particle Assembly) */}
+          {tabs.map((tab, idx) => {
+            const isActive = scrubTab === tab.id;
+            const staggerDelay = (idx + 2) * 22;
+            return (
+              <button
+                key={tab.id}
+                ref={(el) => { tabRefs.current[tab.id] = el; }}
+                onPointerDown={(e) => handlePointerDown(tab.id, e)}
+                onClick={() => onTabChange(tab.id)}
                 style={{
-                  color: isActive ? 'var(--accent, #ffffff)' : 'inherit',
-                  display: 'flex',
-                  transition: 'color 0.2s ease',
+                  position: 'relative',
+                  zIndex: 2,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: isVertical ? '8px 10px' : '5px 12px',
+                  borderRadius: 9999,
+                  fontSize: 11.5,
+                  fontWeight: isActive ? 600 : 500,
+                  letterSpacing: '0.01em',
+                  cursor: 'pointer',
+                  border: '1px solid transparent',
+                  background: 'transparent',
+                  color: isActive ? '#ffffff' : '#94a3b8',
+                  transition: 'color 0.2s ease, transform 0.2s ease',
+                  whiteSpace: 'nowrap',
+                  transform: isScrubbing && isActive ? 'scale(1.04)' : 'scale(1)',
+                  touchAction: 'none',
+                  animation: isRepositioning ? `navParticleAssemble 0.38s cubic-bezier(0.34, 1.4, 0.64, 1) ${staggerDelay}ms both` : undefined,
+                  ['--pdx' as any]: `${morphDeltas.dx}px`,
+                  ['--pdy' as any]: `${morphDeltas.dy}px`,
                 }}
+                title={tab.label}
               >
-                {tab.icon}
-              </span>
-              {!isVertical && <span>{tab.label}</span>}
-            </button>
-          );
-        })}
+                <span
+                  style={{
+                    color: isActive ? 'var(--accent, #ffffff)' : 'inherit',
+                    display: 'flex',
+                    transition: 'color 0.2s ease',
+                  }}
+                >
+                  {tab.icon}
+                </span>
+                {!isVertical && <span>{tab.label}</span>}
+              </button>
+            );
+          })}
 
-        {/* Subtle Separator */}
-        <div
-          style={{
-            position: 'relative',
-            zIndex: 2,
-            background: 'rgba(255, 255, 255, 0.12)',
-            flexShrink: 0,
-            ...(isVertical
-              ? { width: 18, height: 1, margin: '2px 0' }
-              : { width: 1, height: 18, margin: '0 3px' }),
-          }}
-        />
+          {/* Subtle Separator 2 (Index 9) */}
+          <div
+            style={{
+              position: 'relative',
+              zIndex: 2,
+              background: 'rgba(255, 255, 255, 0.12)',
+              flexShrink: 0,
+              ...(isVertical
+                ? { width: 18, height: 1, margin: '2px 0' }
+                : { width: 1, height: 18, margin: '0 3px' }),
+              animation: isRepositioning ? `navParticleAssemble 0.36s cubic-bezier(0.34, 1.4, 0.64, 1) 200ms both` : undefined,
+              ['--pdx' as any]: `${morphDeltas.dx}px`,
+              ['--pdy' as any]: `${morphDeltas.dy}px`,
+            }}
+          />
 
-        {/* Profile Avatar Miniature Button */}
-        <button
-          onClick={onOpenProfile}
-          style={{
-            position: 'relative',
-            zIndex: 2,
-            width: 28,
-            height: 28,
-            borderRadius: '50%',
-            background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.05) 100%)',
-            border: '1px solid rgba(255, 255, 255, 0.22)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            color: '#ffffff',
-            fontSize: 11,
-            fontWeight: 700,
-            flexShrink: 0,
-            boxShadow: '0 0 10px var(--accent-glow, rgba(255, 255, 255, 0.15))',
-            transition: 'all 0.18s ease',
-          }}
-          title={`Профиль: ${profile.display_name || 'Пользователь'}`}
-        >
-          {profile.display_name ? profile.display_name.charAt(0).toUpperCase() : <User size={12} />}
-        </button>
-      </div>
-    </nav>
+          {/* Profile Avatar Miniature Button (Index 10) */}
+          <button
+            onClick={onOpenProfile}
+            style={{
+              position: 'relative',
+              zIndex: 2,
+              width: 28,
+              height: 28,
+              borderRadius: '50%',
+              background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.05) 100%)',
+              border: '1px solid rgba(255, 255, 255, 0.22)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              color: '#ffffff',
+              fontSize: 11,
+              fontWeight: 700,
+              flexShrink: 0,
+              boxShadow: '0 0 10px var(--accent-glow, rgba(255, 255, 255, 0.15))',
+              transition: 'all 0.18s ease',
+              animation: isRepositioning ? `navParticleAssemble 0.36s cubic-bezier(0.34, 1.4, 0.64, 1) 220ms both` : undefined,
+              ['--pdx' as any]: `${morphDeltas.dx}px`,
+              ['--pdy' as any]: `${morphDeltas.dy}px`,
+            }}
+            title={`Профиль: ${profile.display_name || 'Пользователь'}`}
+          >
+            {profile.display_name ? profile.display_name.charAt(0).toUpperCase() : <User size={12} />}
+          </button>
+        </div>
+      </nav>
+    </>
   );
 };

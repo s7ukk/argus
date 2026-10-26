@@ -709,7 +709,7 @@ export const App: React.FC = () => {
               position: 'relative',
               paddingLeft: themeConfig.navPosition === 'left' ? 70 : 0,
               paddingRight: themeConfig.navPosition === 'right' ? 70 : 0,
-              transition: 'padding 0.55s cubic-bezier(0.34, 1.25, 0.64, 1)',
+              transition: 'padding 0.38s cubic-bezier(0.2, 0.9, 0.3, 1.2)',
             }}
           >
 

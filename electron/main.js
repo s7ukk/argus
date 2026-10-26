@@ -700,19 +700,20 @@ function createDictationHudWindow() {
       backdrop-filter: blur(40px) saturate(220%);
       -webkit-backdrop-filter: blur(40px) saturate(220%);
       border: 1px solid rgba(255, 255, 255, 0.15);
-      box-shadow: 0 18px 45px rgba(0, 0, 0, 0.8), inset 0 1px 1px rgba(255, 255, 255, 0.35), inset 0 -1px 1px rgba(0, 0, 0, 0.5), 0 0 20px rgba(255, 255, 255, 0.05);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.75), inset 0 1px 1px rgba(255, 255, 255, 0.35), inset 0 -1px 1px rgba(0, 0, 0, 0.4), 0 0 18px rgba(255, 255, 255, 0.06);
       border-radius: 9999px;
-      padding: 0 16px;
+      padding: 0 14px;
       display: inline-flex;
       flex-direction: column;
       align-items: center;
-      justify-content: flex-start;
+      justify-content: center;
       color: #ffffff;
-      font-size: 13px;
-      font-weight: 600;
-      letter-spacing: 0.02em;
-      width: 200px;
-      height: 38px;
+      font-size: 11.5px;
+      font-weight: 550;
+      letter-spacing: 0.025em;
+      line-height: 1;
+      width: 180px;
+      height: 32px;
       box-sizing: border-box;
       transition: width 0.42s cubic-bezier(0.32, 0.72, 0, 1),
                   height 0.42s cubic-bezier(0.32, 0.72, 0, 1),
@@ -727,18 +728,19 @@ function createDictationHudWindow() {
       overflow: hidden;
     }
 
-    .hud-pill[data-mode="idle"] { width: 200px; height: 38px; }
-    .hud-pill[data-mode="timer"] { width: 250px; height: 38px; }
-    .hud-pill[data-mode="ai"] { width: 275px; height: 38px; }
-    .hud-pill[data-mode="dictation"] { width: 330px; height: 38px; }
-    .hud-pill[data-mode="notify"] { width: 310px; height: 38px; }
+    .hud-pill[data-mode="idle"] { width: 180px; height: 32px; }
+    .hud-pill[data-mode="timer"] { width: 235px; height: 32px; }
+    .hud-pill[data-mode="ai"] { width: 250px; height: 32px; }
+    .hud-pill[data-mode="dictation"] { width: 310px; height: 32px; }
+    .hud-pill[data-mode="notify"] { width: 280px; height: 32px; }
 
     /* Hover expanded state with pure Apple fluid spring */
     .hud-pill:hover, .hud-pill.is-expanded {
-      width: 480px !important;
-      height: 118px !important;
-      border-radius: 26px !important;
-      padding: 12px 20px !important;
+      width: 460px !important;
+      height: 112px !important;
+      border-radius: 22px !important;
+      padding: 12px 18px !important;
+      justify-content: flex-start !important;
       background: rgba(13, 13, 18, 0.96) !important;
       border-color: rgba(255, 255, 255, 0.28) !important;
       box-shadow: 0 24px 60px rgba(0, 0, 0, 0.88), inset 0 1px 1.5px rgba(255, 255, 255, 0.45), inset 0 -1px 1px rgba(0, 0, 0, 0.6), 0 0 30px rgba(255, 255, 255, 0.1) !important;
@@ -749,35 +751,36 @@ function createDictationHudWindow() {
       align-items: center;
       gap: 10px;
       width: 100%;
-      height: 38px;
+      height: 32px;
       flex-shrink: 0;
       justify-content: center;
       text-align: center;
       white-space: nowrap;
+      line-height: 1;
       transition: all 0.35s cubic-bezier(0.32, 0.72, 0, 1);
     }
 
     .hud-pill:hover .pill-header, .hud-pill.is-expanded .pill-header {
-      height: 28px;
+      height: 24px;
       justify-content: space-between;
       text-align: left;
     }
 
     .online-dot {
-      width: 7px;
-      height: 7px;
+      width: 6px;
+      height: 6px;
       border-radius: 50%;
       background: #4ade80;
-      box-shadow: 0 0 8px #4ade80;
+      box-shadow: 0 0 7px #4ade80;
       flex-shrink: 0;
     }
 
     .dot {
-      width: 8px;
-      height: 8px;
+      width: 7px;
+      height: 7px;
       border-radius: 50%;
       background: #ef4444;
-      box-shadow: 0 0 10px #ef4444;
+      box-shadow: 0 0 8px #ef4444;
       animation: pulse 1.2s infinite ease-in-out;
       flex-shrink: 0;
     }
@@ -917,23 +920,23 @@ function createDictationHudWindow() {
 <body>
   <div class="hud-pill" id="pill">
     <div class="pill-header">
-      <div style="display:flex;align-items:center;justify-content:center;gap:8px;min-width:0;text-align:center;">
+      <div style="display:inline-flex;align-items:center;justify-content:center;gap:7px;min-width:0;text-align:center;line-height:1;margin:auto;">
         <div class="online-dot" id="online-dot"></div>
         <div class="dot" id="dot" style="display:none;"></div>
         <div id="thinking-dots" style="display:none;align-items:center;gap:3px;margin-right:2px;">
-          <span class="anim-dot-run-1" style="width:4.5px;height:4.5px;border-radius:50%;background:#ffffff;display:inline-block;"></span>
-          <span class="anim-dot-run-2" style="width:4.5px;height:4.5px;border-radius:50%;background:#ffffff;opacity:0.8;display:inline-block;"></span>
-          <span class="anim-dot-run-3" style="width:4.5px;height:4.5px;border-radius:50%;background:#ffffff;opacity:0.6;display:inline-block;"></span>
+          <span class="anim-dot-run-1" style="width:4px;height:4px;border-radius:50%;background:#ffffff;display:inline-block;"></span>
+          <span class="anim-dot-run-2" style="width:4px;height:4px;border-radius:50%;background:#ffffff;opacity:0.8;display:inline-block;"></span>
+          <span class="anim-dot-run-3" style="width:4px;height:4px;border-radius:50%;background:#ffffff;opacity:0.6;display:inline-block;"></span>
         </div>
-        <div id="soundwave" style="display:none;align-items:center;gap:2.5px;margin-right:4px;">
-          <span class="wave-bar" style="height:6px;animation-delay:0s;"></span>
-          <span class="wave-bar" style="height:14px;animation-delay:0.18s;"></span>
-          <span class="wave-bar" style="height:10px;animation-delay:0.36s;"></span>
+        <div id="soundwave" style="display:none;align-items:center;gap:2.5px;margin-right:3px;">
+          <span class="wave-bar" style="height:5px;animation-delay:0s;"></span>
+          <span class="wave-bar" style="height:12px;animation-delay:0.18s;"></span>
+          <span class="wave-bar" style="height:8px;animation-delay:0.36s;"></span>
         </div>
         <div id="icon" style="display:none;align-items:center;"></div>
-        <span id="text" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center;">Argus AI</span>
+        <span id="text" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center;font-size:11.5px;font-weight:550;letter-spacing:0.02em;line-height:1;display:inline-flex;align-items:center;">Argus AI</span>
       </div>
-      <button id="pill-stop-dictation-btn" class="action-btn" style="display:none;padding:3px 10px;font-size:11px;" onclick="stopDictationFromIsland(event)" title="Остановить запись">
+      <button id="pill-stop-dictation-btn" class="action-btn" style="display:none;padding:2px 8px;font-size:10.5px;" onclick="stopDictationFromIsland(event)" title="Остановить запись">
         Остановить
       </button>
       <span class="badge-tag" id="header-tag" style="display:none;">OS</span>

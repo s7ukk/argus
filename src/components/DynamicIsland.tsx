@@ -172,7 +172,7 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
           : hasTimer
           ? 200
           : 170,
-        height: showExpanded ? 76 : 32,
+        height: showExpanded ? 76 : 30,
         borderRadius: showExpanded ? 24 : 9999,
         background: 'rgba(10, 10, 15, 0.88)',
         backdropFilter: 'blur(40px) saturate(220%)',
