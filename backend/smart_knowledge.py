@@ -236,7 +236,7 @@ def generate_smart_code(prompt: str) -> Optional[str]:
                 "        <p>{{.Message}}</p>\n"
                 "        <ul>\n"
                 "            {{range .Features}}\n"
-                "                <li>⚡ {{.}}</li>\n"
+                "                <li>• {{.}}</li>\n"
                 "            {{end}}\n"
                 "        </ul>\n"
                 "        <div class=\"time-box\">Время сервера: {{.ServerTime}}</div>\n"
@@ -639,7 +639,7 @@ def generate_smart_code(prompt: str) -> Optional[str]:
             "    res.status(201).json(newItem);\n"
             "});\n\n"
             "app.listen(PORT, () => {\n"
-            "    console.log(`🚀 Сервер запущен на http://localhost:${PORT}`);\n"
+            "    console.log(`Сервер запущен на http://localhost:${PORT}`);\n"
             "});\n"
             "```\n\n"
             "**Инструкция по запуску:**\n"
@@ -647,9 +647,58 @@ def generate_smart_code(prompt: str) -> Optional[str]:
             "2. Сохраните код в `server.js` и запустите: `node server.js`"
         )
 
-    # ─── 4. RUST REQUESTS (Actix-web & Axum Backend, REST API, Cargo) ─
+    # ─── 4. RUST REQUESTS (Emergency Offline Fallback) ────────────────
     is_rust = any(k in low for k in ["rust", "раст", "actix", "actix-web", "axum", "cargo", "на расте", "на rust"])
     if is_rust:
+        is_bot = any(k in low for k in ["бот", "bot", "telegram", "телеграм", "тг"])
+        is_shop = any(k in low for k in ["магазин", "shop", "store", "товар", "корзин", "покупк", "заказ", "витрин", "оплат"])
+        if is_bot or is_shop:
+            return (
+                "Вот готовый Telegram-бот интернет-магазина на **Rust** (`teloxide` + `tokio`):\n\n"
+                "### 1. `Cargo.toml`\n"
+                "```toml\n"
+                "[package]\n"
+                "name = \"rust_shop_bot\"\n"
+                "version = \"0.1.0\"\n"
+                "edition = \"2021\"\n\n"
+                "[dependencies]\n"
+                "teloxide = { version = \"0.12\", features = [\"macros\"] }\n"
+                "tokio = { version = \"1.0\", features = [\"full\"] }\n"
+                "serde = { version = \"1.0\", features = [\"derive\"] }\n"
+                "```\n\n"
+                "### 2. `src/main.rs`\n"
+                "```rust\n"
+                "use std::collections::HashMap;\n"
+                "use std::sync::Arc;\n"
+                "use teloxide::prelude::*;\n"
+                "use teloxide::utils::command::BotCommands;\n"
+                "use tokio::sync::Mutex;\n\n"
+                "#[derive(BotCommands, Clone)]\n"
+                "#[command(rename_rule = \"lowercase\", description = \"Команды магазина:\")]\n"
+                "enum Command {\n"
+                "    #[command(description = \"Приветствие\")] Start,\n"
+                "    #[command(description = \"Витрина товаров\")] Catalog,\n"
+                "    #[command(description = \"Купить товар: /buy <ID>\")] Buy(usize),\n"
+                "    #[command(description = \"Корзина\")] Cart,\n"
+                "    #[command(description = \"Оформить заказ\")] Checkout,\n"
+                "}\n\n"
+                "#[tokio::main]\n"
+                "async fn main() {\n"
+                "    let bot = Bot::from_env();\n"
+                "    Command::repl(bot, |bot: Bot, msg: Message, cmd: Command| async move {\n"
+                "        match cmd {\n"
+                "            Command::Start => { bot.send_message(msg.chat.id, \"Добро пожаловать в магазин на Rust! Введите /catalog для выбора товаров.\").await?; }\n"
+                "            Command::Catalog => { bot.send_message(msg.chat.id, \"Каталог:\\n1. Подписка Argus Pro (490 руб.) — /buy 1\\n2. Книга по Rust (890 руб.) — /buy 2\").await?; }\n"
+                "            Command::Buy(id) => { bot.send_message(msg.chat.id, format!(\"Товар #{} добавлен в корзину.\", id)).await?; }\n"
+                "            Command::Cart => { bot.send_message(msg.chat.id, \"Корзина активна. Для оформления введите /checkout\").await?; }\n"
+                "            Command::Checkout => { bot.send_message(msg.chat.id, \"Заказ успешно оформлен. Спасибо за покупку!\").await?; }\n"
+                "        }\n"
+                "        ResponseResult::Ok(())\n"
+                "    }).await;\n"
+                "}\n"
+                "```\n\n"
+                "**Запуск:** Укажите токен `$env:TELOXIDE_TOKEN=\"ТОКЕН\"` и запустите: `cargo run`"
+            )
         return (
             "Вот готовый, масштабируемый и типобезопасный REST API бэкенд на **Rust** с использованием фреймворка **Actix-web** и сериализации **Serde**:\n\n"
             "### 1. Файл `Cargo.toml`\n"

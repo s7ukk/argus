@@ -509,7 +509,7 @@ def execute_autonomous_browser_task(browser: str, query_or_url: str) -> Dict[str
     steps_log.append(f"4. Страница загружена, сохранен контрольный снимок экрана.")
 
     summary_text = (
-        f"🌐 **Автономный AI Агент выполнил задачу в {b_name}:**\n\n"
+        f"**Автономный AI Агент выполнил задачу в {b_name}:**\n\n"
         + "\n".join(steps_log)
     )
 
@@ -565,7 +565,7 @@ def execute_autonomous_notes_task(text: str, title: Optional[str] = None) -> Dic
     steps_log.append(f"4. Текст успешно зафиксирован, сохранен контрольный снимок экрана.")
 
     summary_text = (
-        f"📝 **Автономный AI Агент создал заметку в {app_label}:**\n\n"
+        f"**Автономный AI Агент создал заметку в {app_label}:**\n\n"
         + "\n".join(steps_log)
     )
 
@@ -905,7 +905,7 @@ def execute_autonomous_computer_task(goal: str, steps: Optional[List[Dict[str, A
         screenshots.append(final_ss)
 
     summary_text = (
-        f"🤖 **Автономный AI Агент успешно выполнил задачу на компьютере:**\n\n"
+        f"**Автономный AI Агент успешно выполнил задачу на компьютере:**\n\n"
         f"**Цель**: {goal}\n\n"
         + "\n".join(steps_log)
     )

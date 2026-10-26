@@ -510,7 +510,7 @@ def install_missing_package(module_name: str, log_fp) -> bool:
     mod_clean = module_name.strip().lower()
     pkg_name = MODULE_PACKAGE_MAP.get(mod_clean, module_name.strip())
 
-    log_fp.write(f"\n[ARGUS AUTO-HEALER]: ⚡ Обнаружена отсутствующая библиотека '{module_name}'.\n")
+    log_fp.write(f"\n[ARGUS AUTO-HEALER]: Обнаружена отсутствующая библиотека '{module_name}'.\n")
     log_fp.write(f"[ARGUS AUTO-HEALER]: Запуск автоматической установки пакета '{pkg_name}' через pip...\n")
     log_fp.flush()
 
@@ -524,11 +524,11 @@ def install_missing_package(module_name: str, log_fp) -> bool:
             creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
         )
         if proc.returncode == 0:
-            log_fp.write(f"[ARGUS AUTO-HEALER]: ✔ Библиотека '{pkg_name}' успешно установлена!\n")
+            log_fp.write(f"[ARGUS AUTO-HEALER]: [OK] Библиотека '{pkg_name}' успешно установлена!\n")
             log_fp.flush()
             return True
         else:
-            log_fp.write(f"[ARGUS AUTO-HEALER]: ✖ Ошибка установки '{pkg_name}': {proc.stderr}\n")
+            log_fp.write(f"[ARGUS AUTO-HEALER]: [ERR] Ошибка установки '{pkg_name}': {proc.stderr}\n")
             log_fp.flush()
             return False
     except Exception as e:

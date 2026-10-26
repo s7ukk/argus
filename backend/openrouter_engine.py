@@ -316,7 +316,9 @@ def query_openrouter(
                     data=json.dumps(body).encode("utf-8"),
                     headers=headers
                 )
-                with urllib.request.urlopen(req, timeout=5.0) as resp:
+                is_coding_query = any(k in prompt.lower() for k in ["код", "скрипт", "программ", "бот", "сервер", "бэкенд", "функци", "алгоритм", "write", "code", "script", "bot"])
+                req_timeout = 45.0 if is_coding_query else 20.0
+                with urllib.request.urlopen(req, timeout=req_timeout) as resp:
                     data = json.loads(resp.read().decode("utf-8"))
                     if data.get("choices") and data["choices"][0].get("message"):
                         msg = data["choices"][0]["message"]
@@ -419,7 +421,7 @@ def parse_model_response(raw_text: str) -> Tuple[Optional[str], List[Dict[str, A
     idx = cleaned.find('{')
     while idx != -1:
         try:
-            obj, _ = json.JSONDecoder().raw_decode(cleaned[idx:])
+            obj, _ = json.JSONDecoder(strict=False).raw_decode(cleaned[idx:])
             if isinstance(obj, dict):
                 reply = obj.get("reply", "")
                 if is_reasoning_leak(reply):
