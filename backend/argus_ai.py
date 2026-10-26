@@ -2975,13 +2975,10 @@ def query_encyclopedia_knowledge(query: str, en: bool) -> Optional[str]:
 
 def get_conversational_reply(raw_text: str, en: bool, user_name: str = "Пользователь", history: Optional[List[Dict[str, Any]]] = None) -> str:
     """Provides high-quality, crisp, intelligent answers without default emojis."""
-    # 1. Primary: Query OpenRouter Neural AI Engine
-    try:
-        or_reply, _ = openrouter_engine.query_openrouter(raw_text, user_name=user_name, history=history)
-        if or_reply and len(or_reply.strip()) > 1 and not openrouter_engine.is_reasoning_leak(or_reply):
-            return or_reply.strip()
-    except Exception as e:
-        print(f"[Argus OpenRouter Brain Notice]: {e}")
+    # 1. Instant Smart Code Generation check (Golang, Rust, C++ Crow, Python, Node.js, Elixir)
+    code_reply = generate_smart_code_reply(raw_text)
+    if code_reply:
+        return code_reply
 
     # 1.1 Captivating & Authentic Storytelling
     try:
@@ -2991,10 +2988,13 @@ def get_conversational_reply(raw_text: str, en: bool, user_name: str = "Поль
     except Exception as e:
         print(f"[Smart Knowledge Story Error]: {e}")
 
-    # 1.2 Emergency offline code generation check (only if OpenRouter was unreachable)
-    code_reply = generate_smart_code_reply(raw_text)
-    if code_reply:
-        return code_reply
+    # 1.2 Primary: Query OpenRouter Free High-Intelligence Engine
+    try:
+        or_reply, _ = openrouter_engine.query_openrouter(raw_text, user_name=user_name, history=history)
+        if or_reply and len(or_reply.strip()) > 1 and not openrouter_engine.is_reasoning_leak(or_reply):
+            return or_reply.strip()
+    except Exception as e:
+        print(f"[Argus OpenRouter Brain Notice]: {e}")
 
     # 1.3 Local conversational phrases & greetings
     t = raw_text.lower().strip()
@@ -3497,15 +3497,7 @@ def process_command(user_text: str, user_name: str = "Пользователь",
     # 0.9 Dedicated Coding & Technical Request Routing
     # When user asks for code, program, or script, NEVER execute desktop actions (like music or app launches)
     if is_coding_or_creative_request(resolved_text):
-        # 1. Primary: Use Neural AI (OpenRouter) to generate custom, high-quality, exact code
-        try:
-            or_reply, _ = openrouter_engine.query_openrouter(resolved_text, user_name=user_name, history=history)
-            if or_reply and len(or_reply.strip()) > 1 and not openrouter_engine.is_reasoning_leak(or_reply):
-                return or_reply.strip(), "general", {}
-        except Exception as e:
-            print(f"[Argus Code OpenRouter Notice]: {e}")
-
-        # 2. Emergency Offline Fallback (only if AI is completely unreachable or offline)
+        # 1. Instant Smart Technical Knowledge (Golang, Rust, Python, Node.js, Elixir, C++)
         try:
             kb_code = smart_knowledge.generate_smart_code(resolved_text)
             if kb_code:
@@ -3513,7 +3505,15 @@ def process_command(user_text: str, user_name: str = "Пользователь",
         except Exception as e:
             print(f"[Argus SmartKnowledge Error]: {e}")
 
-        # 3. Secondary offline fallback
+        # 2. Fast Neural AI (OpenRouter) for custom or unique code tasks
+        try:
+            or_reply, _ = openrouter_engine.query_openrouter(resolved_text, user_name=user_name, history=history)
+            if or_reply and len(or_reply.strip()) > 1 and not openrouter_engine.is_reasoning_leak(or_reply):
+                return or_reply.strip(), "general", {}
+        except Exception as e:
+            print(f"[Argus Code OpenRouter Notice]: {e}")
+
+        # 3. Fallback code reply
         fallback_code = generate_smart_code_reply(resolved_text)
         if fallback_code:
             return fallback_code, "general", {}

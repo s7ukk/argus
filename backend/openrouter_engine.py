@@ -316,9 +316,7 @@ def query_openrouter(
                     data=json.dumps(body).encode("utf-8"),
                     headers=headers
                 )
-                is_coding_query = any(k in prompt.lower() for k in ["код", "скрипт", "программ", "бот", "сервер", "бэкенд", "функци", "алгоритм", "write", "code", "script", "bot"])
-                req_timeout = 45.0 if is_coding_query else 20.0
-                with urllib.request.urlopen(req, timeout=req_timeout) as resp:
+                with urllib.request.urlopen(req, timeout=4.5) as resp:
                     data = json.loads(resp.read().decode("utf-8"))
                     if data.get("choices") and data["choices"][0].get("message"):
                         msg = data["choices"][0]["message"]
