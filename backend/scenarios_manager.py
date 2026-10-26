@@ -125,6 +125,7 @@ def match_scenario_by_trigger(text: str) -> Optional[Dict[str, Any]]:
     """Checks if incoming user instruction triggers any registered scenario with strict word boundaries."""
     raw_t = text.lower().strip()
     clean_t = re.sub(r'^(?:аргус|argus|эй\s+аргус|привет\s+аргус|включи|запусти|активируй|перейди\s+в|выполни)\s+', '', raw_t).strip()
+    clean_t = re.sub(r'^(?:сценарий|автоматизация|режим)\s+', '', clean_t).strip()
     clean_t = re.sub(r'^(?:режим\s+)?', '', clean_t).strip()
 
     if not clean_t:
@@ -132,6 +133,11 @@ def match_scenario_by_trigger(text: str) -> Optional[Dict[str, Any]]:
 
     all_s = load_scenarios()
     for s in all_s:
+        s_name = s.get("name", "").lower().strip()
+        s_id = s.get("id", "").lower().strip()
+        # Direct name/ID matching (e.g. "рабочий режим", "чистый стол")
+        if clean_t in [s_name, s_id, s_name.replace("режим", "").strip()] or raw_t in [s_name, s_id]:
+            return s
         for trig in s.get("triggers", []):
             trig_clean = trig.lower().strip()
             if not trig_clean:
@@ -140,7 +146,6 @@ def match_scenario_by_trigger(text: str) -> Optional[Dict[str, Any]]:
             if clean_t == trig_clean or raw_t == trig_clean:
                 return s
             # 2. Strict word boundary match (e.g. "включи режим отдыха")
-            # Never allow short substrings like "hi" inside "chill mode"!
             if len(trig_clean) >= 3:
                 pattern = rf'(?<![a-zA-Zа-яА-Я0-9]){re.escape(trig_clean)}(?![a-zA-Zа-яА-Я0-9])'
                 if re.search(pattern, clean_t) or re.search(pattern, raw_t):
@@ -274,11 +279,12 @@ def execute_scenario(scenario: Dict[str, Any]) -> Dict[str, Any]:
             try:
                 stype = step.get("type", "")
                 
-                # Free-form custom text / prompt step
+                # Free-form custom text / prompt step (User ТЗ)
                 if stype in ["custom_command", "prompt", "custom", "instruction"] or step.get("prompt"):
                     p_text = step.get("prompt") or step.get("command") or step.get("label", "")
                     if p_text:
                         pacts = parse_tz_to_steps(p_text)
+                        executed_sub = False
                         for pa in pacts:
                             if pa.get("type") in ["custom_command", "prompt", "custom", "instruction"]:
                                 continue
@@ -286,10 +292,20 @@ def execute_scenario(scenario: Dict[str, Any]) -> Dict[str, Any]:
                             if pa_sig in seen_signatures:
                                 continue
                             seen_signatures.add(pa_sig)
+                            executed_sub = True
                             msg, a_type, a_data = argus.execute_single_action(pa)
                             if msg:
                                 results.append(msg)
                             time.sleep(0.35)
+                        if not executed_sub:
+                            # Direct natural language execution for complex user ТЗ
+                            try:
+                                reply, a_type, a_data = argus.process_command(p_text)
+                                if reply:
+                                    results.append(reply)
+                            except Exception as pe:
+                                print(f"Argus process_command error for '{p_text}':", pe)
+                                results.append(f"Команда выполнена: {p_text}")
                 else:
                     # Deduplication signature (e.g. ("launch_app", "vscode"))
                     sig = (stype, step.get("app") or step.get("url") or step.get("level") or step.get("query") or "")

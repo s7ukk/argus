@@ -59,7 +59,19 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
   const [timers, setTimers] = useState<TimerItem[]>(() => {
     try {
       const saved = localStorage.getItem('argus_extras_timers');
-      return saved ? JSON.parse(saved) : [];
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.map((t: any) => ({
+            ...t,
+            // Never automatically run on mount/reload
+            is_running: false,
+            remaining_seconds: t.remaining_seconds <= 0 ? 0 : t.remaining_seconds,
+            is_completed: t.remaining_seconds <= 0 ? true : Boolean(t.is_completed)
+          }));
+        }
+      }
+      return [];
     } catch {
       return [];
     }
@@ -195,7 +207,16 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
           const data: ExtrasData = await res.json();
           if (data.tasks !== undefined && Array.isArray(data.tasks)) setTasks(data.tasks);
           if (data.notes !== undefined && Array.isArray(data.notes)) setNotes(data.notes);
-          if (data.timers !== undefined && Array.isArray(data.timers)) setTimers(data.timers);
+          if (data.timers !== undefined && Array.isArray(data.timers)) {
+            const sanitized = data.timers.map((t) => ({
+              ...t,
+              is_running: false,
+              remaining_seconds: t.remaining_seconds <= 0 ? 0 : t.remaining_seconds,
+              is_completed: t.remaining_seconds <= 0 ? true : Boolean(t.is_completed)
+            }));
+            setTimers(sanitized);
+            localStorage.setItem('argus_extras_timers', JSON.stringify(sanitized));
+          }
         }
       } catch (e) {
         console.warn('Failed to sync extras data with backend, using local store:', e);
@@ -240,6 +261,7 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
     const interval = setInterval(() => {
       setTimers((prevTimers) => {
         let hasChanges = false;
+        let finishedTimer: TimerItem | null = null;
         const updated = prevTimers.map((t) => {
           if (t.is_running && t.remaining_seconds > 0) {
             hasChanges = true;
@@ -254,12 +276,18 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
               if (onNotifyTimerFinish) {
                 onNotifyTimerFinish(t.title);
               }
-              return { ...t, remaining_seconds: 0, is_running: false, is_completed: true };
+              finishedTimer = { ...t, remaining_seconds: 0, is_running: false, is_completed: true };
+              return finishedTimer;
             }
             return { ...t, remaining_seconds: nextSecs };
           }
           return t;
         });
+        if (finishedTimer) {
+          // Immediately sync finished status to backend and localStorage so it NEVER resurrects!
+          syncBackend({ timers: updated });
+          localStorage.setItem('argus_extras_timers', JSON.stringify(updated));
+        }
         return hasChanges ? updated : prevTimers;
       });
     }, 1000);

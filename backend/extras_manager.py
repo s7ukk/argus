@@ -53,17 +53,7 @@ DEFAULT_EXTRAS_DATA: Dict[str, Any] = {
             "updated_at": datetime.datetime.now().isoformat()
         }
     ],
-    "timers": [
-        {
-            "id": "timer_demo_1",
-            "title": "Сделать ДЗ",
-            "total_seconds": 420,
-            "remaining_seconds": 420,
-            "is_running": False,
-            "is_completed": False,
-            "created_at": datetime.datetime.now().isoformat()
-        }
-    ],
+    "timers": [],
     "reminders": []
 }
 
@@ -91,8 +81,24 @@ def load_extras_data() -> Dict[str, Any]:
     if best_data is not None:
         res = DEFAULT_EXTRAS_DATA.copy()
         res.update(best_data)
-        return res
-    return DEFAULT_EXTRAS_DATA.copy()
+    else:
+        res = DEFAULT_EXTRAS_DATA.copy()
+
+    # Bulletproof Timer Sanitization:
+    # A timer loaded on application launch or fetch must NEVER be running automatically,
+    # and finished timers must NEVER trigger alarms or resurrect.
+    sanitized_timers = []
+    for tm in res.get("timers", []):
+        if not isinstance(tm, dict):
+            continue
+        tm_copy = dict(tm)
+        tm_copy["is_running"] = False
+        if tm_copy.get("remaining_seconds", 0) <= 0 or tm_copy.get("is_completed"):
+            tm_copy["remaining_seconds"] = 0
+            tm_copy["is_completed"] = True
+        sanitized_timers.append(tm_copy)
+    res["timers"] = sanitized_timers
+    return res
 
 def save_extras_data(data: Dict[str, Any]) -> bool:
     """Saves all extras data persistently across all available writable locations."""
