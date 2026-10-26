@@ -246,18 +246,18 @@ def clean_text_for_speech(text: str) -> str:
         chosen = []
         cur_len = 0
         for s in sentences:
-            if cur_len + len(s) <= 160:
+            if cur_len + len(s) <= 75:
                 chosen.append(s)
                 cur_len += len(s)
             else:
                 if not chosen:
-                    m = re.match(r'^(.{35,150}?)[,;:\s]', s)
-                    chosen.append((m.group(1).strip() + '.') if m else s[:150].strip())
+                    m = re.match(r'^(.{20,70}?)[,;:\s]', s)
+                    chosen.append((m.group(1).strip() + '.') if m else s[:70].strip())
                 break
         t = ' '.join(chosen)
-    elif len(t) > 160:
+    elif len(t) > 75:
         m = re.match(r'^(.{35,150}?)[,;:\s]', t)
-        t = (m.group(1).strip() + '.') if m else t[:150].strip()
+        t = (m.group(1).strip() + '.') if m else t[:70].strip()
 
     # Ensure clean terminal punctuation for crisp neural cadence and intonation
     if t and not t[-1] in '.!?':
@@ -345,14 +345,11 @@ async def generate_speech_base64(
     # 2. High-quality Edge-TTS Neural Voices
     for attempt in range(2):
         try:
-            async def _stream_voice(v_name: str, r_val: str, p_val: str):
+            async def _stream_voice(v_name: str, r_val: str):
                 communicate = edge_tts.Communicate(
                     clean_text,
                     v_name,
-                    rate=r_val,
-                    pitch=p_val,
-                    connect_timeout=6,
-                    receive_timeout=15
+                    rate=r_val
                 )
                 buf = bytearray()
                 async for chunk in communicate.stream():
@@ -360,7 +357,7 @@ async def generate_speech_base64(
                         buf.extend(chunk["data"])
                 return buf
 
-            audio_data = await asyncio.wait_for(_stream_voice(target_voice, target_rate, target_pitch), timeout=6.0)
+            audio_data = await asyncio.wait_for(_stream_voice(target_voice, target_rate), timeout=25.0)
             if audio_data and len(audio_data) > 100:
                 b64_res = base64.b64encode(audio_data).decode("utf-8")
                 if len(_VOICE_AUDIO_CACHE) > 500:
@@ -445,4 +442,4 @@ def warmup_voice_cache():
     threading.Thread(target=_worker, daemon=True).start()
 
 # Launch audio pre-warming upon module load
-warmup_voice_cache()
+# warmup_voice_cache()

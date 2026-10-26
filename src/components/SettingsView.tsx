@@ -129,8 +129,8 @@ export const SettingsView: React.FC = () => {
     try {
       const isEnglish = settings.edge_voice === 'jarvis-en' || settings.edge_voice.includes('GB') || settings.edge_voice.includes('US');
       const testPhrase = isEnglish
-        ? 'At your service, sir. All systems are fully operational.'
-        : 'На связи, сэр. Все системы функционируют в штатном режиме.';
+        ? 'At your service, sir.'
+        : 'На связи, сэр.';
       const res = await testEdgeTTS(
         settings.edge_voice,
         settings.voice_speed,

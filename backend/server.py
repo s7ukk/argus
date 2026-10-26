@@ -550,7 +550,7 @@ async def terminal_ai_assistant(req: TerminalAIAssistantRequest):
         )
         url = f"https://text.pollinations.ai/{urllib.parse.quote(query_prompt)}?model=openai-fast"
         req_obj = urllib.request.Request(url, headers={"User-Agent": "Argus/2.0"})
-        with urllib.request.urlopen(req_obj, timeout=3.5) as response:
+        with urllib.request.urlopen(req_obj, timeout=25.0) as response:
             text = response.read().decode("utf-8").strip()
             cleaned = re.sub(r"^```[a-z]*\n?", "", text).rstrip("`").strip()
             if cleaned and len(cleaned) < 300 and "\n" not in cleaned:
@@ -671,7 +671,7 @@ async def ai_chat(req: ChatMessageRequest):
                         fish_api_key=settings.get("fish_api_key") if settings.get("voice_provider") == "fish-audio" else None,
                         fish_model_id=settings.get("fish_model_id") if settings.get("voice_provider") == "fish-audio" else None,
                     ),
-                    timeout=3.5
+                    timeout=25.0
                 )
             except Exception as e:
                 print(f"[Argus TTS Notice]: {e}")
