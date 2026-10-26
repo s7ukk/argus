@@ -108,6 +108,16 @@ def universal_open_target(target: str) -> bool:
             return False
 
 def _press_key(vk_code: int):
+    if sys.platform == "darwin":
+        if vk_code == VK_MEDIA_PLAY_PAUSE:
+            media_control("play")
+        elif vk_code == VK_MEDIA_NEXT_TRACK:
+            media_control("next")
+        elif vk_code == VK_MEDIA_PREV_TRACK:
+            media_control("prev")
+        elif vk_code == VK_MEDIA_STOP:
+            media_control("stop")
+        return
     if sys.platform == "win32":
         try:
             ctypes.windll.user32.keybd_event(vk_code, 0, KEYEVENTF_EXTENDEDKEY, 0)
@@ -1153,7 +1163,15 @@ def launch_application(app_name: str) -> Dict[str, Any]:
             "settings": "System Settings", "настройки": "System Settings", "параметры": "System Settings",
             "music": "Music", "музыка": "Music",
             "яндекс": "Yandex", "яндекс браузер": "Yandex",
-            "яндекс музыка": "Yandex Music", "саундклауд": "SoundCloud", "sound cloud": "SoundCloud", "soundcloud": "SoundCloud"
+                        "яндекс музыка": "Yandex Music", "саундклауд": "SoundCloud", "sound cloud": "SoundCloud", "soundcloud": "SoundCloud",
+            "apple music": "Music", "эпл музыка": "Music", "xcode": "Xcode", "икскод": "Xcode",
+            "figma": "Figma", "фигма": "Figma", "slack": "Slack", "слак": "Slack",
+            "zoom": "zoom.us", "зум": "zoom.us", "whatsapp": "WhatsApp", "ватсап": "WhatsApp", "вацап": "WhatsApp",
+            "postman": "Postman", "постман": "Postman", "obsidian": "Obsidian", "обсидиан": "Obsidian",
+            "cursor": "Cursor", "курсор": "Cursor", "docker": "Docker", "докер": "Docker",
+            "pycharm": "PyCharm", "пайчарм": "PyCharm", "goland": "GoLand", "голанд": "GoLand",
+            "webstorm": "WebStorm", "вебшторм": "WebStorm", "vlc": "VLC", "влц": "VLC",
+            "notion": "Notion", "ноушен": "Notion", "mail": "Mail", "почта": "Mail"
         }
         target_mac = mac_aliases.get(clean_app) or mac_aliases.get(app_lower)
         if not target_mac:
@@ -1783,8 +1801,30 @@ def close_application(app_name: str) -> Dict[str, Any]:
     return {"success": killed > 0, "killed_count": killed, "app": app_name}
 
 def close_all_except(keep_apps: List[str]) -> Dict[str, Any]:
-    """Closes all user applications except specified ones."""
+    """Closes all user applications except specified ones (cross-platform for Windows & macOS)."""
     keep_lower = [k.lower().strip() for k in keep_apps]
+    if sys.platform == "darwin":
+        closed = []
+        try:
+            res = subprocess.run(
+                ["osascript", "-e", 'tell application "System Events" to get name of every application process whose background only is false'],
+                capture_output=True, text=True, timeout=3
+            )
+            if res.returncode == 0 and res.stdout.strip():
+                running_procs = [p.strip() for p in res.stdout.split(",") if p.strip()]
+                system_essential = ["finder", "argus", "dock", "system events", "loginwindow", "screencapture", "controlcenter", "windowserver", "terminal"]
+                for proc in running_procs:
+                    pl = proc.lower()
+                    if any(k in pl for k in system_essential):
+                        continue
+                    if any(k in pl or pl in k for k in keep_lower):
+                        continue
+                    subprocess.run(["osascript", "-e", f'tell application "{proc}" to quit'], capture_output=True, timeout=2)
+                    closed.append(proc)
+            return {"success": True, "closed": closed, "kept": keep_apps}
+        except Exception as e:
+            print("macOS close_all_except notice:", e)
+
     apps_pool = [
         ("telegram", ["telegram.exe"]),
         ("discord", ["discord.exe"]),
@@ -1798,7 +1838,6 @@ def close_all_except(keep_apps: List[str]) -> Dict[str, Any]:
     ]
     closed = []
     for app_id, proc_list in apps_pool:
-        # Check if should be kept
         should_keep = any(k in app_id or app_id in k for k in keep_lower)
         if not should_keep:
             res = close_application(app_id)
