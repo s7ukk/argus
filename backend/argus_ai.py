@@ -2963,6 +2963,14 @@ def get_conversational_reply(raw_text: str, en: bool, user_name: str = "Поль
     if code_reply:
         return code_reply
 
+    # 1.25 Captivating & Authentic Storytelling
+    try:
+        story_reply = smart_knowledge.generate_interesting_story(raw_text)
+        if story_reply:
+            return story_reply
+    except Exception as e:
+        print(f"[Smart Knowledge Story Error]: {e}")
+
     # 1.3 Technical & CS Knowledge check (polymorphism, goroutines, interfaces, etc.)
     try:
         tech_reply = smart_knowledge.generate_technical_knowledge_reply(raw_text)
@@ -3020,10 +3028,16 @@ def get_conversational_reply(raw_text: str, en: bool, user_name: str = "Поль
                 pass
             return "В Ваших сохранённых заметках и памяти пока нет информации по этому вопросу. Вы можете назвать нужные данные или добавить заметку, и я обязательно сохраню их."
 
+        code_check = generate_smart_code_reply(raw_text)
+        if code_check:
+            return code_check
+
         if is_q:
             return f"Я готов подробно ответить на Ваш вопрос по теме «{raw_text.rstrip('?.!')}». Задайте дополнительные параметры или уточните детали."
 
-        return f"Готов к выполнению ваших задач. Скажите, что требуется сделать, или задайте вопрос."
+        if en:
+            return "Ready to assist. Please specify what you would like to run or create."
+        return "Все системы функционируют штатно. Чем могу помочь Вам прямо сейчас?"
 
 # ─── MAIN MASTER ENTRY POINT ────────────────────────────────────
 def process_command(user_text: str, user_name: str = "Пользователь", history: Optional[List[Dict[str, Any]]] = None) -> Tuple[str, Optional[str], Optional[Dict[str, Any]]]:
@@ -3161,6 +3175,20 @@ def process_command(user_text: str, user_name: str = "Пользователь",
     # e.g. "закрой его", "закрой её", "удали его", "удали эту папку", "удали папку", "удали эту", "проверь его"
     resolved_text = raw
     low_raw = raw.lower()
+
+    # 0.01 Follow-up command resolution ("так напиши", "ну напиши", "сделай", "покажи код", "давай", "продолжай")
+    is_followup = any(low_raw.startswith(p) or low_raw == p for p in [
+        "так напиши", "ну напиши", "напиши же", "ну так напиши",
+        "сделай", "так сделай", "давай напиши", "пиши", "покажи код", "давай", "продолжай"
+    ])
+    if history and is_followup:
+        for prev_msg in reversed(history):
+            if prev_msg.get("role") == "user":
+                prev_u = prev_msg.get("content", "").strip()
+                if prev_u and prev_u.lower() != low_raw:
+                    resolved_text = prev_u
+                    low_raw = resolved_text.lower()
+                    break
     if history and any(p in low_raw for p in ["его", "ее", "её", "это", "туда же", "эту", "ту", "папку", "папка", "файл"]):
         for prev_msg in reversed(history):
             prev_content = prev_msg.get("content", "")
@@ -3439,16 +3467,20 @@ def process_command(user_text: str, user_name: str = "Пользователь",
     # Guarantee clean response without unparsed raw JSON leaks
     if isinstance(final_reply, str):
         fr_strip = final_reply.strip()
-        if fr_strip.startswith('{"reply"') or fr_strip.startswith('{\n"reply"') or fr_strip.startswith('{\r\n"reply"'):
+        if fr_strip.startswith('{') and ('"reply"' in fr_strip or "'reply'" in fr_strip):
             try:
                 p = json.loads(fr_strip)
                 if "reply" in p and isinstance(p["reply"], str):
                     final_reply = p["reply"]
             except Exception:
-                m_rep = re.search(r'"reply"\s*:\s*"([\s\S]*?)(?="\s*,\s*"actions"|"\s*\}\s*$)', fr_strip)
+                m_rep = re.search(r'["\']reply["\']\s*:\s*["\']([\s\S]*?)(?=["\']\s*,\s*["\']actions|["\']\s*\}\s*$)', fr_strip)
                 if m_rep:
                     final_reply = m_rep.group(1).replace(r'\"', '"').replace(r'\n', '\n')
-
+                else:
+                    clean = re.sub(r'^\s*\{\s*["\']reply["\']\s*:\s*["\']?', '', fr_strip)
+                    clean = re.sub(r'["\']?\s*,\s*["\']actions["\']\s*:\s*\[[\s\S]*?\]\s*\}\s*$', '', clean)
+                    clean = re.sub(r'["\']?\s*\}\s*$', '', clean)
+                    final_reply = clean.replace(r'\"', '"').replace(r'\n', '\n')
         # Clean repetitive or awkward "" to ensure modern natural tone
         if final_reply.endswith(".") or final_reply.endswith("!") or final_reply.count("сэр") > 1:
             final_reply = re.sub(r',\s*сэр\b', '', final_reply, flags=re.IGNORECASE)

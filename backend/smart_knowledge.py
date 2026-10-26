@@ -6,6 +6,7 @@ Works offline and ensures the assistant NEVER outputs generic robotic templates.
 """
 
 import re
+import random
 from typing import Optional
 
 def generate_smart_code(prompt: str) -> Optional[str]:
@@ -14,13 +15,14 @@ def generate_smart_code(prompt: str) -> Optional[str]:
     # Keywords indicating a code generation request
     is_code = any(k in low for k in [
         "напиши", "создай", "код", "скрипт", "программу", "функцию", "сервер", "сайт", "сайтик",
+        "бэкенд", "backend", "бэк", "микросервис", "эндпоинт", "роутер", "api", "rest", "crud",
         "write", "code", "script", "app", "application", "server", "веб"
     ])
     if not is_code:
         return None
 
     # ─── 1. GOLANG (GO) REQUESTS ────────────────────────────────────
-    is_go = any(k in low for k in ["golang", "голанг", "на go", "на го", " на go", " на го", "go"]) and not any(k in low for k in ["google", "good"])
+    is_go = any(k in low for k in ["golang", "голанг", "на go", "на го", "go"]) and not any(k in low for k in ["google", "good"])
     if is_go:
         # 1.0 Telegram Bot in Go
         if any(k in low for k in ["бот", "bot", "telegram", "телеграм", "тг"]):
@@ -128,10 +130,10 @@ def generate_smart_code(prompt: str) -> Optional[str]:
                 "Сторонние библиотеки не требуются — бот работает на стандартных пакетах Go!"
             )
 
-        # 1.1 Web Server / Website in Go
-        if any(k in low for k in ["сайт", "сайтик", "веб", "сервер", "http", "web", "html"]):
+        # 1.1 Web Server with HTML Templates in Go
+        if any(k in low for k in ["сайт", "сайтик", "html", "веб-сайт", "страничк"]):
             return (
-                "Вот готовый, красивый и рабочий веб-сайт на **Golang** на базе стандартной библиотеки `net/http` со встроенным HTML-шаблоном и стилями:\n\n"
+                "Вот готовый, красивый и автономный веб-сайт на **Golang** на базе стандартной библиотеки `net/http` со встроенным HTML-шаблоном и стилями:\n\n"
                 "```go\n"
                 "package main\n\n"
                 "import (\n"
@@ -266,60 +268,7 @@ def generate_smart_code(prompt: str) -> Optional[str]:
                 "3. Откройте в браузере адрес [http://localhost:8080](http://localhost:8080)."
             )
 
-        # 1.2 REST API in Go
-        if any(k in low for k in ["api", "rest", "crud", "json"]):
-            return (
-                "Вот готовый и масштабируемый REST API сервис на **Golang** со структурированными JSON-эндпоинтами:\n\n"
-                "```go\n"
-                "package main\n\n"
-                "import (\n"
-                "    \"encoding/json\"\n"
-                "    \"fmt\"\n"
-                "    \"log\"\n"
-                "    \"net/http\"\n"
-                "    \"sync\"\n"
-                ")\n\n"
-                "type Item struct {\n"
-                "    ID    int    `json:\"id\"`\n"
-                "    Title string `json:\"title\"`\n"
-                "}\n\n"
-                "var (\n"
-                "    items = []Item{{ID: 1, Title: \"Первая задача\"}, {ID: 2, Title: \"Вторая задача\"}}\n"
-                "    mu    sync.RWMutex\n"
-                ")\n\n"
-                "func itemsHandler(w http.ResponseWriter, r *http.Request) {\n"
-                "    w.Header().Set(\"Content-Type\", \"application/json\")\n"
-                "    switch r.Method {\n"
-                "    case http.MethodGet:\n"
-                "        mu.RLock()\n"
-                "        defer mu.RUnlock()\n"
-                "        json.NewEncoder(w).Encode(items)\n"
-                "    case http.MethodPost:\n"
-                "        var newItem Item\n"
-                "        if err := json.NewDecoder(r.Body).Decode(&newItem); err != nil {\n"
-                "            http.Error(w, err.Error(), http.StatusBadRequest)\n"
-                "            return\n"
-                "        }\n"
-                "        mu.Lock()\n"
-                "        newItem.ID = len(items) + 1\n"
-                "        items = append(items, newItem)\n"
-                "        mu.Unlock()\n"
-                "        w.WriteHeader(http.StatusCreated)\n"
-                "        json.NewEncoder(w).Encode(newItem)\n"
-                "    default:\n"
-                "        http.Error(w, \"Метод не поддерживается\", http.StatusMethodNotAllowed)\n"
-                "    }\n"
-                "}\n\n"
-                "func main() {\n"
-                "    http.HandleFunc(\"/api/items\", itemsHandler)\n"
-                "    fmt.Println(\"API сервер запущен на http://localhost:8080/api/items\")\n"
-                "    log.Fatal(http.ListenAndServe(\":8080\", nil))\n"
-                "}\n"
-                "```\n\n"
-                "Запуск: `go run main.go`."
-            )
-
-        # 1.3 Concurrency / Goroutines in Go
+        # 1.2 Concurrency / Goroutines in Go
         if any(k in low for k in ["горутин", "канал", "concurrency", "поток"]):
             return (
                 "Вот пример конкурентной обработки задач в **Golang** с использованием горутин (`goroutines`), каналов (`chan`) и `sync.WaitGroup`:\n\n"
@@ -363,9 +312,231 @@ def generate_smart_code(prompt: str) -> Optional[str]:
                 "```"
             )
 
+        # 1.3 Production-Grade Backend & REST API in Go (Primary & Default for Golang requests)
+        # Handles "напиши бэкенд на golang крутом", "бэкенд на go", "сервер на go", "api на golang", etc.
+        return (
+            "Вот готовый, масштабируемый и профессиональный бэкенд на **Golang** на базе стандартной библиотеки `net/http` с маршрутизацией, middleware логирования, CORS, потокобезопасным хранилищем и graceful shutdown:\n\n"
+            "```go\n"
+            "package main\n\n"
+            "import (\n"
+            "    \"context\"\n"
+            "    \"encoding/json\"\n"
+            "    \"fmt\"\n"
+            "    \"log\"\n"
+            "    \"net/http\"\n"
+            "    \"os\"\n"
+            "    \"os/signal\"\n"
+            "    \"sync\"\n"
+            "    \"syscall\"\n"
+            "    \"time\"\n"
+            ")\n\n"
+            "// Модель данных\n"
+            "type Item struct {\n"
+            "    ID        int       `json:\"id\"`\n"
+            "    Title     string    `json:\"title\"`\n"
+            "    Content   string    `json:\"content\"`\n"
+            "    CreatedAt time.Time `json:\"created_at\"`\n"
+            "}\n\n"
+            "// Потокобезопасное хранилище в памяти\n"
+            "type Store struct {\n"
+            "    sync.RWMutex\n"
+            "    items  map[int]Item\n"
+            "    nextID int\n"
+            "}\n\n"
+            "func NewStore() *Store {\n"
+            "    s := &Store{items: make(map[int]Item), nextID: 1}\n"
+            "    s.items[1] = Item{\n"
+            "        ID:        1,\n"
+            "        Title:     \"Добро пожаловать в Argus AI Go Backend\",\n"
+            "        Content:   \"Быстрый, чистый и надежный сервис на стандартной библиотеке Go.\",\n"
+            "        CreatedAt: time.Now(),\n"
+            "    }\n"
+            "    s.nextID = 2\n"
+            "    return s\n"
+            "}\n\n"
+            "// Middleware логирования запросов и замера времени выполнения\n"
+            "func loggingMiddleware(next http.Handler) http.Handler {\n"
+            "    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {\n"
+            "        start := time.Now()\n"
+            "        next.ServeHTTP(w, r)\n"
+            "        log.Printf(\"[%s] %s %s - %v\", r.Method, r.URL.Path, r.RemoteAddr, time.Since(start))\n"
+            "    })\n"
+            "}\n\n"
+            "// Middleware CORS для взаимодействия с фронтендом\n"
+            "func corsMiddleware(next http.Handler) http.Handler {\n"
+            "    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {\n"
+            "        w.Header().Set(\"Access-Control-Allow-Origin\", \"*\")\n"
+            "        w.Header().Set(\"Access-Control-Allow-Methods\", \"GET, POST, PUT, DELETE, OPTIONS\")\n"
+            "        w.Header().Set(\"Access-Control-Allow-Headers\", \"Content-Type, Authorization\")\n"
+            "        if r.Method == http.MethodOptions {\n"
+            "            w.WriteHeader(http.StatusOK)\n"
+            "            return\n"
+            "        }\n"
+            "        next.ServeHTTP(w, r)\n"
+            "    })\n"
+            "}\n\n"
+            "func main() {\n"
+            "    store := NewStore()\n"
+            "    mux := http.NewServeMux()\n\n"
+            "    // 1. Healthcheck эндпоинт\n"
+            "    mux.HandleFunc(\"/api/health\", func(w http.ResponseWriter, r *http.Request) {\n"
+            "        w.Header().Set(\"Content-Type\", \"application/json\")\n"
+            "        json.NewEncoder(w).Encode(map[string]interface{}{\n"
+            "            \"status\":    \"healthy\",\n"
+            "            \"uptime_ms\": time.Now().UnixMilli(),\n"
+            "            \"version\":   \"2.0.0\",\n"
+            "        })\n"
+            "    })\n\n"
+            "    // 2. REST API эндпоинты коллекции items\n"
+            "    mux.HandleFunc(\"/api/items\", func(w http.ResponseWriter, r *http.Request) {\n"
+            "        w.Header().Set(\"Content-Type\", \"application/json\")\n"
+            "        switch r.Method {\n"
+            "        case http.MethodGet:\n"
+            "            store.RLock()\n"
+            "            defer store.RUnlock()\n"
+            "            list := make([]Item, 0, len(store.items))\n"
+            "            for _, item := range store.items {\n"
+            "                list = append(list, item)\n"
+            "            }\n"
+            "            json.NewEncoder(w).Encode(list)\n\n"
+            "        case http.MethodPost:\n"
+            "            var req struct {\n"
+            "                Title   string `json:\"title\"`\n"
+            "                Content string `json:\"content\"`\n"
+            "            }\n"
+            "            if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Title == \"\" {\n"
+            "                http.Error(w, `{\"error\": \"Неверное тело запроса (title обязателен)\"}`, http.StatusBadRequest)\n"
+            "                return\n"
+            "            }\n"
+            "            store.Lock()\n"
+            "            newItem := Item{\n"
+            "                ID:        store.nextID,\n"
+            "                Title:     req.Title,\n"
+            "                Content:   req.Content,\n"
+            "                CreatedAt: time.Now(),\n"
+            "            }\n"
+            "            store.items[store.nextID] = newItem\n"
+            "            store.nextID++\n"
+            "            store.Unlock()\n\n"
+            "            w.WriteHeader(http.StatusCreated)\n"
+            "            json.NewEncoder(w).Encode(newItem)\n\n"
+            "        default:\n"
+            "            http.Error(w, `{\"error\": \"Метод не поддерживается\"}`, http.StatusMethodNotAllowed)\n"
+            "        }\n"
+            "    })\n\n"
+            "    handler := corsMiddleware(loggingMiddleware(mux))\n"
+            "    server := &http.Server{\n"
+            "        Addr:         \":8080\",\n"
+            "        Handler:      handler,\n"
+            "        ReadTimeout:  5 * time.Second,\n"
+            "        WriteTimeout: 10 * time.Second,\n"
+            "        IdleTimeout:  60 * time.Second,\n"
+            "    }\n\n"
+            "    // Запуск HTTP-сервера\n"
+            "    go func() {\n"
+            "        log.Println(\"🚀 Golang Backend успешно запущен на http://localhost:8080\")\n"
+            "        log.Println(\"📍 Доступные эндпоинты:\")\n"
+            "        log.Println(\"   • GET  http://localhost:8080/api/health\")\n"
+            "        log.Println(\"   • GET  http://localhost:8080/api/items\")\n"
+            "        log.Println(\"   • POST http://localhost:8080/api/items\")\n"
+            "        if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {\n"
+            "            log.Fatalf(\"Ошибка сервера: %v\", err)\n"
+            "        }\n"
+            "    }()\n\n"
+            "    // Graceful Shutdown при получении сигнала прерывания\n"
+            "    stop := make(chan os.Signal, 1)\n"
+            "    signal.Notify(stop, os.Interrupt, syscall.SIGTERM)\n"
+            "    <-stop\n\n"
+            "    log.Println(\"Завершение работы сервера...\")\n"
+            "    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)\n"
+            "    defer cancel()\n"
+            "    if err := server.Shutdown(ctx); err != nil {\n"
+            "        log.Fatalf(\"Ошибка при плавной остановке: %v\", err)\n"
+            "    }\n"
+            "    log.Println(\"Сервер успешно и корректно остановлен.\")\n"
+            "}\n"
+            "```\n\n"
+            "**Инструкция по запуску:**\n"
+            "1. Сохраните код в файл `main.go`.\n"
+            "2. Выполните в терминале: `go run main.go`.\n"
+            "3. Сервер запустится на порту `8080` (стандартная библиотека Go, установка сторонних пакетов не требуется).\n\n"
+            "**Примеры тестирования через curl:**\n"
+            "• Проверка статуса: `curl http://localhost:8080/api/health`\n"
+            "• Получить все записи: `curl http://localhost:8080/api/items`\n"
+            "• Добавить новую запись:\n"
+            "`curl -X POST http://localhost:8080/api/items -H \"Content-Type: application/json\" -d \"{\\\"title\\\":\\\"Новая задача\\\",\\\"content\\\":\\\"Работает на Go!\\\"}\"`"
+        )
+
     # ─── 2. PYTHON REQUESTS ─────────────────────────────────────────
-    is_python = any(k in low for k in ["python", "питон", "парсер", "scraping", "beautifulsoup", "fastapi", "flask", "aiogram"])
-    if is_python or any(k in low for k in ["на python", "на питоне"]):
+    is_python = any(k in low for k in ["python", "питон", "парсер", "scraping", "beautifulsoup", "fastapi", "flask", "aiogram"]) or any(k in low for k in ["на python", "на питоне"])
+    if is_python:
+        # 2.0 Backend in Python (FastAPI / Flask)
+        if any(k in low for k in ["бэкенд", "backend", "бэк", "сервер", "server", "fastapi", "flask", "api", "rest"]):
+            return (
+                "Вот готовый, асинхронный и высокопроизводительный бэкенд на **Python (FastAPI)** с валидацией Pydantic, CORS и автодокументацией Swagger:\n\n"
+                "```python\n"
+                "import uvicorn\n"
+                "from fastapi import FastAPI, HTTPException\n"
+                "from fastapi.middleware.cors import CORSMiddleware\n"
+                "from pydantic import BaseModel, Field\n"
+                "from typing import List, Optional\n"
+                "import time\n\n"
+                "app = FastAPI(\n"
+                "    title=\"Argus AI Python Backend\",\n"
+                "    description=\"Быстрый и надежный REST API сервис\",\n"
+                "    version=\"2.0.0\"\n"
+                ")\n\n"
+                "# Настройка CORS\n"
+                "app.add_middleware(\n"
+                "    CORSMiddleware,\n"
+                "    allow_origins=[\"*\"],\n"
+                "    allow_credentials=True,\n"
+                "    allow_methods=[\"*\"],\n"
+                "    allow_headers=[\"*\"],\n"
+                ")\n\n"
+                "# Модели Pydantic\n"
+                "class Item(BaseModel):\n"
+                "    id: int\n"
+                "    title: str = Field(..., min_length=1, max_length=100)\n"
+                "    content: Optional[str] = None\n"
+                "    created_at: float = Field(default_factory=time.time)\n\n"
+                "class ItemCreate(BaseModel):\n"
+                "    title: str = Field(..., min_length=1, max_length=100)\n"
+                "    content: Optional[str] = None\n\n"
+                "# In-memory база данных\n"
+                "db: List[Item] = [\n"
+                "    Item(id=1, title=\"Первая запись\", content=\"Сервер на FastAPI работает штатно\")\n"
+                "]\n\n"
+                "@app.get(\"/api/health\", tags=[\"System\"])\n"
+                "async def health_check():\n"
+                "    return {\"status\": \"healthy\", \"version\": \"2.0.0\", \"timestamp\": time.time()}\n\n"
+                "@app.get(\"/api/items\", response_model=List[Item], tags=[\"Items\"])\n"
+                "async def get_items():\n"
+                "    return db\n\n"
+                "@app.post(\"/api/items\", response_model=Item, status_code=201, tags=[\"Items\"])\n"
+                "async def create_item(payload: ItemCreate):\n"
+                "    new_id = len(db) + 1\n"
+                "    item = Item(id=new_id, title=payload.title, content=payload.content)\n"
+                "    db.append(item)\n"
+                "    return item\n\n"
+                "@app.get(\"/api/items/{item_id}\", response_model=Item, tags=[\"Items\"])\n"
+                "async def get_item(item_id: int):\n"
+                "    for item in db:\n"
+                "        if item.id == item_id:\n"
+                "            return item\n"
+                "    raise HTTPException(status_code=404, detail=\"Запись не найдена\")\n\n"
+                "if __name__ == '__main__':\n"
+                "    print(\"🚀 FastAPI сервер запускается на http://localhost:8000\")\n"
+                "    print(\"📖 Интерактивная документация Swagger: http://localhost:8000/docs\")\n"
+                "    uvicorn.run(app, host=\"127.0.0.1\", port=8000)\n"
+                "```\n\n"
+                "**Инструкция по запуску:**\n"
+                "1. Установите зависимости: `pip install fastapi uvicorn`\n"
+                "2. Сохраните код в `main.py` и запустите: `python main.py`\n"
+                "3. Откройте в браузере документацию Swagger: [http://localhost:8000/docs](http://localhost:8000/docs)"
+            )
+
+        # 2.1 Web Scraper in Python
         if any(k in low for k in ["парсер", "парсинг", "scraping", "скачай сайт"]):
             return (
                 "Вот готовый скрипт для парсинга на **Python** (requests + BeautifulSoup):\n\n"
@@ -391,6 +562,8 @@ def generate_smart_code(prompt: str) -> Optional[str]:
                 "```\n\n"
                 "Установка: `pip install requests beautifulsoup4`."
             )
+
+        # 2.2 Telegram Bot in Python
         if any(k in low for k in ["бот", "telegram", "телеграм"]):
             return (
                 "Вот современный асинхронный Telegram-бот на **Python** (`aiogram 3.x`):\n\n"
@@ -398,16 +571,17 @@ def generate_smart_code(prompt: str) -> Optional[str]:
                 "import asyncio\n"
                 "from aiogram import Bot, Dispatcher, types\n"
                 "from aiogram.filters import Command\n\n"
-                "BOT_TOKEN = 'ВАШ_ТОКЕН_БОТА'\n"
-                "bot = Bot(token=BOT_TOKEN)\n"
+                "TOKEN = 'ВАШ_ТОКЕН_БОТА'\n"
+                "bot = Bot(token=TOKEN)\n"
                 "dp = Dispatcher()\n\n"
                 "@dp.message(Command('start'))\n"
-                "async def cmd_start(msg: types.Message):\n"
-                "    await msg.answer(f'Привет, {msg.from_user.first_name}! Бот на Python успешно работает.')\n\n"
+                "async def start_handler(message: types.Message):\n"
+                "    await message.answer(f'Привет, {message.from_user.first_name}! Я бот на aiogram 3.x.')\n\n"
                 "@dp.message()\n"
-                "async def echo_handler(msg: types.Message):\n"
-                "    await msg.reply(f'Вы сказали: {msg.text}')\n\n"
+                "async def echo_handler(message: types.Message):\n"
+                "    await message.answer(f'Эхо: {message.text}')\n\n"
                 "async def main():\n"
+                "    print('Бот запущен...')\n"
                 "    await dp.start_polling(bot)\n\n"
                 "if __name__ == '__main__':\n"
                 "    asyncio.run(main())\n"
@@ -415,7 +589,89 @@ def generate_smart_code(prompt: str) -> Optional[str]:
                 "Установка: `pip install aiogram`."
             )
 
+    # ─── 3. JAVASCRIPT / TYPESCRIPT / NODE.JS REQUESTS ───────────────
+    is_node = any(k in low for k in ["node", "nodejs", "node.js", "express", "javascript", "typescript", "ts", "js"])
+    if is_node:
+        return (
+            "Вот готовый, чистый бэкенд на **Node.js (Express)** с поддержкой JSON, CORS и обработкой ошибок:\n\n"
+            "```javascript\n"
+            "const express = require('express');\n"
+            "const app = express();\n"
+            "const PORT = process.env.PORT || 3000;\n\n"
+            "// Middleware\n"
+            "app.use(express.json());\n"
+            "app.use((req, res, next) => {\n"
+            "    res.header('Access-Control-Allow-Origin', '*');\n"
+            "    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');\n"
+            "    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);\n"
+            "    next();\n"
+            "});\n\n"
+            "// In-memory хранилище\n"
+            "let items = [\n"
+            "    { id: 1, title: 'Первая задача', done: false }\n"
+            "];\n\n"
+            "// Эндпоинты\n"
+            "app.get('/api/health', (req, res) => {\n"
+            "    res.json({ status: 'ok', uptime: process.uptime() });\n"
+            "});\n\n"
+            "app.get('/api/items', (req, res) => {\n"
+            "    res.json(items);\n"
+            "});\n\n"
+            "app.post('/api/items', (req, res) => {\n"
+            "    const { title } = req.body;\n"
+            "    if (!title) {\n"
+            "        return res.status(400).json({ error: 'Поле title обязательно' });\n"
+            "    }\n"
+            "    const newItem = { id: items.length + 1, title, done: false };\n"
+            "    items.push(newItem);\n"
+            "    res.status(201).json(newItem);\n"
+            "});\n\n"
+            "app.listen(PORT, () => {\n"
+            "    console.log(`🚀 Сервер запущен на http://localhost:${PORT}`);\n"
+            "});\n"
+            "```\n\n"
+            "**Инструкция по запуску:**\n"
+            "1. Инициализируйте проект: `npm init -y && npm install express`\n"
+            "2. Сохраните код в `server.js` и запустите: `node server.js`"
+        )
+
+    # ─── 4. GENERAL BACKEND / SERVER REQUEST FALLBACK ────────────────
+    if any(k in low for k in ["бэкенд", "backend", "бэк", "сервер"]):
+        return generate_smart_code("напиши бэкенд на golang")
+
     return None
+
+def generate_interesting_story(prompt: str) -> Optional[str]:
+    """Generates authentic, captivating, well-researched stories (science, tech history, cosmic exploration)."""
+    low = prompt.lower().strip()
+    is_story = any(k in low for k in [
+        "расскажи историю", "расскажи интересную историю", "расскажи сказку",
+        "расскажи что-нибудь интересное", "историю расскажи", "сочини историю", "любую историю",
+        "расскажи любую интересную историю"
+    ])
+    if not is_story:
+        return None
+
+    stories = [
+        (
+            "В июле 1969 года, за три минуты до посадки модуля «Аполлон-11» на Луну, бортовой компьютер Apollo Guidance Computer (AGC) внезапно захлебнулся потоком аварийных сигналов: загорелись ошибки «1201» и «1202».\n\n"
+            "Радиолокатор сближения передавал в процессор лавину паразитных импульсов, перегружая вычислитель на 15%. Любая обычная программа в такой ситуации зависла бы насмерть, приведя к катастрофе.\n\n"
+            "Но за систему отвечала 32-летняя Маргарет Гамильтон, директор программной инженерии Лаборатории Чарльза Старка Дрейпера при MIT. Предвидя перегрузки, её команда разработала концепцию асинхронного исполнителя задач с жестким приоритетным планированием. Когда процессор перегрузился, система автоматически сбросила низкоприоритетные задачи и бросила 100% мощности на расчет посадочных двигателей.\n\n"
+            "Нил Армстронг и Базз Олдрин благополучно коснулись лунной пыли в Море Спокойствия со словами: «Орёл сел». Код Маргарет спас первую высадку человечества на Луну."
+        ),
+        (
+            "В августе 1977 года с мыса Канаверал стартовал космический аппарат «Вояджер-1». На его борту закреплена круглая пластинка из позолоченной меди — Золотая пластинка «Вояджера» с посланием для внеземных цивилизаций.\n\n"
+            "На пластинке закодированы 115 изображений, звуки земной природы — шум прибоя, раскаты грома, пение птиц, смех ребенка, приветствия на 55 языках и музыка Баха, Моцарта, Чака Берри и грузинское хоровое пение «Чакруло».\n\n"
+            "Сегодня «Вояджер-1» — самый удаленный объект, созданный руками человека. Он покинул Солнечную систему и летит в холодном межзвездном пространстве на расстоянии более 24 миллиардов километров от Земли. Его сигнал идет до нас более 22 часов. Даже через миллиарды лет, когда погаснет наше Солнце, этот золотой диск продолжит дрейфовать среди далеких звезд как вечный памятник тому, что мы здесь жили, чувствовали и смотрели в небо."
+        ),
+        (
+            "В 1900 году ныряльщики за губками обнаружили у берегов греческого острова Антикитера обломки античного римского корабля, затонувшего в I веке до нашей эры. Среди мраморных статуй они подняли невзрачный кусок покрытой коррозией бронзы.\n\n"
+            "Лишь полвека спустя, с помощью рентгеновской томографии, ученые заглянули внутрь и были потрясены: внутри находился сложнейший механизм из 37 бронзовых шестерен с зубьями треугольной формы, дифференциальными передачами и поворотными стрелками — Антикитерский механизм.\n\n"
+            "Это был первый в истории человечества аналоговый компьютер. Он с филигранной точностью вычислял движения Солнца, фазы Луны, 19-летний метонов цикл, периоды затмений и даже даты проведения Олимпийских игр на десятилетия вперед. Технологии такого уровня точности исчезли в средние века и появились в Европе вновь лишь спустя 1500 лет с изобретением башенных часов эпохи Возрождения."
+        )
+    ]
+
+    return random.choice(stories)
 
 def generate_technical_knowledge_reply(prompt: str) -> Optional[str]:
     low = prompt.lower().strip()
