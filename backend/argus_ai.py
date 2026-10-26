@@ -1564,15 +1564,26 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
     # 10.2 Next track
     if any(k in c for k in [
         "следующий трек", "следующая песня", "следующую песню", "переключи трек", "переключи песню",
-        "следующий", "next track", "скипни трек", "скипни песню", "скип трек", "скипни"
-    ]) or (c in ["след", "next", "скип", "дальше"]):
+        "включи следующую песню", "включи следующий трек", "следующий", "next track", "скипни трек",
+        "скипни песню", "скип трек", "скипни", "пропусти трек", "пропусти песню"
+    ]) or (c in ["след", "next", "скип", "дальше", "следующую", "следующая"]):
         return {"type": "play_music", "action": "next"}
+
+    # 10.25 Replay / Restart current song from beginning
+    if any(k in c for k in [
+        "заново сыграй песню", "заново сыграй", "сыграй заново песню", "сыграй заново", "заново песню",
+        "включи заново", "включи песню заново", "повтори песню", "повтори трек", "песню заново", "трек заново",
+        "с начала песню", "песню сначала", "трек сначала", "сначала песню", "включи сначала", "с начала",
+        "реплей", "replay", "restart song"
+    ]) or (c in ["заново", "повтори", "сначала", "реплей", "заново сыграй"]):
+        return {"type": "play_music", "action": "replay"}
 
     # 10.3 Previous track
     if any(k in c for k in [
         "предыдущий трек", "предыдущая песня", "предыдущую песню", "прошлый трек", "прошлая песня",
-        "верни трек", "верни песню", "prev track", "предыдущий", "назад песню"
-    ]) or (c in ["пред", "prev", "назад"]):
+        "прошлую песню", "включи прошлую песню", "включи предыдущий трек", "верни трек", "верни песню",
+        "prev track", "предыдущий", "назад песню", "прошлую"
+    ]) or (c in ["пред", "prev", "назад", "прошлую", "прошлая"]):
         return {"type": "play_music", "action": "prev"}
 
     # 10.4 Resume / Continue playing
@@ -1590,6 +1601,8 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         music_service = "yandex"
     elif any(k in c for k in ["саундклауд", "саундклауде", "саунд клауд", "soundcloud"]):
         music_service = "soundcloud"
+    elif any(k in c for k in ["эпл музык", "apple music", "эппл музык", "музык эпл", "музыку эпл", "apple"]):
+        music_service = "apple_music"
     elif any(k in c for k in ["вк музык", "vk music", "музык вк", "музыку вк"]):
         music_service = "vk"
     elif any(k in c for k in ["ютуб", "ютубе", "ютуби", "youtube"]):
@@ -1604,11 +1617,11 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
 
     # Playlists: "включи плейлист рок", "выбери плейлист для тренировок в спотифай"
     if any(k in c for k in ["плейлист", "playlist"]):
-        m_pl = re.search(r'(?:включи|поставь|открой|выбери|запусти|найди|слушай)?\s*плейлист\s+(.+?)(?:\s+(?:в|на)\s+(?:спотифай|spotify|яндекс|soundcloud|саундклауд|вк|ютуб|youtube).*)?$', raw_c, re.IGNORECASE)
+        m_pl = re.search(r'(?:включи|поставь|открой|выбери|запусти|найди|слушай)?\s*плейлист\s+(.+?)(?:\s+(?:в|на)\s+(?:спотифай|spotify|яндекс|soundcloud|саундклауд|эпл|apple|вк|ютуб|youtube).*)?$', raw_c, re.IGNORECASE)
         pl_name = ""
         if m_pl:
             pl_name = m_pl.group(1).strip()
-            pl_name = re.sub(r'\b(?:в|на)\s+(?:спотифа[еяй]|spotify|яндекс[е]?\s*(?:музык[еау])?|саундклауд[е]?|soundcloud|вк|vk|ютуб[е]?|youtube)\b', '', pl_name, flags=re.IGNORECASE).strip()
+            pl_name = re.sub(r'\b(?:в|на)\s+(?:спотифа[еяй]|spotify|яндекс[е]?\s*(?:музык[еау])?|саундклауд[е]?|soundcloud|эпл[е]?\s*(?:музык[еау])?|apple(?:\s*music)?|вк|vk|ютуб[е]?|youtube)\b', '', pl_name, flags=re.IGNORECASE).strip()
             pl_name = pl_name.strip('"\'«»')
         if music_service == "youtube":
             return {"type": "search_web", "query": pl_name or "плейлист", "engine": "youtube", "is_play": True}
@@ -1618,7 +1631,7 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
     m_track = re.search(r'^(?:включи|включить|поставь|поставить|запусти|запустить|вруби|врубить|сыграй|найди\s+и\s+включи)\s+(?:песню|трек|композицию|музыку)\s+(.+)$', raw_c, re.IGNORECASE)
     if m_track:
         track_query = m_track.group(1).strip()
-        track_query = re.sub(r'\b(?:в|на)\s+(?:спотифа[еяй]|spotify|яндекс[е]?\s*(?:музык[еау])?|саундклауд[е]?|soundcloud|вк|vk|ютуб[е]?|youtube)\b', '', track_query, flags=re.IGNORECASE).strip()
+        track_query = re.sub(r'\b(?:в|на)\s+(?:спотифа[еяй]|spotify|яндекс[е]?\s*(?:музык[еау])?|саундклауд[е]?|soundcloud|эпл[е]?\s*(?:музык[еау])?|apple(?:\s*music)?|вк|vk|ютуб[е]?|youtube)\b', '', track_query, flags=re.IGNORECASE).strip()
         track_query = track_query.strip('"\'«»')
         if track_query and track_query not in ["спотифай", "spotify", "яндекс музыка", "саундклауд", "soundcloud"]:
             if music_service == "youtube":
@@ -1628,7 +1641,7 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
     # Explicit service search: e.g. "включи рамштайн в спотифай" or "поставь фонк в саундклауд"
     if music_service != "auto" and any(verb in c for verb in ["включи", "поставь", "найди", "запусти", "послушай", "play"]):
         clean_q = re.sub(r'^(?:включи|включить|поставь|поставить|найди|найти|запусти|запустить|открой|открыть|послушай|послушать|play)\s+', '', raw_c, flags=re.IGNORECASE).strip()
-        clean_q = re.sub(r'\b(?:в|на)?\s*(?:спотифа[еяй]|spotify|яндекс[е]?\s*(?:музык[еау])?|саундклауд[е]?|soundcloud|вк|vk|ютуб[е]?|youtube)\b', '', clean_q, flags=re.IGNORECASE).strip()
+        clean_q = re.sub(r'\b(?:в|на)?\s*(?:спотифа[еяй]|spotify|яндекс[е]?\s*(?:музык[еау])?|саундклауд[е]?|soundcloud|эпл[е]?\s*(?:музык[еау])?|apple(?:\s*music)?|вк|vk|ютуб[е]?|youtube)\b', '', clean_q, flags=re.IGNORECASE).strip()
         clean_q = clean_q.strip('"\'«»')
         if clean_q and len(clean_q) > 1:
             if music_service == "youtube":
@@ -2425,10 +2438,10 @@ def local_multi_action_planner(user_text: str) -> List[Dict[str, Any]]:
 
     # 1. Normalize verb boundaries to avoid missing clauses without punctuation
     # e.g. "Открой браузер сделай скриншот" -> "Открой браузер; сделай скриншот"
-    verb_boundary = r'(?<=\w)\s+(?=(?:открой|запусти|зайди в|зайди на|зайди|перейди в|перейди на|перейди|найди чат|найди диалог|найди контакт|сделай скриншот|сделай скрин|заскринь|сохрани скриншот|закрой вкладку|смахни вкладку|закрой|выключи|напиши|напечатай|отправь|нажми|кликни|почисти корзину|очисти корзину|заблокируй|обнови|прокрути|поставь яркость|поставь звук|поставь громкость|поставь|установи|прибавь|убавь|создай файл|создай папку|создай|удали файл|удали папку|удали|проверь|проанализируй|список файлов)\b)'
+    verb_boundary = r'(?<=\w)\s+(?=(?:открой|запусти|включи|вруби|сыграй|сделай|зайди в|зайди на|зайди|перейди в|перейди на|перейди|найди чат|найди диалог|найди контакт|сделай скриншот|сделай скрин|заскринь|сохрани скриншот|закрой вкладку|смахни вкладку|закрой|выключи|напиши|напечатай|отправь|нажми|кликни|почисти корзину|очисти корзину|заблокируй|обнови|прокрути|поставь яркость|поставь звук|поставь громкость|поставь|установи|прибавь|убавь|создай файл|создай папку|создай|удали файл|удали папку|удали|проверь|проанализируй|список файлов)\b)'
     user_text_norm = re.sub(verb_boundary, '; ', user_text, flags=re.IGNORECASE)
 
-    clauses = re.split(r'\b(и\s+потом|а\s+затем|после\s+этого|потом|затем|а\s+также|также|дальше|and\s+then|then)\b|[;,]', user_text_norm, flags=re.IGNORECASE)
+    clauses = re.split(r'\b(и\s+потом|а\s+затем|после\s+этого|потом|затем|а\s+также|также|дальше|and\s+then|then)\b|(?<=\w)\s+и\s+(?=(?:открой|запусти|включи|сделай|поставь|сыграй|зайди|закрой|напиши)\b)|[;,]', user_text_norm, flags=re.IGNORECASE)
     actions = []
     
     for clause in clauses:

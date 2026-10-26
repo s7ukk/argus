@@ -1915,6 +1915,19 @@ def media_control(action: str) -> bool:
                 return True
             except Exception:
                 return False
+        elif any(k in action for k in ["replay", "заново", "сначала", "повтори"]):
+            script = '''
+            if application "Spotify" is running then
+                tell application "Spotify" to set player position to 0
+            else if application "Music" is running then
+                tell application "Music" to set player position to 0
+            end if
+            '''
+            try:
+                subprocess.run(["osascript", "-e", script], check=False)
+                return True
+            except Exception:
+                return False
         elif any(k in action for k in ["prev", "пред", "back", "назад"]):
             script = '''
             if application "Spotify" is running then
@@ -1933,6 +1946,10 @@ def media_control(action: str) -> bool:
     if any(k in action for k in ["stop", "стоп"]):
         _press_key(VK_MEDIA_STOP)
         _press_key(VK_MEDIA_PLAY_PAUSE)
+    elif any(k in action for k in ["replay", "заново", "сначала", "повтори"]):
+        _press_key(VK_MEDIA_PREV_TRACK)
+        time.sleep(0.08)
+        _press_key(VK_MEDIA_PREV_TRACK)
     elif any(k in action for k in ["play", "pause", "пауз", "воспроизве", "выключи", "останови", "продолжи", "играй"]):
         _press_key(VK_MEDIA_PLAY_PAUSE)
     elif any(k in action for k in ["next", "след", "скип"]):
@@ -1976,6 +1993,15 @@ def play_music(service: str = "auto", query: str = "", playlist: str = "", actio
             "message": "Включен следующий трек."
         }
 
+    # 2.5 Action: Replay / Restart current song
+    if any(k in action for k in ["replay", "заново", "сначала", "повтори"]):
+        media_control("replay")
+        return {
+            "success": True,
+            "action": "replay",
+            "message": "Песня включена заново с начала."
+        }
+
     # 3. Action: Previous track
     if any(k in action for k in ["prev", "пред", "назад"]):
         media_control("prev")
@@ -1994,20 +2020,38 @@ def play_music(service: str = "auto", query: str = "", playlist: str = "", actio
             "message": "Воспроизведение музыки продолжено."
         }
 
+    # 4.5 Load user preferred default music service from settings if service is auto
+    pref_service = None
+    if service == "auto":
+        try:
+            import backend.app_paths as app_paths
+            sett_f = app_paths.get_data_file_path("user_settings.json")
+            if os.path.exists(sett_f):
+                with open(sett_f, "r", encoding="utf-8") as f:
+                    u_sett = json.load(f)
+                    val = u_sett.get("default_music_app")
+                    if val and val != "auto":
+                        pref_service = val.lower().strip()
+        except Exception:
+            pass
+
     # 5. Determine Target Music Platform
-    if any(k in service for k in ["спотифай", "spotify"]):
+    if any(k in service for k in ["спотифай", "spotify"]) or pref_service == "spotify":
         target_service = "spotify"
         service_label = "Spotify"
-    elif any(k in service for k in ["яндекс", "yandex", "я.музыка", "ямузыка"]):
+    elif any(k in service for k in ["яндекс", "yandex", "я.музыка", "ямузыка"]) or pref_service == "yandex":
         target_service = "yandex"
         service_label = "Яндекс Музыке"
-    elif any(k in service for k in ["саундклауд", "саунд", "soundcloud"]):
+    elif any(k in service for k in ["саундклауд", "саунд", "soundcloud"]) or pref_service == "soundcloud":
         target_service = "soundcloud"
         service_label = "SoundCloud"
-    elif any(k in service for k in ["вк", "vk"]):
+    elif any(k in service for k in ["эпл", "apple", "apple music", "эпл музыка"]) or pref_service in ["apple_music", "apple"]:
+        target_service = "apple_music"
+        service_label = "Apple Music"
+    elif any(k in service for k in ["вк", "vk"]) or pref_service == "vk":
         target_service = "vk"
         service_label = "VK Музыке"
-    elif any(k in service for k in ["ютуб", "youtube", "yt"]):
+    elif any(k in service for k in ["ютуб", "youtube", "yt"]) or pref_service == "youtube":
         target_service = "youtube"
         service_label = "YouTube Music"
     else:
@@ -2056,6 +2100,13 @@ def play_music(service: str = "auto", query: str = "", playlist: str = "", actio
             target_url = f"https://soundcloud.com/search?q={encoded_search}"
         else:
             target_url = "https://soundcloud.com"
+
+    elif target_service == "apple_music":
+        app_to_launch = "music" if sys.platform == "darwin" else "apple-music"
+        if playlist or query:
+            target_url = f"https://music.apple.com/search?term={encoded_search}"
+        else:
+            target_url = "https://music.apple.com"
 
     elif target_service == "vk":
         if playlist or query:
@@ -3445,3 +3496,80 @@ def list_folder_files(target: str = "desktop") -> Dict[str, Any]:
         return {"success": False, "error": str(e)}
 
 
+
+
+def get_popular_and_installed_apps() -> List[Dict[str, Any]]:
+    """
+    Returns curated, categorized applications for Windows and macOS,
+    enriched with local installation detection status.
+    """
+    detected_catalog = scan_all_installed_apps()
+    is_mac = sys.platform == "darwin"
+
+    curated = [
+        # Messengers
+        {"id": "telegram", "name": "Telegram", "desc": "Мессенджер и каналы", "category": "chat", "icon": "MessageSquare"},
+        {"id": "discord", "name": "Discord", "desc": "Голосовой и текстовый чат", "category": "chat", "icon": "Headphones"},
+        {"id": "whatsapp", "name": "WhatsApp", "desc": "Мессенджер и звонки", "category": "chat", "icon": "MessageCircle"},
+        {"id": "slack", "name": "Slack", "desc": "Рабочие пространства и чаты", "category": "chat", "icon": "Hash"},
+        {"id": "zoom", "name": "Zoom", "desc": "Видеоконференции", "category": "chat", "icon": "Video"},
+        {"id": "skype", "name": "Skype", "desc": "Звонки и видеочат", "category": "chat", "icon": "Phone"},
+        {"id": "vk", "name": "VK Мессенджер", "desc": "Мессенджер ВКонтакте", "category": "chat", "icon": "MessageSquare"},
+
+        # Music & Media
+        {"id": "spotify", "name": "Spotify", "desc": "Стриминг музыки и подкастов", "category": "music", "icon": "Music"},
+        {"id": "yandex_music", "name": "Яндекс Музыка", "desc": "Музыка, треки и подкасты", "category": "music", "icon": "Radio"},
+        {"id": "soundcloud", "name": "SoundCloud", "desc": "Треки, ремиксы и сеты", "category": "music", "icon": "Cloud"},
+        {"id": "apple_music", "name": "Apple Music", "desc": "Музыкальный сервис Apple", "category": "music", "icon": "Music2"},
+        {"id": "youtube_music", "name": "YouTube Music", "desc": "Музыкальный сервис YouTube", "category": "music", "icon": "PlayCircle"},
+        {"id": "vlc", "name": "VLC Media Player", "desc": "Универсальный видеоплеер", "category": "music", "icon": "Film"},
+        {"id": "aimp", "name": "AIMP", "desc": "Легковесный аудиоплеер", "category": "music", "icon": "Disc"},
+        {"id": "obs", "name": "OBS Studio", "desc": "Запись экрана и стриминг", "category": "music", "icon": "Cast"},
+
+        # Browsers
+        {"id": "chrome", "name": "Google Chrome", "desc": "Быстрый веб-браузер", "category": "browser", "icon": "Globe"},
+        {"id": "yandex", "name": "Яндекс Браузер", "desc": "Браузер с Алисой", "category": "browser", "icon": "Compass"},
+        {"id": "safari", "name": "Safari", "desc": "Фирменный браузер Apple", "category": "browser", "icon": "Navigation", "mac_only": True},
+        {"id": "msedge", "name": "Microsoft Edge", "desc": "Встроенный браузер Windows", "category": "browser", "icon": "Globe2"},
+        {"id": "firefox", "name": "Mozilla Firefox", "desc": "Приватный браузер", "category": "browser", "icon": "Flame"},
+        {"id": "opera", "name": "Opera", "desc": "Браузер со встроенным VPN", "category": "browser", "icon": "CircleDot"},
+        {"id": "brave", "name": "Brave", "desc": "Браузер с защитой от рекламы", "category": "browser", "icon": "Shield"},
+
+        # Development & Productivity
+        {"id": "vscode", "name": "Visual Studio Code", "desc": "Редактор кода и расширений", "category": "dev", "icon": "Code2"},
+        {"id": "cursor", "name": "Cursor", "desc": "AI-редактор кода", "category": "dev", "icon": "Cpu"},
+        {"id": "obsidian", "name": "Obsidian", "desc": "Вторая память и Markdown заметки", "category": "dev", "icon": "BookOpen"},
+        {"id": "notion", "name": "Notion", "desc": "Документы, задачи и базы данных", "category": "dev", "icon": "Layers"},
+        {"id": "sublime", "name": "Sublime Text", "desc": "Быстрый редактор текста", "category": "dev", "icon": "FileCode"},
+        {"id": "pycharm", "name": "PyCharm", "desc": "Профессиональная Python IDE", "category": "dev", "icon": "TerminalSquare"},
+        {"id": "webstorm", "name": "WebStorm", "desc": "JavaScript и TypeScript IDE", "category": "dev", "icon": "FileCode2"},
+        {"id": "terminal", "name": "Терминал / PowerShell", "desc": "Командная строка системы", "category": "dev", "icon": "Terminal"},
+
+        # Games & Launchers
+        {"id": "steam", "name": "Steam", "desc": "Магазин и лаунчер игр", "category": "games", "icon": "Gamepad2"},
+        {"id": "epicgames", "name": "Epic Games Launcher", "desc": "Игровая библиотека Epic", "category": "games", "icon": "Trophy"},
+        {"id": "battlenet", "name": "Battle.net", "desc": "Лаунчер игр Blizzard", "category": "games", "icon": "ShieldCheck"},
+
+        # System Utilities
+        {"id": "calc", "name": "Калькулятор", "desc": "Быстрые вычисления", "category": "system", "icon": "Calculator"},
+        {"id": "notepad", "name": "Блокнот / Заметки", "desc": "Простой текстовый редактор", "category": "system", "icon": "FileText"},
+        {"id": "explorer", "name": "Проводник / Finder", "desc": "Файлы и папки компьютера", "category": "system", "icon": "Folder"},
+        {"id": "taskmgr", "name": "Диспетчер задач", "desc": "Мониторинг процессов и памяти", "category": "system", "icon": "Activity"},
+        {"id": "settings", "name": "Параметры системы", "desc": "Настройки операционной системы", "category": "system", "icon": "Settings"},
+    ]
+
+    result = []
+    for app in curated:
+        # Filter mac_only if on windows
+        if app.get("mac_only") and not is_mac:
+            continue
+        app_id = app["id"]
+        canonical = APP_CANONICAL_KEYS.get(app_id, app_id)
+        is_installed = canonical in detected_catalog or app_id in detected_catalog
+        if app_id in ["calc", "notepad", "explorer", "taskmgr", "settings", "terminal"]:
+            is_installed = True
+        app_copy = dict(app)
+        app_copy["installed"] = is_installed
+        result.append(app_copy)
+
+    return result

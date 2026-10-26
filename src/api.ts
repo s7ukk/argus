@@ -543,3 +543,30 @@ export async function runScenario(scenarioId: string): Promise<any> {
   if (!res.ok) throw new Error('Ошибка выполнения сценария');
   return res.json();
 }
+
+export async function fetchSystemApps(): Promise<any[]> {
+  try {
+    const res = await smartFetch('/api/system/apps');
+    if (!res.ok) return [];
+    return res.json();
+  } catch (e) {
+    console.error('Failed to fetch system apps:', e);
+    return [];
+  }
+}
+
+export async function parseScenarioTZ(prompt: string): Promise<any[]> {
+  try {
+    const res = await smartFetch('/api/scenarios/parse-tz', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt }),
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.steps || [];
+  } catch (e) {
+    console.error('Failed to parse scenario TZ:', e);
+    return [];
+  }
+}

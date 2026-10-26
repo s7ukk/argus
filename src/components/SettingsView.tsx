@@ -48,6 +48,7 @@ export const SettingsView: React.FC = () => {
     voice_speed: 1.0,
     browser_mode: 'ask',
     default_browser: 'auto',
+    default_music_app: 'auto',
     auto_heal_plugins: true,
     default_shell: 'powershell',
     openrouter_api_key: '',
@@ -974,7 +975,40 @@ export const SettingsView: React.FC = () => {
               ))}
             </select>
             <div style={{ fontSize: 11, color: '#64748b', marginTop: 5 }}>
-              Все ссылки, сайты, поисковые запросы и музыка будут открываться через этот браузер.
+              Все ссылки, сайты и поисковые запросы будут открываться через этот браузер.
+            </div>
+          </div>
+
+          {/* Default Music App Selector */}
+          <div>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#cbd5e1', marginBottom: 6 }}>
+              Приложение по умолчанию для музыки
+            </label>
+            <select
+              value={settings.default_music_app || 'auto'}
+              onChange={(e) => setSettings({ ...settings, default_music_app: e.target.value })}
+              style={{
+                width: '100%',
+                background: 'rgba(15, 23, 42, 0.7)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                borderRadius: 10,
+                padding: '9px 12px',
+                color: '#ffffff',
+                fontSize: 13,
+                outline: 'none',
+                cursor: 'pointer',
+              }}
+            >
+              <option value="auto">Автоматически (Spotify / Яндекс Музыка)</option>
+              <option value="spotify">Spotify (Спотифай)</option>
+              <option value="yandex">Яндекс Музыка (Yandex Music)</option>
+              <option value="soundcloud">SoundCloud (Саундклауд)</option>
+              <option value="apple_music">Apple Music (Эпл Музыка)</option>
+              <option value="vk">VK Музыка (ВКонтакте)</option>
+              <option value="youtube">YouTube Music (Ютуб Музыка)</option>
+            </select>
+            <div style={{ fontSize: 11, color: '#64748b', marginTop: 5 }}>
+              При командах «включи музыку», «включи плейлист ...» или «включи песню ...» Argus автоматически использует этот сервис.
             </div>
           </div>
 

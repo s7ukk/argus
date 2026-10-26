@@ -120,10 +120,20 @@ export interface AppSettings {
   voice_speed: number;
   browser_mode: 'ask' | 'default';
   default_browser: string;
+  default_music_app?: string;
   auto_heal_plugins: boolean;
   default_shell: string;
   openrouter_api_key?: string;
   openrouter_model?: string;
+}
+
+export interface SystemAppInfo {
+  id: string;
+  name: string;
+  desc: string;
+  category: 'chat' | 'music' | 'browser' | 'dev' | 'games' | 'system' | string;
+  icon?: string;
+  installed?: boolean;
 }
 
 export interface TerminalExecResult {

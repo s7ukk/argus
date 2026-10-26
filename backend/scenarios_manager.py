@@ -147,46 +147,148 @@ def match_scenario_by_trigger(text: str) -> Optional[Dict[str, Any]]:
                     return s
     return None
 
-def execute_scenario(scenario: Dict[str, Any]) -> Dict[str, Any]:
+def parse_tz_to_steps(tz_text: str) -> List[Dict[str, Any]]:
     """
-    Executes all actions of a scenario sequentially with safety delays.
-    Supports atomic structured steps and free-form natural language prompts (ТЗ).
+    Intelligently converts natural language ТЗ / prompts into structured, concrete scenario steps.
+    Supports multi-app launches ("открой дискорд и стим"), volume, music, URLs, system actions,
+    and falls back to neural action planning for complex compound requirements.
     """
-    # Import locally to avoid circular dependencies
+    if not tz_text or not tz_text.strip():
+        return []
+
     import backend.argus_ai as argus
 
-    steps = scenario.get("steps", [])
+    clean_text = tz_text.strip()
+    steps: List[Dict[str, Any]] = []
+
+    # 1. Normalize compound app launches like "открой дискорд и стим" -> "открой дискорд; открой стим"
+    # Matches patterns like "(открой|запусти|включи) X и Y"
+    multi_launch_pat = r'(?:^|[;,]\s*)(?:открой|запусти|включи|запустить|открыть)\s+([a-zA-Zа-яА-ЯёЁ0-9\s]+?)\s+и\s+([a-zA-Zа-яА-ЯёЁ0-9\s]+)(?=$|[;,])'
+    def repl_multi(m):
+        app1 = m.group(1).strip()
+        app2 = m.group(2).strip()
+        return f"; открой {app1} ; открой {app2}"
+
+    norm_text = re.sub(multi_launch_pat, repl_multi, clean_text, flags=re.IGNORECASE)
+    # Split on "и" before imperative action verbs
+    norm_text = re.sub(r'(?<=\w)\s+и\s+(?=(?:открой|запусти|включи|вруби|сделай|поставь|сыграй|зайди|закрой|напиши)\b)', '; ', norm_text, flags=re.IGNORECASE)
+
+    # 2. Try local multi action planner
+    try:
+        planned = argus.local_multi_action_planner(norm_text)
+        if planned:
+            for p in planned:
+                step_obj = dict(p)
+                # Assign beautiful human-readable labels
+                st = step_obj.get("type", "")
+                if st in ["clarify", "noop"]:
+                    continue
+                if st == "launch_app":
+                    app_name = step_obj.get("app", "").strip()
+                    step_obj["label"] = f"Запуск {app_name.capitalize()}"
+                elif st == "volume_set":
+                    step_obj["label"] = f"Громкость {step_obj.get('level', 50)}%"
+                elif st == "play_music":
+                    svc = step_obj.get("service", "auto")
+                    q = step_obj.get("query") or step_obj.get("playlist") or ""
+                    svc_name = "Spotify" if svc == "spotify" else ("Яндекс Музыка" if svc == "yandex" else ("SoundCloud" if svc == "soundcloud" else ("Apple Music" if svc == "apple_music" else "Музыка")))
+                    step_obj["label"] = f"{svc_name}: {q}" if q else f"Включить {svc_name}"
+                elif st == "open_url":
+                    step_obj["label"] = f"Открыть {step_obj.get('url', '')}"
+                elif st == "close_app":
+                    step_obj["label"] = f"Закрыть {step_obj.get('app', '')}"
+                elif st == "screenshot":
+                    step_obj["label"] = "Снимок экрана"
+                elif st == "empty_recycle":
+                    step_obj["label"] = "Очистить корзину"
+                elif st == "brightness_set":
+                    step_obj["label"] = f"Яркость {step_obj.get('level', 80)}%"
+                else:
+                    step_obj["label"] = f"{st}: {step_obj.get('app') or step_obj.get('query') or ''}".strip()
+                steps.append(step_obj)
+    except Exception as e:
+        print("Local planner notice in parse_tz_to_steps:", e)
+
+    # 3. If local planner yielded no steps or empty, consult neural planner
+    if not steps:
+        try:
+            n_acts = argus.neural_action_planner(clean_text)
+            if n_acts:
+                for act in n_acts:
+                    step_obj = dict(act)
+                    st = step_obj.get("type", "")
+                    if st in ["clarify", "noop"]:
+                        continue
+                    if st == "launch_app":
+                        step_obj["label"] = f"Запуск {step_obj.get('app', '').capitalize()}"
+                    elif st == "volume_set" or st == "volume":
+                        step_obj["type"] = "volume_set"
+                        step_obj["label"] = f"Громкость {step_obj.get('level', 50)}%"
+                    elif st == "play_music":
+                        step_obj["label"] = f"Музыка: {step_obj.get('query') or 'Воспроизведение'}"
+                    elif st == "open_url":
+                        step_obj["label"] = f"Открыть {step_obj.get('url', '')}"
+                    else:
+                        step_obj["label"] = f"{st}: {step_obj.get('app') or step_obj.get('query') or ''}".strip()
+                    steps.append(step_obj)
+        except Exception as e:
+            print("Neural planner notice in parse_tz_to_steps:", e)
+
+    # 4. Fallback if still empty: store as a custom command
+    if not steps:
+        steps.append({
+            "type": "custom_command",
+            "prompt": clean_text,
+            "label": f"ТЗ: {clean_text}"
+        })
+
+    return steps
+
+def execute_scenario(scenario: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Executes all actions of a scenario sequentially with safety delays and deduplication.
+    Supports atomic structured steps and free-form natural language prompts (ТЗ).
+    Guarantees no double execution of applications or actions!
+    """
+    import backend.argus_ai as argus
+
+    steps = list(scenario.get("steps", []))
     s_name = scenario.get("name", "Сценарий")
     results = []
 
-    # 1. Top-level custom prompt (ТЗ) if provided
+    # 1. If scenario has no steps but has custom_prompt / instruction, parse it into steps
     top_prompt = scenario.get("custom_prompt") or scenario.get("instruction")
-    if top_prompt and isinstance(top_prompt, str) and top_prompt.strip():
-        try:
-            planned_actions = argus.local_multi_action_planner(top_prompt.strip())
-            for pact in planned_actions:
-                msg, a_type, a_data = argus.execute_single_action(pact)
-                if msg:
-                    results.append(msg)
-                time.sleep(0.35)
-        except Exception as e:
-            print(f"Top-level custom prompt execution error ({top_prompt}):", e)
+    if not steps and top_prompt and isinstance(top_prompt, str) and top_prompt.strip():
+        steps = parse_tz_to_steps(top_prompt.strip())
 
-    # 2. Structured & prompt steps
+    # 2. Execute steps with deduplication guard
+    seen_signatures = set()
+
     for step in steps:
         try:
             stype = step.get("type", "")
-            # Check for free-form custom text / prompt step
+            
+            # Free-form custom text / prompt step
             if stype in ["custom_command", "prompt", "custom", "instruction"] or step.get("prompt"):
                 p_text = step.get("prompt") or step.get("command") or step.get("label", "")
                 if p_text:
-                    pacts = argus.local_multi_action_planner(p_text)
+                    pacts = parse_tz_to_steps(p_text)
                     for pa in pacts:
+                        pa_sig = (pa.get("type"), pa.get("app") or pa.get("url") or pa.get("level") or pa.get("query") or "")
+                        if pa_sig in seen_signatures:
+                            continue
+                        seen_signatures.add(pa_sig)
                         msg, a_type, a_data = argus.execute_single_action(pa)
                         if msg:
                             results.append(msg)
                         time.sleep(0.35)
             else:
+                # Deduplication signature (e.g. ("launch_app", "vscode"))
+                sig = (stype, step.get("app") or step.get("url") or step.get("level") or step.get("query") or "")
+                if sig in seen_signatures:
+                    continue
+                seen_signatures.add(sig)
+
                 msg, a_type, a_data = argus.execute_single_action(step)
                 if msg:
                     results.append(msg)

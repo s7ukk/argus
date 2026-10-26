@@ -47,6 +47,7 @@ DEFAULT_SETTINGS = {
     "default_browser": "safari" if sys.platform == "darwin" else "auto",
     "auto_heal_plugins": True,
     "default_shell": "zsh" if sys.platform == "darwin" else "powershell",
+    "default_music_app": "auto",
     "openrouter_api_key": "",
     "openrouter_model": "meta-llama/llama-3.3-70b-instruct"
 }
@@ -811,6 +812,30 @@ async def dictation_trigger_post():
     return {"triggered": True}
 
 
+# ─── SYSTEM APPS DISCOVERY ENDPOINT ──────────────────────────────
+@app.get("/api/system/apps")
+async def get_system_apps_endpoint():
+    """Returns curated & detected installed applications on Windows & macOS."""
+    try:
+        return sc.get_popular_and_installed_apps()
+    except Exception as e:
+        print("Error getting system apps:", e)
+        return []
+
+# ─── SCENARIO PARSE ТЗ ENDPOINT ──────────────────────────────────
+class ScenarioTZRequest(BaseModel):
+    prompt: Optional[str] = None
+    tz: Optional[str] = None
+
+@app.post("/api/scenarios/parse-tz")
+async def parse_scenario_tz_endpoint(req: ScenarioTZRequest):
+    """Parses natural language user ТЗ into concrete, editable scenario steps."""
+    text = (req.prompt or req.tz or "").strip()
+    if not text:
+        return {"steps": []}
+    steps = sc_mgr.parse_tz_to_steps(text)
+    return {"steps": steps}
+
 @app.get("/api/scenarios")
 async def get_all_scenarios():
     return sc_mgr.load_scenarios()
@@ -824,8 +849,21 @@ async def create_or_update_scenario(scenario: ScenarioModel):
 async def remove_scenario(scenario_id: str):
     return {"success": sc_mgr.delete_scenario(scenario_id)}
 
+_SCENARIO_RUN_LOCKS: Dict[str, float] = {}
+
 @app.post("/api/scenarios/{scenario_id}/run")
 async def run_scenario_endpoint(scenario_id: str):
+    now = time.time()
+    last_run = _SCENARIO_RUN_LOCKS.get(scenario_id, 0)
+    if now - last_run < 2.0:
+        return {
+            "success": True,
+            "scenario_id": scenario_id,
+            "summary": "Сценарий уже выполняется.",
+            "results": []
+        }
+    _SCENARIO_RUN_LOCKS[scenario_id] = now
+
     all_s = sc_mgr.load_scenarios()
     matched = next((s for s in all_s if s["id"] == scenario_id), None)
     if not matched:
