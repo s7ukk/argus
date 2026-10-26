@@ -1126,7 +1126,7 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         if not tasks:
             msg = "У вас пока нет сохранённых задач."
         else:
-            lines = [f"• {'[✓]' if t.get('completed') else '[ ]'} {t.get('title')}" for t in tasks[:8]]
+            lines = [f"• {'[x]' if t.get('completed') else '[ ]'} {t.get('title')}" for t in tasks[:8]]
             msg = "Ваши текущие задачи:\n" + "\n".join(lines)
         return {"type": "list_tasks", "message": msg}
 
@@ -3587,11 +3587,11 @@ def process_command(user_text: str, user_name: str = "Пользователь",
             "created_at": time.time()
         }
         cat_emojis = {
-            "send": "✉️",
-            "delete": "🗑️",
-            "pay": "💳"
+            "send": "[Отправка]",
+            "delete": "[Удаление]",
+            "pay": "[Оплата]"
         }
-        icon = cat_emojis.get(protected_guard["category"], "⚠️")
+        icon = cat_emojis.get(protected_guard["category"], "[Внимание]")
         reply_text = (
             f"Внимание! Для безопасности системы требуется Ваше подтверждение перед выполнением:\n\n"
             f"[Внимание: {protected_guard['title']}]**: {protected_guard['description']}.\n\n"
