@@ -696,45 +696,52 @@ function createDictationHudWindow() {
     .hud-pill {
       pointer-events: auto;
       cursor: default;
-      background: rgba(14, 14, 18, 0.94);
-      backdrop-filter: blur(28px);
-      -webkit-backdrop-filter: blur(28px);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.72), 0 0 1px rgba(255, 255, 255, 0.25);
+      background: rgba(10, 10, 14, 0.88);
+      backdrop-filter: blur(40px) saturate(220%);
+      -webkit-backdrop-filter: blur(40px) saturate(220%);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      box-shadow: 0 18px 45px rgba(0, 0, 0, 0.8), inset 0 1px 1px rgba(255, 255, 255, 0.35), inset 0 -1px 1px rgba(0, 0, 0, 0.5), 0 0 20px rgba(255, 255, 255, 0.05);
       border-radius: 9999px;
-      padding: 8px 18px;
+      padding: 0 16px;
       display: inline-flex;
       flex-direction: column;
       align-items: center;
+      justify-content: flex-start;
       color: #ffffff;
       font-size: 13px;
       font-weight: 600;
       letter-spacing: 0.02em;
-      min-width: 170px;
-      max-width: 500px;
-      width: fit-content;
+      width: 200px;
+      height: 38px;
       box-sizing: border-box;
-      transition: width 0.35s cubic-bezier(0.16, 1, 0.3, 1),
-                  max-width 0.35s cubic-bezier(0.16, 1, 0.3, 1),
-                  border-radius 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+      transition: width 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+                  height 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+                  border-radius 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+                  padding 0.42s cubic-bezier(0.32, 0.72, 0, 1),
                   background 0.3s ease,
                   border-color 0.3s ease,
-                  box-shadow 0.35s ease,
-                  padding 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-      will-change: width, max-width, border-radius;
+                  box-shadow 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+                  transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+      will-change: width, height, border-radius, transform;
       transform: translateZ(0);
       overflow: hidden;
     }
 
-    /* Hover expanded state with butter-smooth width transition */
+    .hud-pill[data-mode="idle"] { width: 200px; height: 38px; }
+    .hud-pill[data-mode="timer"] { width: 250px; height: 38px; }
+    .hud-pill[data-mode="ai"] { width: 275px; height: 38px; }
+    .hud-pill[data-mode="dictation"] { width: 330px; height: 38px; }
+    .hud-pill[data-mode="notify"] { width: 310px; height: 38px; }
+
+    /* Hover expanded state with pure Apple fluid spring */
     .hud-pill:hover, .hud-pill.is-expanded {
-      width: 460px;
-      min-width: 460px;
-      border-radius: 20px;
-      padding: 14px 20px;
-      background: rgba(16, 16, 22, 0.97);
-      border-color: rgba(255, 255, 255, 0.22);
-      box-shadow: 0 24px 50px rgba(0, 0, 0, 0.85), 0 0 1px rgba(255, 255, 255, 0.3);
+      width: 480px !important;
+      height: 118px !important;
+      border-radius: 26px !important;
+      padding: 12px 20px !important;
+      background: rgba(13, 13, 18, 0.96) !important;
+      border-color: rgba(255, 255, 255, 0.28) !important;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.88), inset 0 1px 1.5px rgba(255, 255, 255, 0.45), inset 0 -1px 1px rgba(0, 0, 0, 0.6), 0 0 30px rgba(255, 255, 255, 0.1) !important;
     }
 
     .pill-header {
@@ -742,12 +749,16 @@ function createDictationHudWindow() {
       align-items: center;
       gap: 10px;
       width: 100%;
+      height: 38px;
+      flex-shrink: 0;
       justify-content: center;
       text-align: center;
       white-space: nowrap;
+      transition: all 0.35s cubic-bezier(0.32, 0.72, 0, 1);
     }
 
     .hud-pill:hover .pill-header, .hud-pill.is-expanded .pill-header {
+      height: 28px;
       justify-content: space-between;
       text-align: left;
     }
@@ -810,20 +821,25 @@ function createDictationHudWindow() {
       animation: soundwave 0.8s ease-in-out infinite;
     }
 
-    /* CSS Grid 0fr -> 1fr for silky smooth content height expansion */
+    /* Spring fade & slide for silky smooth content height expansion */
     .expanded-wrapper {
       display: grid;
       grid-template-rows: 0fr;
-      transition: grid-template-rows 0.35s cubic-bezier(0.16, 1, 0.3, 1),
-                  opacity 0.25s ease;
+      transition: grid-template-rows 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+                  opacity 0.28s ease,
+                  transform 0.42s cubic-bezier(0.32, 0.72, 0, 1);
       opacity: 0;
+      transform: translateY(-8px) scale(0.97);
       width: 100%;
+      pointer-events: none;
     }
 
     .hud-pill:hover .expanded-wrapper,
     .hud-pill.is-expanded .expanded-wrapper {
       grid-template-rows: 1fr;
       opacity: 1;
+      transform: translateY(0) scale(1);
+      pointer-events: auto;
     }
 
     .expanded-inner {
@@ -1059,6 +1075,7 @@ function createDictationHudWindow() {
       if (isDictating) return;
 
       if (isThinking) {
+        pill.setAttribute('data-mode', 'ai');
         onlineDot.style.display = 'none';
         dot.style.display = 'none';
         icon.style.display = 'none';
@@ -1077,6 +1094,7 @@ function createDictationHudWindow() {
       expThinkingSec.style.display = 'none';
 
       if (isSpeaking) {
+        pill.setAttribute('data-mode', 'ai');
         onlineDot.style.display = 'none';
         dot.style.display = 'none';
         icon.style.display = 'none';
@@ -1092,6 +1110,7 @@ function createDictationHudWindow() {
       }
 
       if (activeTimer && activeTimer.is_running && activeTimer.remaining_seconds > 0) {
+        pill.setAttribute('data-mode', 'timer');
         onlineDot.style.display = 'none';
         dot.style.display = 'none';
         tDots.style.display = 'none';
@@ -1109,6 +1128,7 @@ function createDictationHudWindow() {
       }
 
       // Standby / Idle on Desktop
+      pill.setAttribute('data-mode', 'idle');
       onlineDot.style.display = 'block';
       dot.style.display = 'none';
       tDots.style.display = 'none';
@@ -1154,6 +1174,7 @@ function createDictationHudWindow() {
 
       if (state.active) {
         isDictating = true;
+        pill.setAttribute('data-mode', 'dictation');
         dot.style.display = 'block';
         dot.style.background = '#ef4444';
         dot.style.boxShadow = '0 0 10px #ef4444';
@@ -1166,6 +1187,7 @@ function createDictationHudWindow() {
         expHint.innerText = 'Идет запись речи. Нажмите «Остановить» или Double-Ctrl для завершения.';
       } else if (state.success) {
         isDictating = false;
+        pill.setAttribute('data-mode', 'notify');
         if (sdb) sdb.style.display = 'none';
         if (eds) eds.style.display = 'none';
         dot.style.display = 'none';
@@ -1186,6 +1208,7 @@ function createDictationHudWindow() {
 
     ipcRenderer.on('island-notify', (event, data) => {
       if (hideTimeout) clearTimeout(hideTimeout);
+      pill.setAttribute('data-mode', 'notify');
       const onlineDot = document.getElementById('online-dot');
       const dot = document.getElementById('dot');
       const tDots = document.getElementById('thinking-dots');

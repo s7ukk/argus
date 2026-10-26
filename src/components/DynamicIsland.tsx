@@ -174,27 +174,27 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
           : 170,
         height: showExpanded ? 76 : 32,
         borderRadius: showExpanded ? 24 : 9999,
-        background: 'rgba(8, 8, 12, 0.92)',
-        backdropFilter: 'blur(36px) saturate(200%)',
-        WebkitBackdropFilter: 'blur(36px) saturate(200%)',
+        background: 'rgba(10, 10, 15, 0.88)',
+        backdropFilter: 'blur(40px) saturate(220%)',
+        WebkitBackdropFilter: 'blur(40px) saturate(220%)',
         border: hasNotif && notification?.type === 'success'
-          ? '1px solid rgba(74, 222, 128, 0.45)'
+          ? '1px solid rgba(74, 222, 128, 0.5)'
           : hasNotif && notification?.type === 'timer'
-          ? '1px solid rgba(251, 191, 36, 0.5)'
+          ? '1px solid rgba(251, 191, 36, 0.55)'
           : hasDictation && dictationState?.active
-          ? '1px solid rgba(239, 68, 68, 0.65)'
+          ? '1px solid rgba(239, 68, 68, 0.7)'
           : hasDictation && dictationState?.success
-          ? '1px solid rgba(74, 222, 128, 0.65)'
-          : '1px solid rgba(255, 255, 255, 0.14)',
+          ? '1px solid rgba(74, 222, 128, 0.7)'
+          : '1px solid rgba(255, 255, 255, 0.16)',
         boxShadow: hasDictation && dictationState?.active
-          ? '0 16px 40px rgba(0, 0, 0, 0.75), 0 0 24px rgba(239, 68, 68, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)'
-          : '0 16px 44px rgba(0, 0, 0, 0.75), 0 0 20px var(--accent-glow, rgba(255, 255, 255, 0.12)), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
+          ? '0 18px 45px rgba(0, 0, 0, 0.8), 0 0 25px rgba(239, 68, 68, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.35)'
+          : '0 20px 48px rgba(0, 0, 0, 0.82), inset 0 1px 1px rgba(255, 255, 255, 0.35), inset 0 -1px 1px rgba(0, 0, 0, 0.5), 0 0 20px var(--accent-glow, rgba(255, 255, 255, 0.1))',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
         padding: showExpanded ? '10px 18px' : '0 14px',
         cursor: (hasTimer || hasAiAction) ? 'pointer' : 'default',
-        transition: 'all 0.32s cubic-bezier(0.16, 1, 0.3, 1)',
+        transition: 'all 0.42s cubic-bezier(0.32, 0.72, 0, 1)',
         userSelect: 'none',
         overflow: 'hidden',
       }}

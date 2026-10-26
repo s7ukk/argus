@@ -652,17 +652,29 @@ export const App: React.FC = () => {
 
       <Header
         centerContent={
-          themeConfig.navPosition === 'top' && profile ? (
-            <NavDock
-              activeTab={activeTab}
-              onTabChange={setActiveTab}
-              profile={profile}
-              onOpenProfile={() => setIsProfileOpen(true)}
-              position="top"
+          profile ? (
+            <div
+              style={{
+                width: themeConfig.navPosition === 'top' ? 560 : 0,
+                height: 36,
+                transition: 'width 0.5s cubic-bezier(0.34, 1.25, 0.64, 1)',
+              }}
             />
           ) : undefined
         }
       />
+
+      {/* Floating Liquid Glass NavDock with iOS 27 Continuous Position Morphing */}
+      {profile && (
+        <NavDock
+          isFloating={true}
+          position={themeConfig.navPosition}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          profile={profile}
+          onOpenProfile={() => setIsProfileOpen(true)}
+        />
+      )}
 
       {/* Dynamic Island: When running in Electron, it operates strictly as an OS overlay window (outside/on top of app). Only render in-DOM if web-only */}
       {!Boolean((window as any).electronAPI?.isElectron) && (
@@ -687,34 +699,19 @@ export const App: React.FC = () => {
             zIndex: 2,
           }}
         >
-
-
-          {/* Main Content Row */}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'row', overflow: 'hidden', position: 'relative' }}>
-          {/* Left NavDock (when position === 'left') */}
-          {themeConfig.navPosition === 'left' && (
-            <div
-              style={{
-                width: 56,
-                height: '100%',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                background: 'rgba(10, 10, 14, 0.94)',
-                borderRight: '1px solid rgba(255, 255, 255, 0.08)',
-                padding: '10px 0',
-                flexShrink: 0,
-              }}
-            >
-              <NavDock
-                activeTab={activeTab}
-                onTabChange={setActiveTab}
-                profile={profile}
-                onOpenProfile={() => setIsProfileOpen(true)}
-                position="left"
-              />
-            </div>
-          )}
+          {/* Main Content Row with Smooth Padding Shift */}
+          <div
+            style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'row',
+              overflow: 'hidden',
+              position: 'relative',
+              paddingLeft: themeConfig.navPosition === 'left' ? 70 : 0,
+              paddingRight: themeConfig.navPosition === 'right' ? 70 : 0,
+              transition: 'padding 0.55s cubic-bezier(0.34, 1.25, 0.64, 1)',
+            }}
+          >
 
           {/* Main Content Area */}
           <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
@@ -767,16 +764,6 @@ export const App: React.FC = () => {
             {activeTab === 'settings' && <SettingsView />}
           </div>
 
-          {/* Right NavDock */}
-          {themeConfig.navPosition === 'right' && (
-            <NavDock
-              activeTab={activeTab}
-              onTabChange={setActiveTab}
-              profile={profile}
-              onOpenProfile={() => setIsProfileOpen(true)}
-              position="right"
-            />
-          )}
           </div>
 
           <ProfileModal

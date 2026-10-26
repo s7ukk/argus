@@ -446,9 +446,9 @@ def execute_autonomous_messenger_task(messenger: str, contact: str, message: str
         add_step(f"Чат с контактом «{contact}» успешно открыт и готов к общению.")
 
     if message:
-        summary_text = f"Сообщение для контакта «{contact}» в {m_name} успешно отправлено: «{message}», сэр."
+        summary_text = f"Сообщение для контакта «{contact}» в {m_name} успешно отправлено: «{message}»."
     else:
-        summary_text = f"Диалог с контактом «{contact}» в {m_name} открыт, сэр."
+        summary_text = f"Диалог с контактом «{contact}» в {m_name} открыт."
 
     release_all_modifiers()
     return {

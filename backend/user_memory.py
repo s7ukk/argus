@@ -186,7 +186,7 @@ def query_memory_question(user_text: str, has_history: bool = False) -> Optional
     # 2.5 Question about Friend
     if any(q in low for q in ["как зовут моего друга", "как зовут друга", "моего друга зовут", "кто мой друг", "имя моего друга", "как звать моего друга", "как звать друга"]):
         if mem.get("friend_name"):
-            return f"Вашего друга зовут {mem['friend_name']}, сэр."
+            return f"Вашего друга зовут {mem['friend_name']}."
         try:
             try:
                 import backend.extras_manager as em
@@ -199,8 +199,8 @@ def query_memory_question(user_text: str, has_history: bool = False) -> Optional
             pass
         for n in mem.get("notes", []):
             if "друг" in n.lower():
-                return f"Судя по моим записям, сэр: {n}."
-        return "Вы пока не говорили мне, как зовут вашего друга, сэр. Скажите, например: «Моего друга зовут Алексей», или создайте заметку, и я обязательно запомню это."
+                return f"Судя по моим записям: {n}."
+        return "Вы пока не говорили мне, как зовут вашего друга. Скажите, например: «Моего друга зовут Алексей», или создайте заметку, и я обязательно запомню это."
 
     # 2.6 Question about Relatives
     if any(q in low for q in ["как зовут мою девушку", "имя моей девушки", "как зовут мою жену", "как зовут маму", "как зовут папу"]):
@@ -214,7 +214,7 @@ def query_memory_question(user_text: str, has_history: bool = False) -> Optional
                 return ans
         except Exception:
             pass
-        return "У меня пока нет информации об этом в ваших заметках или памяти, сэр. Вы можете сказать мне или записать в заметки, и я сохраню это."
+        return "У меня пока нет информации об этом в ваших заметках или памяти. Вы можете сказать мне или записать в заметки, и я сохраню это."
 
     # 3. Question about City / Location
     if any(q in low for q in ["где я живу", "из какого я города", "в каком я городе", "мой город", "where do i live"]):

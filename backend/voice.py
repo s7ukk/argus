@@ -162,12 +162,12 @@ def clean_text_for_speech(text: str) -> str:
         if len(clean_intro) >= 8:
             first_sent = re.split(r'[.!?\n]', clean_intro)[0].strip()
             if len(first_sent) >= 8:
-                return first_sent + ". Код выведен на экран, сэр."
-        return "Код подготовлен, сэр. Вывел его на экран."
+                return first_sent + ". Код выведен на экран."
+        return "Код подготовлен и выведен на экран."
 
     # 2. Raw code without backticks
     if is_code_content(text):
-        return "Код программы выведен на экран, сэр."
+        return "Код программы выведен на экран."
 
     t = text
     t = re.sub(r'`[^`]+`', ' код ', t)
@@ -220,13 +220,13 @@ def clean_text_for_speech(text: str) -> str:
 
     # Fast Wizard & List speech optimization
     if "выберите мессенджер" in t.lower():
-        return "Выберите мессенджер для отправки сообщения, сэр."
+        return "Выберите мессенджер для отправки сообщения."
     if "введите имя контакта" in t.lower() or "введите ник" in t.lower():
-        return "Мессенджер выбран, сэр. Введите имя контакта или ник."
+        return "Мессенджер выбран. Введите имя контакта или ник."
     if "введите текст сообщения" in t.lower():
-        return "Контакт принят, сэр. Введите текст сообщения."
+        return "Контакт принят. Введите текст сообщения."
     if "успешно отправлено" in t.lower():
-        return "Сообщение успешно отправлено, сэр."
+        return "Сообщение успешно отправлено."
 
     # Strip bullet points, numbered lists and examples from speech
     t = re.sub(r'(?m)^\s*\d+[\.\)]\s+.*$', '', t)
@@ -234,17 +234,31 @@ def clean_text_for_speech(text: str) -> str:
     t = re.sub(r'Нажмите кнопку ниже.*', '', t)
     t = re.sub(r'\s+', ' ', t).strip()
 
-    # Extract strictly the first punchy sentence / clause (max 85 chars) for near-instant audio start
+    # Filter out repetitive "сэр" to sound natural and modern
+    t = re.sub(r'[,]\s*сэр\b', '', t, flags=re.IGNORECASE)
+    t = re.sub(r'\bсэр\b[,.!?]?', '', t, flags=re.IGNORECASE)
+    t = re.sub(r'\s*([.,!?])\s*', r'\1 ', t)
+    t = re.sub(r'\s+', ' ', t).strip()
+
+    # Natural intonation sentence selection: preserve full, complete sentences with expressive punctuation
     sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+|[\r\n]+', t) if s.strip()]
     if sentences:
-        first = sentences[0]
-        if len(first) > 85:
-            m = re.match(r'^(.{20,80}?)[,;:\s]', first)
-            first = (m.group(1).strip() + '.') if m else (first[:80].strip() + '...')
-        t = first
-    elif len(t) > 85:
-        t = t[:80].strip() + '...'
-    return t
+        chosen = []
+        cur_len = 0
+        for s in sentences:
+            if cur_len + len(s) <= 240:
+                chosen.append(s)
+                cur_len += len(s)
+            else:
+                if not chosen:
+                    m = re.match(r'^(.{40,200}?)[,;:\s]', s)
+                    chosen.append((m.group(1).strip() + '.') if m else s[:180].strip())
+                break
+        t = ' '.join(chosen)
+    elif len(t) > 240:
+        m = re.match(r'^(.{40,200}?)[,;:\s]', t)
+        t = (m.group(1).strip() + '.') if m else t[:180].strip()
+    return t.strip()
 
 async def generate_speech_base64(
     text: str,
@@ -343,16 +357,16 @@ def warmup_voice_cache():
     """Pre-generates in-memory audio for the most common responses in background thread for 0ms voice latency."""
     def _worker():
         common_phrases = [
-            "Здравствуйте, сэр!",
-            "Слушаю Вас, сэр.",
-            "Готово, сэр.",
-            "Все задачи успешно выполнены, сэр.",
-            "Действие отменено, сэр.",
-            "Остановил выполнение, сэр.",
-            "Все системы работают в штатном режиме, сэр.",
-            "Открываю, сэр.",
-            "Вкладка закрыта, сэр.",
-            "Скриншот сделан, сэр."
+            "Здравствуйте!",
+            "Слушаю Вас.",
+            "Готово.",
+            "Все задачи успешно выполнены.",
+            "Действие отменено.",
+            "Остановил выполнение.",
+            "Все системы работают в штатном режиме.",
+            "Открываю.",
+            "Вкладка закрыта.",
+            "Скриншот сделан."
         ]
         target_voice = "ru-RU-DmitryNeural"
         for phrase in common_phrases:

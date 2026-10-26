@@ -251,10 +251,10 @@ def execute_single_action(act: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]
     act_type = act.get("type", "").lower()
     
     if act_type == "clarify":
-        return act.get("message", "Уточните, пожалуйста, сэр: укажите команду, приложение или действие."), "clarify", act
+        return act.get("message", "Уточните, пожалуйста: укажите команду, приложение или действие."), "clarify", act
 
     if act_type == "messenger_wizard":
-        return act.get("message", "Выберите мессенджер, сэр."), "messenger_wizard", act
+        return act.get("message", "Выберите мессенджер."), "messenger_wizard", act
 
     if act_type == "scenario":
         sc_id = act.get("id") or act.get("scenario_id")
@@ -285,7 +285,7 @@ def execute_single_action(act: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]
             app_title = app_disp if (not res.get("launched") or res.get("launched").lower() == app.lower()) else res.get("launched")
             if app_title.lower() == "chrome":
                 app_title = "Chrome"
-            return f"Открыл {app_title}, сэр", "launch_app", res
+            return f"Открыл {app_title}", "launch_app", res
         else:
             return f"Не удалось открыть {app_disp}: {res.get('error', 'приложение не найдено')}", "launch_app", res
 
@@ -296,15 +296,15 @@ def execute_single_action(act: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]
             if sc._HAS_PYAUTOGUI:
                 import pyautogui
                 pyautogui.hotkey('alt', 'f4')
-        return "Активное окно закрыто, сэр", "close_active_window", {}
+        return "Активное окно закрыто", "close_active_window", {}
 
     elif act_type == "minimize_window":
         ok = sc.minimize_current_window()
-        return "Окно свёрнуто, сэр", "minimize_window", {"success": ok}
+        return "Окно свёрнуто", "minimize_window", {"success": ok}
 
     elif act_type == "minimize_all_windows":
         ok = sc.minimize_all_windows()
-        return "Все окна свёрнуты, сэр", "minimize_all", {"success": ok}
+        return "Все окна свёрнуты", "minimize_all", {"success": ok}
 
     elif act_type == "minimize_app":
         app = act.get("app", "")
@@ -318,7 +318,7 @@ def execute_single_action(act: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]
             app_disp = "Telegram"
         elif app.lower() in ["discord", "дискорд"]:
             app_disp = "Discord"
-        return f"Окно {app_disp} свёрнуто, сэр", "minimize_app", {"success": ok, "app": app}
+        return f"Окно {app_disp} свёрнуто", "minimize_app", {"success": ok, "app": app}
 
     elif act_type == "close_app":
         app = act.get("app", "")
@@ -328,7 +328,7 @@ def execute_single_action(act: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]
             app_disp = "VS Code"
         elif app.lower() in ["chrome", "хром", "браузер"]:
             app_disp = "Chrome"
-        return f"Закрыл {app_disp}, сэр", "close_app", res
+        return f"Закрыл {app_disp}", "close_app", res
 
     elif act_type == "browser_choice":
         browsers = act.get("browsers", [])
@@ -338,7 +338,7 @@ def execute_single_action(act: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]
 
     elif act_type == "close_browser_tab":
         ok = sc.close_browser_tab()
-        return "Вкладка браузера закрыта, сэр", "close_tab", {"success": ok}
+        return "Вкладка браузера закрыта", "close_tab", {"success": ok}
 
     elif act_type == "close_specific_browser_tab":
         target = act.get("target", "")
@@ -362,7 +362,7 @@ def execute_single_action(act: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]
             target_disp = "GitHub"
         elif target.lower() in ["mail", "gmail", "почта", "почту"]:
             target_disp = "Почта"
-        msg = f"Вкладка {target_disp} закрыта в браузере, сэр." if ok else f"Вкладка {target_disp} не найдена в запущенных браузерах, сэр."
+        msg = f"Вкладка {target_disp} закрыта в браузере." if ok else f"Вкладка {target_disp} не найдена в запущенных браузерах."
         return msg, "close_specific_tab", {"target": target, "success": ok}
 
     elif act_type == "youtube_control":
@@ -458,7 +458,7 @@ def execute_single_action(act: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]
         goal = act.get("goal", "")
         steps = act.get("steps")
         res = gui_agent.execute_autonomous_computer_task(goal, steps)
-        return res.get("summary", "Автономное управление компьютером выполнено, сэр."), "computer_use_task", res
+        return res.get("summary", "Автономное управление компьютером выполнено."), "computer_use_task", res
 
     elif act_type in ["mouse_click", "click_coordinates"]:
         x = act.get("x")
@@ -578,12 +578,12 @@ def execute_single_action(act: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]
             m_disp = "Telegram" if messenger in ["telegram", "тг"] else "Discord" if messenger in ["discord", "дискорд"] else "WhatsApp" if messenger in ["whatsapp", "ватсап"] else "VK" if messenger in ["vk", "вк"] else "мессенджере"
             if not contact:
                 return (
-                    f"Уточните, пожалуйста, сэр: укажите имя контакта или username получателя в {m_disp}.\n"
+                    f"Уточните, пожалуйста: укажите имя контакта или username получателя в {m_disp}.\n"
                     f"Например: «В {m_disp if m_disp != 'мессенджере' else 'Telegram'} напиши @username текст {msg_text or 'Привет'}»."
                 ), "clarify", act
             else:
                 return (
-                    f"Уточните, пожалуйста, сэр: какой текст сообщения отправить контакту «{contact}» в {m_disp}?\n"
+                    f"Уточните, пожалуйста: какой текст сообщения отправить контакту «{contact}» в {m_disp}?\n"
                     f"Например: «В {m_disp if m_disp != 'мессенджере' else 'Telegram'} напиши {contact} текст Привет»."
                 ), "clarify", act
 
@@ -644,7 +644,7 @@ def execute_single_action(act: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]
                 extras_mgr.delete_timer(act.get("title", "all"))
         except Exception:
             pass
-        msg = act.get("message", "Действие успешно выполнено, сэр.")
+        msg = act.get("message", "Действие успешно выполнено.")
         return msg, act_type, act
 
     elif act_type == "power":
@@ -936,7 +936,7 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         except Exception:
             pass
         mins_disp = f"{val} мин" if "мин" in unit else f"{val} сек" if "сек" in unit else f"{val} ч"
-        msg = f"Таймер на {mins_disp} для «{title_disp}» успешно запущен, сэр. Я напомню вам голосом, когда время истечёт."
+        msg = f"Таймер на {mins_disp} для «{title_disp}» успешно запущен. Я напомню вам голосом, когда время истечёт."
         return {"type": "create_timer", "title": title_disp, "seconds": secs, "message": msg}
 
     # Reminder e.g. "напомни через 7 минут сделать дз", "напомни через 10 минут выключить духовку"
@@ -960,7 +960,7 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         except Exception:
             pass
         mins_disp = f"{val} мин" if "мин" in unit else f"{val} сек" if "сек" in unit else f"{val} ч"
-        msg = f"Напоминание установлено на {mins_disp} для «{title_disp}», сэр. Я озвучу его сразу, как только время пройдёт."
+        msg = f"Напоминание установлено на {mins_disp} для «{title_disp}». Я озвучу его сразу, как только время пройдёт."
         return {"type": "create_timer", "title": title_disp, "seconds": secs, "message": msg}
 
     # Task creation e.g. "добавь задачу сделать дз", "создай задачу купить хлеб"
@@ -977,7 +977,7 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
                     extras_mgr.add_task(title_disp)
             except Exception:
                 pass
-            msg = f"Задача «{title_disp}» успешно добавлена в меню Дополнительно, сэр."
+            msg = f"Задача «{title_disp}» успешно добавлена в меню Дополнительно."
             return {"type": "create_task", "title": title_disp, "message": msg}
 
     # Note creation: full single-turn or simple creation
@@ -992,7 +992,7 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
             extras_mgr.add_note(t_name, content_txt)
         except Exception:
             pass
-        msg = f"Заметка «{t_name}» успешно создана и сохранена, сэр!"
+        msg = f"Заметка «{t_name}» успешно создана и сохранена!"
         return {"type": "create_note", "title": t_name, "content": content_txt, "message": msg}
 
     m_simple_note = re.match(
@@ -1007,7 +1007,7 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
                 extras_mgr.add_note(t_name, raw_note)
             except Exception:
                 pass
-            msg = f"Заметка «{t_name}» успешно создана и сохранена, сэр."
+            msg = f"Заметка «{t_name}» успешно создана и сохранена."
             return {"type": "create_note", "title": t_name, "content": raw_note, "message": msg}
 
     # Interactive note creation trigger (without title/content)
@@ -1020,7 +1020,7 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
             "title": "",
             "created_at": time.time()
         }
-        return {"type": "clarify", "message": "Как назовём новую заметку, сэр? Назовите заголовок."}
+        return {"type": "clarify", "message": "Как назовём новую заметку? Назовите заголовок."}
 
     # Task completion e.g. "выполнил задачу сделать дз", "заверши задачу сделать дз", "отметь задачу сделать дз выполненной", "сделал задачу ..."
     m_comp_task = re.match(
@@ -1033,13 +1033,13 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         target_t = re.sub(r'\s+(?:как\s+)?(?:выполненн\w*|сделанн\w*)$', '', target_t, flags=re.IGNORECASE).strip()
         ok, found = extras_mgr.complete_task(target_t)
         t_name = found.get("title") if found else target_t.capitalize()
-        msg = f"Задача «{t_name}» успешно отмечена как выполненная, сэр." if ok else f"Задача «{target_t}» не найдена в списке, сэр."
+        msg = f"Задача «{t_name}» успешно отмечена как выполненная." if ok else f"Задача «{target_t}» не найдена в списке."
         return {"type": "complete_task", "title": target_t, "message": msg}
 
     # Task deletion e.g. "удали все задачи", "удали задачу сделать дз", "очисти задачи"
     if any(k == c for k in ["удали все задачи", "удалить все задачи", "удали задачи", "удалить задачи", "очисти задачи", "очисти все задачи", "сотри все задачи", "стереть все задачи"]):
         ok, found = extras_mgr.delete_task("all")
-        msg = "Все задачи успешно удалены из списка, сэр."
+        msg = "Все задачи успешно удалены из списка."
         return {"type": "delete_task", "title": "all", "message": msg}
 
     m_del_task = re.match(
@@ -1050,7 +1050,7 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         target_t = (m_del_task.group(1) or "all").strip()
         ok, found = extras_mgr.delete_task(target_t)
         t_name = found.get("title") if found else target_t.capitalize()
-        msg = f"Задача «{t_name}» успешно удалена из вашего списка задач, сэр." if ok else f"Задача «{target_t}» не найдена в вашем списке задач, сэр."
+        msg = f"Задача «{t_name}» успешно удалена из вашего списка задач." if ok else f"Задача «{target_t}» не найдена в вашем списке задач."
         return {"type": "delete_task", "title": target_t, "message": msg}
 
     # Note deletion e.g. "удали все заметки", "удали заметку про роутер", "очисти заметки", "сотри все заметки"
@@ -1060,7 +1060,7 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         "удали всё из заметок", "очистить все заметки", "удали мои заметки"
     ]):
         ok, found = extras_mgr.delete_note("all")
-        msg = "Все ваши сохранённые заметки успешно удалены, сэр."
+        msg = "Все ваши сохранённые заметки успешно удалены."
         return {"type": "delete_note", "title": "all", "message": msg}
 
     m_del_note = re.match(
@@ -1071,7 +1071,7 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         target_n = (m_del_note.group(1) or "all").strip()
         ok, found = extras_mgr.delete_note(target_n)
         n_name = found.get("title") if found else target_n.capitalize()
-        msg = f"Заметка «{n_name}» успешно удалена, сэр." if ok else f"Заметка «{target_n}» не найдена, сэр."
+        msg = f"Заметка «{n_name}» успешно удалена." if ok else f"Заметка «{target_n}» не найдена."
         return {"type": "delete_note", "title": target_n, "message": msg}
 
     # Stop / Cancel / Delete Timers e.g. "останови таймер", "отмени таймер", "сбрось таймер"
@@ -1085,7 +1085,7 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
     ]
     if any(k in c for k in stop_timer_triggers) or (c.startswith("таймер") and any(w in c for w in ["стоп", "отмена", "отбой", "выкл", "сброс"])):
         ok, found = extras_mgr.delete_timer("all")
-        msg = "Таймер успешно остановлен и сброшен, сэр."
+        msg = "Таймер успешно остановлен и сброшен."
         return {"type": "delete_timer", "title": "all", "message": msg}
 
     # Universal cancellation of active timers on "стоп", "отмена", "отбой"
@@ -1094,7 +1094,7 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         running_timers = [t for t in data.get("timers", []) if t.get("is_running") and t.get("remaining_seconds", 0) > 0]
         if running_timers:
             extras_mgr.delete_timer("all")
-            return {"type": "delete_timer", "title": "all", "message": "Остановил выполнение и сбросил таймер, сэр."}
+            return {"type": "delete_timer", "title": "all", "message": "Остановил выполнение и сбросил таймер."}
 
     m_del_timer = re.match(
         r'^(?:удали|удалить|останови|остановить|отмени|отменить|выключи|выключить|сбрось|сбросить)\s+(?:все\s+|всё\s+)?таймер\w*(?:\s+(.*))?$',
@@ -1103,7 +1103,7 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
     if m_del_timer:
         target_tm = (m_del_timer.group(1) or "all").strip()
         ok, found = extras_mgr.delete_timer(target_tm)
-        msg = "Таймер успешно остановлен и сброшен, сэр." if ok else "Активный таймер не найден, сэр."
+        msg = "Таймер успешно остановлен и сброшен." if ok else "Активный таймер не найден."
         return {"type": "delete_timer", "title": target_tm, "message": msg}
 
     # List tasks e.g. "покажи задачи", "какие задачи", "список задач", "что по задачам"
@@ -1114,10 +1114,10 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         data = extras_mgr.load_extras_data()
         tasks = data.get("tasks", [])
         if not tasks:
-            msg = "У вас пока нет сохранённых задач, сэр."
+            msg = "У вас пока нет сохранённых задач."
         else:
             lines = [f"• {'[✓]' if t.get('completed') else '[ ]'} {t.get('title')}" for t in tasks[:8]]
-            msg = "Ваши текущие задачи, сэр:\n" + "\n".join(lines)
+            msg = "Ваши текущие задачи:\n" + "\n".join(lines)
         return {"type": "list_tasks", "message": msg}
 
     # List all notes (checked BEFORE keyword search so 'в заметках просмотри' lists all notes)
@@ -1131,10 +1131,10 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         data = extras_mgr.load_extras_data()
         notes = data.get("notes", [])
         if not notes:
-            msg = "В ваших сохранённых заметках пока пусто, сэр."
+            msg = "В ваших сохранённых заметках пока пусто."
         else:
             lines = [f"• «{n.get('title')}»: {n.get('content')[:90]}" for n in notes[:12]]
-            msg = f"Ваши сохранённые заметки, сэр ({len(notes)} шт.):\n" + "\n".join(lines)
+            msg = f"Ваши сохранённые заметки ({len(notes)} шт.):\n" + "\n".join(lines)
         return {"type": "list_notes", "message": msg}
 
     # Personal Questions & Specific Note Search:
@@ -1158,10 +1158,10 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
             data = extras_mgr.load_extras_data()
             notes = data.get("notes", [])
             if not notes:
-                msg = "В ваших сохранённых заметках пока пусто, сэр."
+                msg = "В ваших сохранённых заметках пока пусто."
             else:
                 lines = [f"• «{n.get('title')}»: {n.get('content')[:90]}" for n in notes[:12]]
-                msg = f"Ваши сохранённые заметки, сэр ({len(notes)} шт.):\n" + "\n".join(lines)
+                msg = f"Ваши сохранённые заметки ({len(notes)} шт.):\n" + "\n".join(lines)
             return {"type": "list_notes", "message": msg}
 
         matches = extras_mgr.search_notes(q_target)
@@ -1170,10 +1170,10 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
             return {"type": "search_notes", "query": q_target, "message": ans}
         if matches:
             best = matches[0]
-            msg = f"Судя по вашей заметке «{best.get('title')}», сэр:\n{best.get('content')}"
+            msg = f"Судя по вашей заметке «{best.get('title')}»:\n{best.get('content')}"
             return {"type": "search_notes", "query": q_target, "message": msg}
         else:
-            msg = f"В ваших заметках не найдено информации по запросу «{q_target}», сэр."
+            msg = f"В ваших заметках не найдено информации по запросу «{q_target}»."
             return {"type": "search_notes", "query": q_target, "message": msg}
 
     # List timers e.g. "покажи таймеры", "активные таймеры"
@@ -1183,10 +1183,10 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         data = extras_mgr.load_extras_data()
         timers = [t for t in data.get("timers", []) if t.get("is_running") and t.get("remaining_seconds", 0) > 0]
         if not timers:
-            msg = "Сейчас нет активных таймеров, сэр."
+            msg = "Сейчас нет активных таймеров."
         else:
             lines = [f"• «{t.get('title')}»: осталось {t.get('remaining_seconds')} сек." for t in timers]
-            msg = "Активные таймеры, сэр:\n" + "\n".join(lines)
+            msg = "Активные таймеры:\n" + "\n".join(lines)
         return {"type": "list_timers", "message": msg}
 
     # 1. Screenshot / Screen capture with folder detection
@@ -1948,7 +1948,7 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
             return {
                 "type": "clarify",
                 "message": (
-                    f"Уточните, пожалуйста, сэр: какой текст сообщения вы хотите отправить контакту «{m_target}» в {m_app.title()}?\n"
+                    f"Уточните, пожалуйста: какой текст сообщения вы хотите отправить контакту «{m_target}» в {m_app.title()}?\n"
                     f"Например: «В {m_app.title()} напиши {m_target} текст Привет»."
                 )
             }
@@ -1970,7 +1970,7 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
             return {
                 "type": "clarify",
                 "message": (
-                    f"Уточните, пожалуйста, сэр: какой текст сообщения вы хотите отправить контакту «{m_target}» в {m_app.title()}?\n"
+                    f"Уточните, пожалуйста: какой текст сообщения вы хотите отправить контакту «{m_target}» в {m_app.title()}?\n"
                     f"Например: «В {m_app.title()} напиши {m_target} текст Привет»."
                 )
             }
@@ -1997,7 +1997,7 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
             return {
                 "type": "clarify",
                 "message": (
-                    f"Уточните, пожалуйста, сэр: какой текст сообщения вы хотите отправить контакту «{m_target}» в {m_app.title()}?\n"
+                    f"Уточните, пожалуйста: какой текст сообщения вы хотите отправить контакту «{m_target}» в {m_app.title()}?\n"
                     f"Например: «В {m_app.title()} напиши {m_target} текст Привет»."
                 )
             }
@@ -2030,7 +2030,7 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
                 return {
                     "type": "clarify",
                     "message": (
-                        f"Уточните, пожалуйста, сэр: какой текст сообщения вы хотите отправить контакту «{target_name}» в {m_disp}?\n"
+                        f"Уточните, пожалуйста: какой текст сообщения вы хотите отправить контакту «{target_name}» в {m_disp}?\n"
                         f"Например: «В {m_disp if m_disp != 'мессенджере' else 'Telegram'} напиши {target_name} текст Привет»."
                     )
                 }
@@ -2061,7 +2061,7 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
                 return {
                     "type": "clarify",
                     "message": (
-                        f"Уточните, пожалуйста, сэр: какой текст сообщения вы хотите отправить контакту «{target_name}» в {m_disp}?\n"
+                        f"Уточните, пожалуйста: какой текст сообщения вы хотите отправить контакту «{target_name}» в {m_disp}?\n"
                         f"Например: «В {m_disp if m_disp != 'мессенджере' else 'Telegram'} напиши {target_name} текст Привет»."
                     )
                 }
@@ -2085,7 +2085,7 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
             return {
                 "type": "clarify",
                 "message": (
-                    f"Уточните, пожалуйста, сэр: в какой именно мессенджер (Telegram, WhatsApp, Discord или VK) "
+                    f"Уточните, пожалуйста: в какой именно мессенджер (Telegram, WhatsApp, Discord или VK) "
                     f"и какой текст сообщения отправить контакту «{norm_contact}»?\n"
                     f"Например: «В Telegram напиши {norm_contact} текст Привет» или «В Discord напиши {norm_contact} текст Привет»."
                 )
@@ -2127,7 +2127,7 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
                         return {
                             "type": "clarify",
                             "message": (
-                                f"Уточните, пожалуйста, сэр: какой текст сообщения вы хотите отправить контакту «{norm_contact}» в {target_app}?\n"
+                                f"Уточните, пожалуйста: какой текст сообщения вы хотите отправить контакту «{norm_contact}» в {target_app}?\n"
                                 f"Например: «В {target_app} напиши {norm_contact} текст Привет»."
                             )
                         }
@@ -2151,7 +2151,7 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
                     "messengers": detected_m,
                     "contact": norm_contact
                 }
-                msg_lines = [f"Выберите мессенджер для отправки сообщения контакту «{norm_contact}», сэр:"]
+                msg_lines = [f"Выберите мессенджер для отправки сообщения контакту «{norm_contact}»:"]
                 for m in detected_m:
                     msg_lines.append(f"{m['num']}. {m['name']}")
                 msg_lines.append("\nНажмите кнопку ниже или отправьте цифру/название.")
@@ -2208,7 +2208,7 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
             return {
                 "type": "messenger_wizard",
                 "message": (
-                    f"Мессенджер {target_app} выбран, сэр.\n\n"
+                    f"Мессенджер {target_app} выбран.\n\n"
                     f"Введите имя контакта или ник/юзернейм получателя (например: @username или Алексей):"
                 ),
                 "stage": "enter_contact",
@@ -2220,7 +2220,7 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
                 "stage": "awaiting_messenger",
                 "messengers": detected_m
             }
-            msg_lines = ["Выберите мессенджер для отправки сообщения, сэр:"]
+            msg_lines = ["Выберите мессенджер для отправки сообщения:"]
             for m in detected_m:
                 msg_lines.append(f"{m['num']}. {m['name']}")
             msg_lines.append("\nНажмите кнопку ниже или отправьте цифру/название.")
@@ -2325,7 +2325,7 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
     # 16. Universal Application Launch (Dynamic PC catalog & Start Menu discovery)
     # Check for bare verb without app name: e.g. "открой", "запусти"
     if c.strip() in ["открой", "открыть", "запусти", "запустить", "включи", "включить", "open", "launch", "start", "run"]:
-        return {"type": "clarify", "message": "Уточните, пожалуйста, сэр: какое приложение или сайт вы хотите открыть?"}
+        return {"type": "clarify", "message": "Уточните, пожалуйста: какое приложение или сайт вы хотите открыть?"}
 
     open_verbs = [
         "открой", "открыть", "запусти", "запустить", "включи", "включить", "стартуй",
@@ -2341,7 +2341,7 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         target_app = re.sub(r'^(?:в\s+приложение|в\s+программу|приложение|программу|на\s+сайт|сайт)\s+', '', target_app).strip()
         target_app = re.sub(r'\s+(?:приложение|программу|на\s+сайт|сайт)$', '', target_app).strip()
         if not target_app or target_app in open_verbs:
-            return {"type": "clarify", "message": "Уточните, пожалуйста, сэр: какое приложение или сайт вы хотите открыть?"}
+            return {"type": "clarify", "message": "Уточните, пожалуйста: какое приложение или сайт вы хотите открыть?"}
 
         # Intelligent resolution of app name with typo tolerance
         resolved = resolve_app_name(target_app)
@@ -2619,35 +2619,35 @@ def query_free_ai(prompt: str, user_name: str = "Пользователь", hist
 
 # ─── LOCAL PERSONA KNOWLEDGE BASE (OFFLINE FALLBACK) ────────────
 CONVERSATIONAL_KNOWLEDGE = {
-    "привет": "Здравствуйте, сэр! Рад Вас слышать. Чем могу быть полезен?",
-    "здравствуй": "Здравствуйте, сэр! Рад приветствовать Вас. Чем займёмся сегодня?",
+    "привет": "Здравствуйте! Рад Вас слышать. Чем могу быть полезен?",
+    "здравствуй": "Здравствуйте! Рад приветствовать Вас. Чем займёмся сегодня?",
     "hello": "Hello, sir. All Argus systems are active. How can I assist you?",
-    "как дела": "Благодарю за вопрос, сэр. Все системы стабильны и готовы к работе. Что потребуется сделать?",
+    "как дела": "Благодарю за вопрос. Все системы стабильны и готовы к работе. Что потребуется сделать?",
     "how are you": "All systems operating at peak performance, sir. Ready for your instructions.",
-    "что делаешь": "Мониторю фоновые процессы и ожидаю Ваших указаний, сэр. Какая стоит задача?",
-    "чем занимаешься": "На связи, сэр. Системы готовы к выполнению любых Ваших распоряжений.",
-    "что делаем": "Жду Ваших указаний, сэр. Готов открыть программу, найти данные или выполнить задачу.",
-    "кто ты": "Я Argus, сэр — Ваш персональный цифровой дворецкий и автономный ассистент управления компьютером.",
+    "что делаешь": "Мониторю фоновые процессы и ожидаю Ваших указаний. Какая стоит задача?",
+    "чем занимаешься": "На связи. Системы готовы к выполнению любых Ваших распоряжений.",
+    "что делаем": "Жду Ваших указаний. Готов открыть программу, найти данные или выполнить задачу.",
+    "кто ты": "Я Argus — Ваш персональный цифровой дворецкий и автономный ассистент управления компьютером.",
     "who are you": "I am Argus, sir — your personal autonomous AI assistant and digital butler for computer control.",
-    "что ты умеешь": "Я полноценно управляю компьютером, сэр: открываю любые сайты и программы, нажимаю кнопки, ввожу текст, работаю с файлами, настраиваю систему, пишу код и веду заметки и таймеры.",
-    "почему небо синее": "Небо синее из-за рэлеевского рассеяния солнечного света молекулами атмосферы, сэр: короткие синие волны рассеиваются значительно сильнее длинных красных.",
+    "что ты умеешь": "Я полноценно управляю компьютером: открываю любые сайты и программы, нажимаю кнопки, ввожу текст, работаю с файлами, настраиваю систему, пишу код и веду заметки и таймеры.",
+    "почему небо синее": "Небо синее из-за рэлеевского рассеяния солнечного света молекулами атмосферы: короткие синие волны рассеиваются значительно сильнее длинных красных.",
     "почему небо голубое": "Небо голубое благодаря рэлеевскому рассеянию: солнечный свет рассеивается молекулами воздуха, при этом коротковолновые голубые лучи рассеиваются сильнее всего.",
-    "нет": "Хорошо, сэр, отменил. Ожидаю Ваших указаний.",
-    "не надо": "Понял Вас, сэр, отменяю. Чем могу помочь?",
-    "не нужно": "Хорошо, сэр, не буду. Ожидаю следующих команд.",
-    "отмена": "Действие отменено, сэр. Жду Ваших указаний.",
-    "отбой": "Принято, сэр, отбой. Системы готовы к работе.",
-    "стоп": "Остановил выполнение, сэр. Ожидаю дальнейших указаний.",
-    "хватит": "Хорошо, сэр, остановился. Чем займёмся дальше?",
-    "понял": "Отлично, сэр. Всегда готов к новым задачам.",
-    "понятно": "Договорились, сэр. Если что-то понадобится — обращайтесь.",
-    "ясно": "Принято, сэр. Готов к выполнению любых команд.",
-    "спасибо": "Всегда к Вашим услугам, сэр! Рад быть полезен.",
-    "благодарю": "Всегда рад служить Вам, сэр. Обращайтесь в любое время.",
-    "ок": "Принято, сэр. Что делаем дальше?",
-    "хорошо": "Вас понял, сэр. Готов продолжить работу.",
-    "ладно": "Хорошо, сэр. Ожидаю Ваших команд.",
-    "да": "Слушаю Вас, сэр. Какую задачу выполняем?",
+    "нет": "Хорошо, отменил. Ожидаю Ваших указаний.",
+    "не надо": "Понял Вас, отменяю. Чем могу помочь?",
+    "не нужно": "Хорошо, не буду. Ожидаю следующих команд.",
+    "отмена": "Действие отменено. Жду Ваших указаний.",
+    "отбой": "Принято, отбой. Системы готовы к работе.",
+    "стоп": "Остановил выполнение. Ожидаю дальнейших указаний.",
+    "хватит": "Хорошо, остановился. Чем займёмся дальше?",
+    "понял": "Отлично. Всегда готов к новым задачам.",
+    "понятно": "Договорились. Если что-то понадобится — обращайтесь.",
+    "ясно": "Принято. Готов к выполнению любых команд.",
+    "спасибо": "Всегда к Вашим услугам! Рад быть полезен.",
+    "благодарю": "Всегда рад служить Вам. Обращайтесь в любое время.",
+    "ок": "Принято. Что делаем дальше?",
+    "хорошо": "Вас понял. Готов продолжить работу.",
+    "ладно": "Хорошо. Ожидаю Ваших команд.",
+    "да": "Слушаю Вас. Какую задачу выполняем?",
 }
 
 def generate_smart_code_reply(prompt: str) -> Optional[str]:
@@ -2717,7 +2717,7 @@ def generate_smart_code_reply(prompt: str) -> Optional[str]:
 
     if any(k in low for k in ["node", "nodejs", "node.js", "js", "javascript"]) and any(k in low for k in ["бот", "telegram", "телеграм"]):
         return (
-            "Вот готовый и проверенный код Telegram-бота на Node.js, сэр:\n\n"
+            "Вот готовый и проверенный код Telegram-бота на Node.js:\n\n"
             "```javascript\n"
             "// 1. Инициализация проекта: npm init -y\n"
             "// 2. Установка библиотеки: npm install node-telegram-bot-api\n\n"
@@ -2755,12 +2755,12 @@ def generate_smart_code_reply(prompt: str) -> Optional[str]:
             "1. Создайте файл `bot.js` и вставьте в него код выше.\n"
             "2. Установите зависимость: `npm install node-telegram-bot-api`.\n"
             "3. Запустите бота командой: `node bot.js`.\n\n"
-            "Все модули готовы к работе, сэр."
+            "Все модули готовы к работе."
         )
 
     if any(k in low for k in ["бот", "telegram bot", "тг бот"]):
         return (
-            "Вот базовый шаблон асинхронного Telegram-бота на Python, сэр:\n\n"
+            "Вот базовый шаблон асинхронного Telegram-бота на Python:\n\n"
             "```python\n"
             "import asyncio\n"
             "from aiogram import Bot, Dispatcher, types\n"
@@ -2989,17 +2989,17 @@ def get_conversational_reply(raw_text: str, en: bool, user_name: str = "Поль
     else:
         low_t = raw_text.lower().strip()
         if any(g in low_t for g in ["спасибо", "благодарю"]):
-            return "Пожалуйста, сэр. Всегда к Вашим услугам! Чем ещё могу быть полезен Вам?"
+            return "Пожалуйста. Всегда к Вашим услугам! Чем ещё могу быть полезен Вам?"
         if any(g in low_t for g in ["отлично", "хорошо", "супер", "класс", "молодец"]):
-            return "Рад помочь, сэр. Все системы функционируют штатно и ждут Ваших задач."
+            return "Рад помочь. Все системы функционируют штатно и ждут Ваших задач."
         if any(g in low_t for g in ["пока", "до свидания", "до встречи"]):
-            return "До связи, сэр. Все службы Argus остаются на страже и ждут Ваших указаний."
+            return "До связи. Все службы Argus остаются на страже и ждут Ваших указаний."
         if any(h in low_t for h in ["привет", "здравствуй", "добрый день", "добрый вечер", "доброе утро"]):
-            return "Здравствуйте, сэр! Рад приветствовать Вас. Чем могу быть полезен Вам сегодня?"
+            return "Здравствуйте! Рад приветствовать Вас. Чем могу быть полезен Вам сегодня?"
         if any(re.search(r'\b' + re.escape(w) + r'\b', low_t) for w in ["нет", "не", "не надо", "не нужно", "отмена", "отбой"]):
-            return "Хорошо, сэр, отменил. Ожидаю Ваших указаний."
+            return "Хорошо, отменил. Ожидаю Ваших указаний."
         if any(re.search(r'\b' + re.escape(w) + r'\b', low_t) for w in ["стоп", "хватит", "остановись", "прекрати"]):
-            return "Остановил выполнение, сэр. Ожидаю дальнейших указаний."
+            return "Остановил выполнение. Ожидаю дальнейших указаний."
 
         # Questions fallback: Check user notes ONLY for personal inquiries
         is_q = "?" in raw_text or any(low_t.startswith(w + " ") or low_t == w for w in [
@@ -3018,12 +3018,12 @@ def get_conversational_reply(raw_text: str, en: bool, user_name: str = "Поль
                     return ans
             except Exception:
                 pass
-            return "В Ваших сохранённых заметках и памяти пока нет информации по этому вопросу, сэр. Вы можете назвать нужные данные или добавить заметку, и я обязательно сохраню их."
+            return "В Ваших сохранённых заметках и памяти пока нет информации по этому вопросу. Вы можете назвать нужные данные или добавить заметку, и я обязательно сохраню их."
 
         if is_q:
-            return f"Я готов подробно ответить на Ваш вопрос по теме «{raw_text.rstrip('?.!')}», сэр. Задайте дополнительные параметры или уточните детали."
+            return f"Я готов подробно ответить на Ваш вопрос по теме «{raw_text.rstrip('?.!')}». Задайте дополнительные параметры или уточните детали."
 
-        return f"Готов к выполнению ваших задач, сэр. Скажите, что требуется сделать, или задайте вопрос."
+        return f"Готов к выполнению ваших задач. Скажите, что требуется сделать, или задайте вопрос."
 
 # ─── MAIN MASTER ENTRY POINT ────────────────────────────────────
 def process_command(user_text: str, user_name: str = "Пользователь", history: Optional[List[Dict[str, Any]]] = None) -> Tuple[str, Optional[str], Optional[Dict[str, Any]]]:
@@ -3075,11 +3075,11 @@ def process_command(user_text: str, user_name: str = "Пользователь",
                             executed_results.append(msg)
 
                 exec_summary = ". ".join(executed_results) if executed_results else "Операция успешно выполнена."
-                return f"Подтверждение получено, сэр. {exec_summary}", primary_action_type, primary_data
+                return f"Подтверждение получено. {exec_summary}", primary_action_type, primary_data
 
             elif is_rejected:
                 _PENDING_CONFIRMATION_STATE.pop(active_conf_key, None)
-                return "Действие отменено по Вашему указанию, сэр. Безопасность сохранена.", "cancelled", {}
+                return "Действие отменено по Вашему указанию. Безопасность сохранена.", "cancelled", {}
             else:
                 guard = conf_state.get("guard", {})
                 return (
@@ -3101,7 +3101,7 @@ def process_command(user_text: str, user_name: str = "Пользователь",
         if user_name in _NOTE_CREATION_STATE or "default" in _NOTE_CREATION_STATE:
             _NOTE_CREATION_STATE.pop(user_name, None)
             _NOTE_CREATION_STATE.pop("default", None)
-            return "Создание заметки отменено, сэр. Ожидаю Ваших указаний.", "clarify", {}
+            return "Создание заметки отменено. Ожидаю Ваших указаний.", "clarify", {}
 
     active_note_key = user_name if user_name in _NOTE_CREATION_STATE else ("default" if "default" in _NOTE_CREATION_STATE else None)
     if active_note_key:
@@ -3118,7 +3118,7 @@ def process_command(user_text: str, user_name: str = "Пользователь",
                 note_state["stage"] = "awaiting_content"
                 note_state["created_at"] = time.time()
                 return (
-                    f"Принято, сэр. Теперь назовите или продиктуйте текст для заметки «{title_val}»:",
+                    f"Принято. Теперь назовите или продиктуйте текст для заметки «{title_val}»:",
                     "clarify",
                     {"step": "note_content", "title": title_val}
                 )
@@ -3131,7 +3131,7 @@ def process_command(user_text: str, user_name: str = "Пользователь",
                 except Exception as e:
                     print(f"[Argus Note Error]: {e}")
                 return (
-                    f"Заметка «{title_val}» успешно создана и сохранена, сэр!",
+                    f"Заметка «{title_val}» успешно создана и сохранена!",
                     "create_note",
                     {"title": title_val, "content": content_val}
                 )
@@ -3146,7 +3146,7 @@ def process_command(user_text: str, user_name: str = "Пользователь",
             "title": "",
             "created_at": time.time()
         }
-        return "Как назовём новую заметку, сэр? Назовите заголовок:", "clarify", {"step": "note_title"}
+        return "Как назовём новую заметку? Назовите заголовок:", "clarify", {"step": "note_title"}
 
     # 0. User Memory & Learning (0ms response time)
     learned_reply = user_memory.extract_and_learn(raw)
@@ -3207,7 +3207,7 @@ def process_command(user_text: str, user_name: str = "Пользователь",
         if user_name in _MESSENGER_WIZARD_STATE or "default" in _MESSENGER_WIZARD_STATE:
             _MESSENGER_WIZARD_STATE.pop(user_name, None)
             _MESSENGER_WIZARD_STATE.pop("default", None)
-            return "Мастер отправки сообщений отменён, сэр. Ожидаю ваших указаний.", "clarify", {}
+            return "Мастер отправки сообщений отменён. Ожидаю ваших указаний.", "clarify", {}
 
     active_user_key = user_name if user_name in _MESSENGER_WIZARD_STATE else ("default" if "default" in _MESSENGER_WIZARD_STATE else None)
     if active_user_key:
@@ -3243,7 +3243,7 @@ def process_command(user_text: str, user_name: str = "Пользователь",
                 if state.get("contact"):
                     state["stage"] = "awaiting_text"
                     reply_text = (
-                        f"Мессенджер {selected['name']} выбран для контакта «{state['contact']}», сэр.\n\n"
+                        f"Мессенджер {selected['name']} выбран для контакта «{state['contact']}».\n\n"
                         f"Введите текст сообщения, которое нужно отправить:"
                     )
                     return reply_text, "messenger_wizard", {
@@ -3254,7 +3254,7 @@ def process_command(user_text: str, user_name: str = "Пользователь",
                 else:
                     state["stage"] = "awaiting_contact"
                     reply_text = (
-                        f"Мессенджер {selected['name']} выбран, сэр.\n\n"
+                        f"Мессенджер {selected['name']} выбран.\n\n"
                         f"Введите имя контакта или ник/юзернейм получателя (например: @username или Алексей):"
                     )
                     return reply_text, "messenger_wizard", {
@@ -3283,14 +3283,14 @@ def process_command(user_text: str, user_name: str = "Пользователь",
                 _MESSENGER_WIZARD_STATE.pop(active_user_key, None)
                 res = gui_agent.execute_autonomous_messenger_task(m_id, contact, msg_text)
                 return (
-                    f"Сообщение для контакта «{contact}» в {m_name} успешно отправлено: «{msg_text}», сэр.",
+                    f"Сообщение для контакта «{contact}» в {m_name} успешно отправлено: «{msg_text}».",
                     "messenger_send",
                     res
                 )
 
             if clean_contact.lower() in INVALID_CONTACT_KEYWORDS or not clean_contact:
                 return (
-                    "Пожалуйста, укажите имя контакта или ник/юзернейм (например: @username или Алексей), сэр:",
+                    "Пожалуйста, укажите имя контакта или ник/юзернейм (например: @username или Алексей):",
                     "messenger_wizard",
                     {"stage": "enter_contact", "messenger": state["messenger"]}
                 )
@@ -3298,7 +3298,7 @@ def process_command(user_text: str, user_name: str = "Пользователь",
             state["contact"] = clean_contact
             state["stage"] = "awaiting_text"
             reply_text = (
-                f"Контакт «{clean_contact}» принят, сэр.\n\n"
+                f"Контакт «{clean_contact}» принят.\n\n"
                 f"Введите текст сообщения, которое нужно отправить:"
             )
             return reply_text, "messenger_wizard", {
@@ -3315,7 +3315,7 @@ def process_command(user_text: str, user_name: str = "Пользователь",
             _MESSENGER_WIZARD_STATE.pop(active_user_key, None)
             res = gui_agent.execute_autonomous_messenger_task(m_id, contact, msg_text)
             return (
-                f"Сообщение для контакта «{contact}» в {m_name} успешно отправлено: «{msg_text}», сэр.",
+                f"Сообщение для контакта «{contact}» в {m_name} успешно отправлено: «{msg_text}».",
                 "messenger_send",
                 res
             )
@@ -3396,7 +3396,7 @@ def process_command(user_text: str, user_name: str = "Пользователь",
         }
         icon = cat_emojis.get(protected_guard["category"], "⚠️")
         reply_text = (
-            f"Внимание, сэр! Для безопасности системы требуется Ваше подтверждение перед выполнением:\n\n"
+            f"Внимание! Для безопасности системы требуется Ваше подтверждение перед выполнением:\n\n"
             f"{icon} **{protected_guard['title']}**: {protected_guard['description']}.\n\n"
             f"Вы разрешаете выполнить эту операцию?"
         )
@@ -3434,7 +3434,7 @@ def process_command(user_text: str, user_name: str = "Пользователь",
         if not final_reply.endswith(('.', '!', '?', '»')):
             final_reply += "."
     else:
-        final_reply = "Все задачи успешно выполнены, сэр." if not en else "All tasks completed successfully."
+        final_reply = "Все задачи успешно выполнены." if not en else "All tasks completed successfully."
 
     # Guarantee clean response without unparsed raw JSON leaks
     if isinstance(final_reply, str):
@@ -3448,5 +3448,11 @@ def process_command(user_text: str, user_name: str = "Пользователь",
                 m_rep = re.search(r'"reply"\s*:\s*"([\s\S]*?)(?="\s*,\s*"actions"|"\s*\}\s*$)', fr_strip)
                 if m_rep:
                     final_reply = m_rep.group(1).replace(r'\"', '"').replace(r'\n', '\n')
+
+        # Clean repetitive or awkward "" to ensure modern natural tone
+        if final_reply.endswith(".") or final_reply.endswith("!") or final_reply.count("сэр") > 1:
+            final_reply = re.sub(r',\s*сэр\b', '', final_reply, flags=re.IGNORECASE)
+            final_reply = re.sub(r'\bсэр\b[,.!?]?', '', final_reply, flags=re.IGNORECASE)
+            final_reply = re.sub(r'\s*([.,!?])\s*', r'\1 ', final_reply).strip()
 
     return final_reply, primary_action_type, primary_data

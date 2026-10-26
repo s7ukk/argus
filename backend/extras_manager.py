@@ -292,7 +292,7 @@ def extract_specific_answer_from_notes(question: str) -> Optional[str]:
                 m = re.search(r'\b([А-ЯЁ][а-яё]+)\s+(?:ему|ей)\s+\d+', full_text)
             if m:
                 name = m.group(1)
-                return f"Вашего {target} зовут {name}, сэр."
+                return f"Вашего {target} зовут {name}."
 
         # 2. Question about Age: "сколько лет другу", "возраст друга", "сколько ему лет", "сколько лет моему другу"
         if any(k in q for k in ["сколько лет", "возраст", "сколько ему лет", "сколько ей лет"]):
@@ -302,7 +302,7 @@ def extract_specific_answer_from_notes(question: str) -> Optional[str]:
                 m = re.search(r'(?:ему|ей|возраст)\s*(?:составляет|:|=|\s+)?\s*(\d+)', full_text, re.IGNORECASE)
             if m:
                 age = m.group(1)
-                return f"{target} {age} лет, сэр."
+                return f"{target} {age} лет."
 
         # 3. Question about Location / City: "где живет мой друг", "в каком городе живет", "где живет"
         if any(k in q for k in ["где живет", "где живёт", "в каком городе", "откуда", "место жительства"]):
@@ -310,7 +310,7 @@ def extract_specific_answer_from_notes(question: str) -> Optional[str]:
             m = re.search(r'\b(?:живет\s+в|живёт\s+в|проживает\s+в|в\s+городе|из)\s+([А-ЯЁа-яёA-Za-z\-]+)', full_text, re.IGNORECASE)
             if m:
                 city = m.group(1).strip().capitalize()
-                return f"{target} живет в городе {city}, сэр."
+                return f"{target} живет в городе {city}."
 
         # 4. Question about Password / Pin / Code: "какой пароль от роутера", "пароль от вайфая"
         if any(k in q for k in ["пароль", "пин", "код", "pass", "password", "ключ"]):
@@ -319,11 +319,11 @@ def extract_specific_answer_from_notes(question: str) -> Optional[str]:
                 m = re.search(r'\b(?:пароль|пин|код|pass|password|ключ)(?:\s*(?:от|для|:|=)\s*|\s+)([^\s,;\.]+)', full_text, re.IGNORECASE)
             if m:
                 pwd = m.group(1)
-                return f"Пароль: {pwd}, сэр."
+                return f"Пароль: {pwd}."
 
     # If asking specific question and direct pattern didn't match, return first relevant note snippet
     best = notes[0]
-    return f"Судя по вашей заметке «{best.get('title')}», сэр: {best.get('content')}"
+    return f"Судя по вашей заметке «{best.get('title')}»: {best.get('content')}"
 
 def delete_timer(identifier: str) -> Tuple[bool, Optional[Dict[str, Any]]]:
     """Deletes or stops timer by id or matching title, or clears all if 'all'/'все'."""
