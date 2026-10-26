@@ -3093,6 +3093,34 @@ def get_conversational_reply(raw_text: str, en: bool, user_name: str = "Поль
         return "Все системы функционируют штатно. Чем могу помочь Вам прямо сейчас?"
 
 # ─── MAIN MASTER ENTRY POINT ────────────────────────────────────
+def is_coding_or_creative_request(text: str) -> bool:
+    """Detects if the user is asking the AI to write/generate code, scripts, algorithms, or technical solutions."""
+    low = text.lower().strip()
+    coding_verbs = [
+        "напиши", "написать", "создай", "создать", "сделай", "сделать", "сгенерируй", "покажи", "сочини", "придумай",
+        "write", "create", "generate"
+    ]
+    coding_nouns = [
+        "код", "кодец", "программ", "скрипт", "функци", "алгоритм", "класс", "модуль", "сервер", "бэкенд",
+        "backend", "микросервис", "эндпоинт", "роутер", "api", "rest", "crud", "бота", "бот", "парсер",
+        "структур", "задач", "хеллоу ворд", "hello world", "архитектур", "шаблон"
+    ]
+    languages = [
+        "elixir", "эликсир", "эликсире", "rust", "раст", "расте", "golang", "голанг", "голанге", "go",
+        "python", "питон", "питоне", "javascript", "js", "typescript", "ts", "c++", "си плюс плюс", "си++", "cpp",
+        "c#", "си шарп", "csharp", "java", "джава", "джаве", "яву", "ruby", "руби", "php", "пхп",
+        "swift", "свифт", "kotlin", "котлин", "scala", "скала", "haskell", "хаскель",
+        "erlang", "эрланг", "lua", "луа", "dart", "дарт", "sql", "html", "css", "bash", "батник", "zig"
+    ]
+    has_verb = any(v in low for v in coding_verbs)
+    has_noun = any(n in low for n in coding_nouns)
+    has_lang = any(f"на {l}" in low or f"в {l}" in low or f"{l} " in low or low.endswith(l) for l in languages)
+
+    if (has_verb and has_noun) or (has_noun and has_lang) or (has_verb and has_lang) or any(f"код на {l}" in low for l in languages):
+        if not any(op in low for op in ["открой", "запусти", "закрой", "выйди", "удали", "включи музыку", "поставь музыку", "сделай скриншот", "почисти корзину"]):
+            return True
+    return False
+
 def process_command(user_text: str, user_name: str = "Пользователь", history: Optional[List[Dict[str, Any]]] = None) -> Tuple[str, Optional[str], Optional[Dict[str, Any]]]:
     """
     Main processing entrypoint for Argus AI.
@@ -3465,6 +3493,30 @@ def process_command(user_text: str, user_name: str = "Пользователь",
                 res
             )
 
+
+    # 0.9 Dedicated Coding & Technical Request Routing
+    # When user asks for code, program, or script, NEVER execute desktop actions (like music or app launches)
+    if is_coding_or_creative_request(resolved_text):
+        # 1. Try smart knowledge templates (Elixir, Rust, Go, C++, Python, Node.js, etc.)
+        try:
+            kb_code = smart_knowledge.generate_smart_code(resolved_text)
+            if kb_code:
+                return kb_code, "general", {}
+        except Exception as e:
+            print(f"[Argus SmartKnowledge Error]: {e}")
+
+        # 2. Try OpenRouter free neural intelligence
+        try:
+            or_reply, _ = openrouter_engine.query_openrouter(resolved_text, user_name=user_name, history=history)
+            if or_reply and len(or_reply.strip()) > 1 and not openrouter_engine.is_reasoning_leak(or_reply):
+                return or_reply.strip(), "general", {}
+        except Exception as e:
+            print(f"[Argus Code OpenRouter Notice]: {e}")
+
+        # 3. Fallback code reply
+        fallback_code = generate_smart_code_reply(resolved_text)
+        if fallback_code:
+            return fallback_code, "general", {}
 
     # 1. First, check if input contains any system actions (single or compound) locally (<1ms)
     actions_to_run = local_multi_action_planner(resolved_text)

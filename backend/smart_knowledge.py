@@ -21,6 +21,18 @@ def generate_smart_code(prompt: str) -> Optional[str]:
     if not is_code:
         return None
 
+    # ─── 0. ELIXIR & EXTENDED REQUESTS ──────────────────────────────
+    try:
+        try:
+            import backend.smart_knowledge_extra as ske
+        except ImportError:
+            import smart_knowledge_extra as ske
+        extra_code = ske.generate_elixir_code(low)
+        if extra_code:
+            return extra_code
+    except Exception as e:
+        print("[Smart Knowledge Extra Error]:", e)
+
     # ─── 1. GOLANG (GO) REQUESTS ────────────────────────────────────
     is_go = any(k in low for k in ["golang", "голанг", "на go", "на го", "go"]) and not any(k in low for k in ["google", "good"])
     if is_go:
