@@ -85,13 +85,6 @@ export const NavDock: React.FC<NavDockProps> = ({
     opacity: 0,
   });
 
-  // Keep scrubTab in sync when activeTab changes externally
-  useEffect(() => {
-    if (!isScrubbing) {
-      setScrubTab(activeTab);
-    }
-  }, [activeTab, isScrubbing]);
-
   // Measure active button position within capsule container
   const updateLens = (targetTab: NavTab) => {
     const container = containerRef.current;
@@ -110,6 +103,14 @@ export const NavDock: React.FC<NavDockProps> = ({
     });
   };
 
+  // Keep scrubTab and lens in sync when activeTab changes externally
+  useEffect(() => {
+    if (!isScrubbing) {
+      setScrubTab(activeTab);
+      updateLens(activeTab);
+    }
+  }, [activeTab, isScrubbing]);
+
   useLayoutEffect(() => {
     updateLens(scrubTab);
     const handleResize = () => updateLens(scrubTab);
@@ -117,8 +118,16 @@ export const NavDock: React.FC<NavDockProps> = ({
     return () => window.removeEventListener('resize', handleResize);
   }, [scrubTab, position]);
 
-  // Liquid Glass Drag-Scrubbing Handlers (iOS 27 gesture)
-  const isPointerDownRef = useRef(false);
+  // Immediate Click Handling (Always works instantly without event suppression)
+  const handleTabClick = (tabId: NavTab) => {
+    onTabChange(tabId);
+    setScrubTab(tabId);
+    updateLens(tabId);
+  };
+
+  // Continuous Fluid Drag-Scrubbing Handlers (iOS 27 gesture without blocking normal clicks)
+  const startPosRef = useRef<{ x: number; y: number } | null>(null);
+  const isDraggingRef = useRef(false);
   const currentScrubTabRef = useRef<NavTab>(scrubTab);
 
   const findNearestTab = (clientX: number, clientY: number): NavTab => {
@@ -142,33 +151,38 @@ export const NavDock: React.FC<NavDockProps> = ({
   };
 
   const handlePointerDown = (tabId: NavTab, e: React.PointerEvent) => {
-    e.preventDefault();
-    isPointerDownRef.current = true;
-    setIsScrubbing(true);
-    setScrubTab(tabId);
+    startPosRef.current = { x: e.clientX, y: e.clientY };
+    isDraggingRef.current = false;
     currentScrubTabRef.current = tabId;
-    updateLens(tabId);
 
     const onPointerMove = (ev: PointerEvent) => {
-      if (!isPointerDownRef.current) return;
-      const nearest = findNearestTab(ev.clientX, ev.clientY);
-      if (nearest && nearest !== currentScrubTabRef.current) {
-        currentScrubTabRef.current = nearest;
-        setScrubTab(nearest);
-        updateLens(nearest);
+      if (!startPosRef.current) return;
+      const dist = Math.hypot(ev.clientX - startPosRef.current.x, ev.clientY - startPosRef.current.y);
+      if (dist > 7) {
+        if (!isDraggingRef.current) {
+          isDraggingRef.current = true;
+          setIsScrubbing(true);
+        }
+        const nearest = findNearestTab(ev.clientX, ev.clientY);
+        if (nearest && nearest !== currentScrubTabRef.current) {
+          currentScrubTabRef.current = nearest;
+          setScrubTab(nearest);
+          updateLens(nearest);
+        }
       }
     };
 
     const onPointerUp = () => {
-      isPointerDownRef.current = false;
-      setIsScrubbing(false);
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointercancel', onPointerUp);
 
-      if (currentScrubTabRef.current) {
+      if (isDraggingRef.current && currentScrubTabRef.current) {
         onTabChange(currentScrubTabRef.current);
       }
+      startPosRef.current = null;
+      isDraggingRef.current = false;
+      setIsScrubbing(false);
     };
 
     window.addEventListener('pointermove', onPointerMove);
@@ -364,7 +378,7 @@ export const NavDock: React.FC<NavDockProps> = ({
 
           {/* Sparkle Core Mini Icon (Index 0) */}
           <button
-            onClick={() => onTabChange('chat')}
+            onClick={() => handleTabClick('chat')}
             style={{
               position: 'relative',
               zIndex: 2,
@@ -384,7 +398,7 @@ export const NavDock: React.FC<NavDockProps> = ({
               ['--pdx' as any]: `${morphDeltas.dx}px`,
               ['--pdy' as any]: `${morphDeltas.dy}px`,
             }}
-            title="Argus Core"
+            title="Чат Argus"
           >
             <Sparkles size={13} />
           </button>
@@ -407,14 +421,14 @@ export const NavDock: React.FC<NavDockProps> = ({
 
           {/* Tab Buttons (Indices 2..8 — Staggered Liquid Wave Assembly) */}
           {tabs.map((tab, idx) => {
-            const isActive = scrubTab === tab.id;
+            const isActive = (isScrubbing ? scrubTab : activeTab) === tab.id;
             const staggerDelay = 32 + idx * 16;
             return (
               <button
                 key={tab.id}
                 ref={(el) => { tabRefs.current[tab.id] = el; }}
                 onPointerDown={(e) => handlePointerDown(tab.id, e)}
-                onClick={() => onTabChange(tab.id)}
+                onClick={() => handleTabClick(tab.id)}
                 style={{
                   position: 'relative',
                   zIndex: 2,
