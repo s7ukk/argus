@@ -533,7 +533,13 @@ async function loadApp(window) {
 
   if (serverOk) {
     logApp('[Argus]: Loading production URL http://127.0.0.1:18275...');
-    await window.loadURL('http://127.0.0.1:18275');
+    try {
+      await window.loadURL('http://127.0.0.1:18275');
+    } catch (e) {
+      logApp(`[Argus loadURL error]: ${e.message}, falling back to loadFile`);
+      const fallbackPath = path.join(__dirname, '..', 'dist', 'index.html');
+      await window.loadFile(fallbackPath);
+    }
   } else {
     const fallbackPath = path.join(__dirname, '..', 'dist', 'index.html');
     logApp(`[Argus]: Loopback HTTP server not responding, falling back to loadFile: ${fallbackPath}`);
@@ -1338,11 +1344,11 @@ function createDictationHudWindow() {
 </html>`;
 
   dictationHudWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
-  dictationHudWindow.showInactive();
 }
 
 function createWindow() {
   const isMac = process.platform === 'darwin';
+  logApp('[Argus]: Creating main application window...');
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 840,
@@ -1352,7 +1358,7 @@ function createWindow() {
     titleBarStyle: isMac ? 'hiddenInset' : 'hidden',
     trafficLightPosition: isMac ? { x: 14, y: 11 } : undefined,
     backgroundColor: '#07050f',
-    show: false, // Prevent white/blank flash before initial render
+    show: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -1363,15 +1369,40 @@ function createWindow() {
     }
   });
 
+  mainWindow.show();
+  mainWindow.focus();
+
   session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
     callback(true);
   });
 
   mainWindow.once('ready-to-show', () => {
-    mainWindow.show();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.show();
+      mainWindow.focus();
+    }
   });
 
+  setTimeout(() => {
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  }, 250);
+
   loadApp(mainWindow);
+
+  mainWindow.webContents.on('did-fail-load', (e, code, desc) => {
+    logApp(`[Argus did-fail-load]: ${code} (${desc})`);
+    try {
+      const fallbackPath = path.join(__dirname, '..', 'dist', 'index.html');
+      mainWindow.loadFile(fallbackPath);
+    } catch {}
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
 
   // Pipe all frontend logs and errors directly to the persistent runtime log
   mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
@@ -1496,9 +1527,9 @@ app.whenReady().then(async () => {
   }
 
   registerIpcHandlers();
-  await startPythonBackend();
   createWindow();
   createDictationHudWindow();
+  startPythonBackend();
 
   // Background Long-Poller for Native Global Double-Ctrl Dictation
   let isDictationPollerActive = true;
