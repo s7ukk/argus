@@ -287,10 +287,15 @@ def query_openrouter(
     models_to_try = []
     if user_model:
         models_to_try.append(user_model)
+    is_coding_query = any(k in prompt.lower() for k in ["код", "скрипт", "программ", "функци", "алгоритм", "класс", "бот", "write", "code", "bot"])
+    call_timeout = 10.0 if is_coding_query else 6.0
+
     for m in [
         "meta-llama/llama-3.3-70b-instruct",
-        "deepseek/deepseek-v4.1-flash",
-        "qwen/qwen-2.5-coder-32b-instruct"
+        "deepseek/deepseek-chat",
+        "google/gemini-2.0-flash-001",
+        "qwen/qwen-2.5-coder-32b-instruct",
+        "mistralai/mistral-small-24b-instruct-2501"
     ]:
         if m not in models_to_try:
             models_to_try.append(m)
@@ -316,7 +321,7 @@ def query_openrouter(
                     data=json.dumps(body).encode("utf-8"),
                     headers=headers
                 )
-                with urllib.request.urlopen(req, timeout=4.5) as resp:
+                with urllib.request.urlopen(req, timeout=call_timeout) as resp:
                     data = json.loads(resp.read().decode("utf-8"))
                     if data.get("choices") and data["choices"][0].get("message"):
                         msg = data["choices"][0]["message"]
@@ -343,6 +348,21 @@ def query_openrouter(
 
         if raw_content:
             break
+
+    if not raw_content:
+        try:
+            p_payload = {"messages": messages, "model": "openai", "temperature": 0.7}
+            p_req = urllib.request.Request(
+                "https://text.pollinations.ai/",
+                data=json.dumps(p_payload).encode("utf-8"),
+                headers={"Content-Type": "application/json", "User-Agent": "Mozilla/5.0"}
+            )
+            with urllib.request.urlopen(p_req, timeout=8.0) as p_resp:
+                p_text = p_resp.read().decode("utf-8").strip()
+                if p_text and len(p_text) > 3:
+                    raw_content = p_text
+        except Exception:
+            pass
 
     if raw_content:
         reply, actions = parse_model_response(raw_content)

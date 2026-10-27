@@ -42,18 +42,25 @@ export class VoiceAssistant {
 
   private setupResumeListeners() {
     const resumeContexts = () => {
-      try {
-        if (this.wakeAudioContext && this.wakeAudioContext.state === 'suspended') {
-          this.wakeAudioContext.resume();
-        }
-        if (this.audioContext && this.audioContext.state === 'suspended') {
-          this.audioContext.resume();
-        }
-      } catch (e) {}
+      this.resumeAudioContext();
     };
     window.addEventListener('click', resumeContexts, { passive: true });
+    window.addEventListener('mousedown', resumeContexts, { passive: true });
+    window.addEventListener('pointerdown', resumeContexts, { passive: true });
     window.addEventListener('keydown', resumeContexts, { passive: true });
     window.addEventListener('focus', resumeContexts, { passive: true });
+    window.addEventListener('argus_resume_audio', resumeContexts, { passive: true });
+  }
+
+  public resumeAudioContext() {
+    try {
+      if (this.wakeAudioContext && this.wakeAudioContext.state === 'suspended') {
+        this.wakeAudioContext.resume();
+      }
+      if (this.audioContext && this.audioContext.state === 'suspended') {
+        this.audioContext.resume();
+      }
+    } catch (e) {}
   }
 
   public getIsDictating(): boolean {
@@ -475,6 +482,7 @@ export class VoiceAssistant {
         .map((w) => w.trim().toLowerCase())
         .filter(Boolean);
     }
+    this.resumeAudioContext();
 
     // 1. In standard Chromium/Web, if SpeechRecognition is available and not in Electron, start it
     const isElectron = !!(window as any).electronAPI?.isElectron;
@@ -532,7 +540,23 @@ export class VoiceAssistant {
   }
 
   private async startVadWakeEngine() {
-    if (this.wakeStream) return;
+    const isStreamLive = Boolean(this.wakeStream && this.wakeStream.getAudioTracks().some((t) => t.readyState === 'live'));
+    if (isStreamLive && this.wakeAudioContext && this.wakeAudioContext.state !== 'closed') {
+      if (this.wakeAudioContext.state === 'suspended') {
+        try {
+          await this.wakeAudioContext.resume();
+        } catch (e) {}
+      }
+      return;
+    }
+
+    if (this.wakeStream) {
+      try { this.wakeStream.getTracks().forEach((t) => t.stop()); } catch {}
+      this.wakeStream = null;
+    }
+    if (this.wakeAudioContext && this.wakeAudioContext.state === 'closed') {
+      this.wakeAudioContext = null;
+    }
 
     try {
       this.wakeStream = await navigator.mediaDevices.getUserMedia({
@@ -545,6 +569,11 @@ export class VoiceAssistant {
       });
 
       this.wakeAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      this.wakeAudioContext.onstatechange = () => {
+        if (this.wakeAudioContext && this.wakeAudioContext.state === 'suspended' && !this.isSpeaking) {
+          try { this.wakeAudioContext.resume(); } catch (e) {}
+        }
+      };
       if (this.wakeAudioContext.state === 'suspended') {
         await this.wakeAudioContext.resume();
       }

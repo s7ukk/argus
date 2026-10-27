@@ -157,8 +157,9 @@ export const App: React.FC = () => {
     const handleSettingsUpdated = (e: any) => {
       const updated = e.detail;
       if (updated && voiceAssistantRef.current) {
-        if (updated.voice_input_mode === 'trigger') {
+        if (updated.voice_input_mode === 'trigger' || !updated.voice_input_mode) {
           voiceAssistantRef.current.startWakeWordMonitoring(updated.trigger_words);
+          voiceAssistantRef.current.resumeAudioContext();
         } else {
           voiceAssistantRef.current.stopWakeWordMonitoring();
         }
@@ -166,12 +167,18 @@ export const App: React.FC = () => {
     };
     window.addEventListener('argus_settings_updated', handleSettingsUpdated);
 
+    const handleResumeAudio = () => {
+      voiceAssistantRef.current?.resumeAudioContext();
+    };
+    window.addEventListener('argus_resume_audio', handleResumeAudio);
+
 
 
   return () => {
       isDictationSubscribed = false;
       window.removeEventListener('argus_dictation_state', handleDictationState);
       window.removeEventListener('argus_settings_updated', handleSettingsUpdated);
+      window.removeEventListener('argus_resume_audio', handleResumeAudio);
       window.removeEventListener('argus_theme_changed', handleThemeChanged);
       voiceAssistantRef.current?.stopWakeWordMonitoring();
       voiceAssistantRef.current?.stopListening();
@@ -494,61 +501,84 @@ export const App: React.FC = () => {
     setIsProfileOpen(false);
   };
 
-  // Global Push-to-Talk Hotkey Listener
+  // Dynamic Push-to-Talk Hotkey Listener (strictly active ONLY if voice_input_mode === 'ptt')
   useEffect(() => {
-    let settingsStr = localStorage.getItem('argus_settings');
-    let pttKey = 'Space';
-    let isPttMode = false;
-    if (settingsStr) {
-      try {
-        const s = JSON.parse(settingsStr);
-        if (s.voice_input_mode === 'ptt') {
-          isPttMode = true;
-          pttKey = s.ptt_hotkey || 'Space';
+    let cleanupCurrentListener: (() => void) | null = null;
+
+    const setupPttFromSettings = (settingsObj?: any) => {
+      if (cleanupCurrentListener) {
+        cleanupCurrentListener();
+        cleanupCurrentListener = null;
+      }
+
+      let s = settingsObj;
+      if (!s) {
+        try {
+          const raw = localStorage.getItem('argus_settings');
+          if (raw) s = JSON.parse(raw);
+        } catch {}
+      }
+
+      const mode = s?.voice_input_mode || 'trigger';
+      if (mode !== 'ptt') {
+        // In 'trigger' or 'click' mode, Space NEVER intercepts voice!
+        return;
+      }
+
+      const pttKey = s?.ptt_hotkey || 'Space';
+      let isKeyDown = false;
+
+      const handleKeyDown = (e: KeyboardEvent) => {
+        const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+        if (tag === 'input' || tag === 'textarea' || (e.target as HTMLElement)?.isContentEditable) return;
+
+        const matches = 
+          e.code === pttKey || 
+          e.key === pttKey ||
+          (pttKey.toLowerCase().includes('cmd') && e.metaKey) ||
+          (pttKey.toLowerCase().includes('meta') && e.metaKey) ||
+          (pttKey.toLowerCase().includes('ctrl') && (e.ctrlKey || e.metaKey));
+
+        if (matches && !isKeyDown) {
+          isKeyDown = true;
+          voiceAssistantRef.current?.startListening();
         }
-      } catch (e) {}
-    }
+      };
 
-    if (!isPttMode) return;
+      const handleKeyUp = (e: KeyboardEvent) => {
+        const matches = 
+          e.code === pttKey || 
+          e.key === pttKey ||
+          (pttKey.toLowerCase().includes('cmd') && !e.metaKey) ||
+          (pttKey.toLowerCase().includes('meta') && !e.metaKey) ||
+          (pttKey.toLowerCase().includes('ctrl') && !e.ctrlKey && !e.metaKey);
 
-    let isKeyDown = false;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger if user is actively typing in an input
-      const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
-      if (tag === 'input' || tag === 'textarea') return;
+        if (matches && isKeyDown) {
+          isKeyDown = false;
+          voiceAssistantRef.current?.stopListening();
+        }
+      };
 
-      const matches = 
-        e.code === pttKey || 
-        e.key === pttKey ||
-        (pttKey.toLowerCase().includes('cmd') && e.metaKey) ||
-        (pttKey.toLowerCase().includes('meta') && e.metaKey) ||
-        (pttKey.toLowerCase().includes('ctrl') && (e.ctrlKey || e.metaKey));
+      window.addEventListener('keydown', handleKeyDown);
+      window.addEventListener('keyup', handleKeyUp);
+      cleanupCurrentListener = () => {
+        window.removeEventListener('keydown', handleKeyDown);
+        window.removeEventListener('keyup', handleKeyUp);
+      };
+    };
 
-      if (matches && !isKeyDown) {
-        isKeyDown = true;
-        voiceAssistantRef.current?.startListening();
+    setupPttFromSettings();
+
+    const handlePttSettingsChanged = (e: any) => {
+      if (e.detail) {
+        setupPttFromSettings(e.detail);
       }
     };
 
-    const handleKeyUp = (e: KeyboardEvent) => {
-      const matches = 
-        e.code === pttKey || 
-        e.key === pttKey ||
-        (pttKey.toLowerCase().includes('cmd') && !e.metaKey) ||
-        (pttKey.toLowerCase().includes('meta') && !e.metaKey) ||
-        (pttKey.toLowerCase().includes('ctrl') && !e.ctrlKey && !e.metaKey);
-
-      if (matches && isKeyDown) {
-        isKeyDown = false;
-        voiceAssistantRef.current?.stopListening();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('argus_settings_updated', handlePttSettingsChanged);
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('argus_settings_updated', handlePttSettingsChanged);
+      if (cleanupCurrentListener) cleanupCurrentListener();
     };
   }, []);
 

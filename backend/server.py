@@ -959,10 +959,32 @@ async def delete_task_endpoint(task_id: str):
     ok, task = extras_mgr.delete_task(task_id)
     return {"success": ok, "task": task}
 
+@app.post("/api/shutdown")
+async def shutdown_endpoint():
+    import os, signal, threading
+    def _exit():
+        import time
+        time.sleep(0.15)
+        try: os.kill(os.getpid(), signal.SIGTERM)
+        except: os._exit(0)
+    threading.Thread(target=_exit, daemon=True).start()
+    return {"status": "shutting_down"}
+
 @app.post("/api/extras/task/{task_id}/complete")
 async def complete_task_endpoint(task_id: str):
     ok, task = extras_mgr.complete_task(task_id)
     return {"success": ok, "task": task}
+
+@app.post("/api/shutdown")
+async def shutdown_endpoint():
+    import os, signal, threading
+    def _exit():
+        import time
+        time.sleep(0.15)
+        try: os.kill(os.getpid(), signal.SIGTERM)
+        except: os._exit(0)
+    threading.Thread(target=_exit, daemon=True).start()
+    return {"status": "shutting_down"}
 
 @app.delete("/api/extras/note/{note_id}")
 async def delete_note_endpoint(note_id: str):
@@ -1002,6 +1024,17 @@ async def update_task_endpoint(task_id: str, payload: Dict[str, Any]):
         completed=payload.get("completed")
     )
     return {"success": ok, "task": task}
+
+@app.post("/api/shutdown")
+async def shutdown_endpoint():
+    import os, signal, threading
+    def _exit():
+        import time
+        time.sleep(0.15)
+        try: os.kill(os.getpid(), signal.SIGTERM)
+        except: os._exit(0)
+    threading.Thread(target=_exit, daemon=True).start()
+    return {"status": "shutting_down"}
 
 if __name__ == "__main__":
     import uvicorn

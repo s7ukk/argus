@@ -1,10 +1,12 @@
 const { app, BrowserWindow, ipcMain, shell, session, desktopCapturer, globalShortcut, screen, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { spawn } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 app.commandLine.appendSwitch('disable-background-timer-throttling');
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
 
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
@@ -21,7 +23,85 @@ if (!gotTheLock) {
 
 let mainWindow = null;
 let pythonProcess = null;
+let dictationHudWindow = null;
 let logFilePath = null;
+let isAppQuitting = false;
+let isDictationPollerActive = true;
+
+function killBackendProcessesSync() {
+  isDictationPollerActive = false;
+  try {
+    const http = require('http');
+    const req = http.request({
+      hostname: '127.0.0.1',
+      port: 18274,
+      path: '/api/shutdown',
+      method: 'POST',
+      timeout: 200
+    });
+    req.on('error', () => {});
+    req.end();
+  } catch {}
+
+  if (pythonProcess && pythonProcess.pid) {
+    const pid = pythonProcess.pid;
+    logApp(`[Argus]: Terminating backend process tree (PID: ${pid})...`);
+    try {
+      if (process.platform === 'win32') {
+        spawnSync('taskkill', ['/pid', String(pid), '/f', '/t'], { stdio: 'ignore', windowsHide: true });
+      } else {
+        try {
+          process.kill(-pid, 'SIGKILL');
+        } catch {
+          try { pythonProcess.kill('SIGKILL'); } catch {}
+        }
+      }
+    } catch {}
+    pythonProcess = null;
+  }
+
+  try {
+    if (process.platform === 'win32') {
+      spawnSync('cmd.exe', ['/c', 'for /f "tokens=5" %a in (\'netstat -aon ^| findstr :18274\') do taskkill /f /pid %a'], { stdio: 'ignore', windowsHide: true });
+    } else {
+      spawnSync('sh', ['-c', 'lsof -ti :18274 | xargs kill -9 2>/dev/null || true'], { stdio: 'ignore' });
+    }
+  } catch {}
+}
+
+function shutdownApp() {
+  if (isAppQuitting) return;
+  isAppQuitting = true;
+  logApp('[Argus]: Initiating complete application termination across all processes...');
+  isDictationPollerActive = false;
+
+  try {
+    globalShortcut.unregisterAll();
+  } catch {}
+
+  if (dictationHudWindow && !dictationHudWindow.isDestroyed()) {
+    try { dictationHudWindow.destroy(); } catch {}
+    dictationHudWindow = null;
+  }
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    try { mainWindow.destroy(); } catch {}
+    mainWindow = null;
+  }
+
+  if (prodHttpServer) {
+    try { prodHttpServer.close(); } catch {}
+    prodHttpServer = null;
+  }
+
+  killBackendProcessesSync();
+  try {
+    app.quit();
+  } catch {}
+  setTimeout(() => {
+    try { process.exit(0); } catch {}
+  }, 100);
+}
 
 function getLogFile() {
   if (!logFilePath) {
@@ -346,7 +426,6 @@ async function startPythonBackend() {
 }
 
 const http = require('http');
-let prodHttpServer = null;
 
 function startProdHttpServer() {
   if (prodHttpServer) return;
@@ -593,13 +672,7 @@ function registerIpcHandlers() {
   });
 
   ipcMain.on('window-close', () => {
-    if (mainWindow) {
-      if (process.platform === 'darwin') {
-        mainWindow.hide();
-      } else {
-        mainWindow.close();
-      }
-    }
+    shutdownApp();
   });
 
   ipcMain.on('open-external', (e, url) => {
@@ -630,8 +703,6 @@ function registerIpcHandlers() {
     return { success: false };
   });
 }
-
-let dictationHudWindow = null;
 
 function positionDictationHudWindow() {
   if (!dictationHudWindow || dictationHudWindow.isDestroyed()) return;
@@ -1331,6 +1402,7 @@ function createWindow() {
 
   mainWindow.on('closed', () => {
     mainWindow = null;
+    shutdownApp();
   });
 }
 
@@ -1471,25 +1543,13 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+  shutdownApp();
+});
+
+app.on('before-quit', () => {
+  shutdownApp();
 });
 
 app.on('will-quit', () => {
-  globalShortcut.unregisterAll();
-  if (prodHttpServer) {
-    try { prodHttpServer.close(); } catch {}
-    prodHttpServer = null;
-  }
-  if (pythonProcess) {
-    try {
-      if (process.platform === 'win32' && pythonProcess.pid) {
-        spawn('taskkill', ['/pid', String(pythonProcess.pid), '/f', '/t'], { stdio: 'ignore', windowsHide: true });
-      } else {
-        pythonProcess.kill('SIGTERM');
-      }
-    } catch {}
-    pythonProcess = null;
-  }
+  shutdownApp();
 });

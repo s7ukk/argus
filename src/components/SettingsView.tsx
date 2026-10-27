@@ -105,14 +105,17 @@ export const SettingsView: React.FC = () => {
   }, []);
 
   const handleSave = async () => {
+    // Immediately keep audio contexts alive within the trusted synchronous user click gesture
+    window.dispatchEvent(new CustomEvent('argus_resume_audio'));
     try {
       setSaving(true);
       await updateSettings(settings);
       // Synchronize in localStorage for instant frontend access
       localStorage.setItem('argus_settings', JSON.stringify(settings));
       window.dispatchEvent(new CustomEvent('argus_settings_updated', { detail: settings }));
+      window.dispatchEvent(new CustomEvent('argus_resume_audio'));
       window.dispatchEvent(new CustomEvent('argus_island_notify', {
-        detail: { text: 'Настройки успешно сохранены !', type: 'success' }
+        detail: { text: 'Настройки успешно сохранены', type: 'success' }
       }));
       setSavedSuccess(true);
       setTimeout(() => setSavedSuccess(false), 2400);
