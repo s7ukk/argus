@@ -52,19 +52,43 @@ def _run_listener():
     global _RUNNING
     is_mac = sys.platform == "darwin"
     
-    # macOS CoreGraphics setup
+    # macOS CoreGraphics & ApplicationServices setup
     cg = None
     if is_mac:
-        try:
-            import ctypes
-            import ctypes.util
-            cg_path = ctypes.util.find_library('CoreGraphics') or '/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics'
-            cg = ctypes.cdll.LoadLibrary(cg_path)
-        except Exception as e:
+        import ctypes
+        import ctypes.util
+        for name in [
+            'CoreGraphics',
+            '/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics',
+            '/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices',
+            ctypes.util.find_library('CoreGraphics'),
+            ctypes.util.find_library('ApplicationServices')
+        ]:
+            if not name:
+                continue
             try:
-                cg = ctypes.CDLL('CoreGraphics.framework/CoreGraphics')
+                cand = ctypes.cdll.LoadLibrary(name)
+                if hasattr(cand, 'CGEventSourceFlagsState'):
+                    cg = cand
+                    break
             except Exception:
-                print(f"[Argus Dictation Hook]: Failed to load CoreGraphics on macOS: {e}")
+                pass
+
+        if cg:
+            try:
+                cg.CGEventSourceFlagsState.argtypes = [ctypes.c_int32]
+                cg.CGEventSourceFlagsState.restype = ctypes.c_uint64
+            except Exception as e:
+                print(f"[Argus Dictation Hook]: CGEventSourceFlagsState setup: {e}")
+            try:
+                if hasattr(cg, 'CGEventSourceKeyState'):
+                    cg.CGEventSourceKeyState.argtypes = [ctypes.c_int32, ctypes.c_uint16]
+                    cg.CGEventSourceKeyState.restype = ctypes.c_bool
+            except Exception as e:
+                print(f"[Argus Dictation Hook]: CGEventSourceKeyState setup: {e}")
+            print("[Argus Dictation Hook]: macOS CoreGraphics loaded successfully.")
+        else:
+            print("[Argus Dictation Hook]: Notice: CoreGraphics not loaded via CDLL.")
 
     # Windows user32 setup
     user32 = None
@@ -84,16 +108,29 @@ def _run_listener():
     last_ctrl_down_time = 0.0
     ctrl_was_down = False
 
-    print("[Argus Dictation Hook]: Global Double-Ctrl background monitor started.")
+    print("[Argus Dictation Hook]: Global Double-Ctrl/Cmd background monitor started.")
 
     while _RUNNING:
         is_ctrl_down = False
         try:
             if is_mac:
                 if cg:
-                    flags = cg.CGEventSourceFlagsState(0)
-                    # Support double Control or double Command on macOS
-                    is_ctrl_down = bool((flags & kCGEventFlagMaskControl) or (flags & kCGEventFlagMaskCommand))
+                    f0 = cg.CGEventSourceFlagsState(0)
+                    f1 = cg.CGEventSourceFlagsState(1)
+                    has_flags = bool(
+                        (f0 & kCGEventFlagMaskControl) or (f1 & kCGEventFlagMaskControl) or
+                        (f0 & kCGEventFlagMaskCommand) or (f1 & kCGEventFlagMaskCommand)
+                    )
+                    has_keys = False
+                    if hasattr(cg, 'CGEventSourceKeyState'):
+                        # 59: Left Control, 62: Right Control, 55: Left Command, 54: Right Command
+                        has_keys = bool(
+                            cg.CGEventSourceKeyState(1, 59) or cg.CGEventSourceKeyState(1, 62) or
+                            cg.CGEventSourceKeyState(1, 55) or cg.CGEventSourceKeyState(1, 54) or
+                            cg.CGEventSourceKeyState(0, 59) or cg.CGEventSourceKeyState(0, 62) or
+                            cg.CGEventSourceKeyState(0, 55) or cg.CGEventSourceKeyState(0, 54)
+                        )
+                    is_ctrl_down = has_flags or has_keys
             else:
                 if user32:
                     is_ctrl_down = bool(
@@ -108,8 +145,8 @@ def _run_listener():
         # On key press transition (up -> down)
         if is_ctrl_down and not ctrl_was_down:
             diff = now - last_ctrl_down_time
-            # Forgiving human double tap interval between 50ms and 650ms
-            if 0.05 <= diff <= 0.65:
+            # Forgiving human double tap interval between 50ms and 700ms
+            if 0.05 <= diff <= 0.70:
                 print(f"[Argus Dictation Hook]: Double-Ctrl/Cmd detected (interval: {diff*1000:.1f}ms)! Triggering voice dictation...")
                 _capture_active_target()
                 _DICTATION_EVENT.set()

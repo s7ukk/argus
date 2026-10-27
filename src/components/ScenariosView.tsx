@@ -2147,21 +2147,14 @@ export const ScenariosView: React.FC = () => {
                 (() => {
 
                   const filtered = systemApps.filter((app) => {
-
+                    if (app.installed === false) return false;
                     const matchCat = appCategory === 'all' || app.category === appCategory;
-
                     const matchSearch =
-
                       !appSearch.trim() ||
-
                       app.name.toLowerCase().includes(appSearch.toLowerCase()) ||
-
                       app.id.toLowerCase().includes(appSearch.toLowerCase()) ||
-
                       (app.description && app.description.toLowerCase().includes(appSearch.toLowerCase()));
-
                     return matchCat && matchSearch;
-
                   });
 
 

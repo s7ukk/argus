@@ -422,6 +422,16 @@ def search_notes(query: str) -> List[Dict[str, Any]]:
     scored.sort(key=lambda x: x[0], reverse=True)
     return [item[1] for item in scored]
 
+def is_profane_entry(text: str) -> bool:
+    if not text:
+        return False
+    low = text.lower()
+    profanities = [
+        r'\bхуй', r'\bху[её]', r'\bхуи', r'\bпизд', r'\b[её]б[аеиоуы]', r'\bблять?\b', r'\bблядь\b', r'\bчлен\b',
+        r'\bсука\b', r'\bпидор', r'\bмудак', r'\bмудил', r'\bгондон', r'\bfuck', r'\bshit', r'\bdick\b', r'\bbitch'
+    ]
+    return any(re.search(p, low) for p in profanities)
+
 def format_notes_context_for_ai() -> str:
     """Formats user notes and tasks into a concise context block for AI reasoning."""
     data = load_extras_data()
@@ -435,21 +445,24 @@ def format_notes_context_for_ai() -> str:
         for n in notes[:20]:
             t = n.get("title", "Заметка")
             c = n.get("content", "").replace("\n", " ").strip()
-            notes_lines.append(f"- «{t}»: {c}")
-        parts.append("[ЛИЧНЫЕ ЗАМЕТКИ И СОХРАНЁННЫЕ ДАННЫЕ ПОЛЬЗОВАТЕЛЯ]:\n" + "\n".join(notes_lines))
+            if not is_profane_entry(t) and not is_profane_entry(c):
+                notes_lines.append(f"- «{t}»: {c}")
+        if notes_lines:
+            parts.append("[ЛИЧНЫЕ ЗАМЕТКИ И СОХРАНЁННЫЕ ДАННЫЕ ПОЛЬЗОВАТЕЛЯ]:\n" + "\n".join(notes_lines))
         
     if tasks:
-        active_tasks = [t for t in tasks if not t.get("completed")]
-        done_tasks = [t for t in tasks if t.get("completed")]
+        active_tasks = [t for t in tasks if not t.get("completed") and not is_profane_entry(t.get("title", ""))]
+        done_tasks = [t for t in tasks if t.get("completed") and not is_profane_entry(t.get("title", ""))]
         task_lines = []
         for t in active_tasks[:10]:
             task_lines.append(f"- [В процессе] {t.get('title')} ({t.get('category', 'общее')})")
         for t in done_tasks[:5]:
             task_lines.append(f"- [Выполнено] {t.get('title')}")
-        parts.append("[СПИСОК ТЕКУЩИХ ЗАДАЧ]:\n" + "\n".join(task_lines))
+        if task_lines:
+            parts.append("[СПИСОК ТЕКУЩИХ ЗАДАЧ]:\n" + "\n".join(task_lines))
         
     if timers:
-        active_timers = [tm for tm in timers if tm.get("is_running") and tm.get("remaining_seconds", 0) > 0]
+        active_timers = [tm for tm in timers if tm.get("is_running") and tm.get("remaining_seconds", 0) > 0 and not is_profane_entry(tm.get("title", ""))]
         if active_timers:
             timer_lines = [f"- «{tm.get('title')}»: осталось {tm.get('remaining_seconds')} сек." for tm in active_timers]
             parts.append("[АКТИВНЫЕ ТАЙМЕРЫ]:\n" + "\n".join(timer_lines))

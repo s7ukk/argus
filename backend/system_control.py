@@ -277,9 +277,21 @@ def take_screenshot(target_folder: Optional[str] = "desktop") -> str:
         "изображения": os.path.join(user_home, "Pictures"),
         "картинки": os.path.join(user_home, "Pictures"),
     }
-    dest_dir = folder_map.get((target_folder or "desktop").lower().strip(), os.path.join(user_home, "Desktop"))
+    t_low = (target_folder or "desktop").lower().strip()
+    if any(k in t_low for k in ["download", "загруз", "сохарн", "сохран"]):
+        dest_dir = os.path.join(user_home, "Downloads")
+    elif any(k in t_low for k in ["doc", "документ"]):
+        dest_dir = os.path.join(user_home, "Documents")
+    elif any(k in t_low for k in ["pic", "изображен", "картинк", "фото"]):
+        dest_dir = os.path.join(user_home, "Pictures")
+    else:
+        dest_dir = folder_map.get(t_low, os.path.join(user_home, "Desktop"))
+
     if not os.path.exists(dest_dir):
-        os.makedirs(dest_dir, exist_ok=True)
+        try:
+            os.makedirs(dest_dir, exist_ok=True)
+        except Exception:
+            dest_dir = os.path.join(user_home, "Desktop")
 
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"screenshot_{timestamp}.png"
@@ -287,11 +299,26 @@ def take_screenshot(target_folder: Optional[str] = "desktop") -> str:
 
     if sys.platform == "darwin":
         try:
-            subprocess.run(["screencapture", "-x", filepath], check=True)
-            return filepath
+            res = subprocess.run(["screencapture", "-x", filepath], capture_output=True, timeout=5)
+            if os.path.exists(filepath) and os.path.getsize(filepath) > 0:
+                return filepath
         except Exception as e:
-            print("macOS screenshot error:", e)
-            return dest_dir
+            print("[Argus Screenshot screencapture notice]:", e)
+        try:
+            from PIL import ImageGrab
+            img = ImageGrab.grab()
+            img.save(filepath, "PNG")
+            if os.path.exists(filepath) and os.path.getsize(filepath) > 0:
+                return filepath
+        except Exception as e:
+            print("[Argus Screenshot ImageGrab notice]:", e)
+        try:
+            subprocess.run(["osascript", "-e", f'do shell script "screencapture -x {filepath}"'], capture_output=True, timeout=5)
+            if os.path.exists(filepath) and os.path.getsize(filepath) > 0:
+                return filepath
+        except Exception:
+            pass
+        return filepath
 
     try:
         user32 = ctypes.windll.user32
@@ -410,56 +437,81 @@ def scan_all_installed_apps(force: bool = False) -> Dict[str, str]:
                     no_sp = re.sub(r'[^a-z0-9а-яё]', '', b_name)
                     if no_sp:
                         catalog[no_sp] = app_bundle
-        catalog["safari"] = "/Applications/Safari.app"
-        catalog["сафари"] = "/Applications/Safari.app"
-        catalog["браузер"] = "/Applications/Safari.app"
-        catalog["browser"] = "/Applications/Safari.app"
-        catalog["chrome"] = catalog.get("google chrome", "/Applications/Google Chrome.app")
-        catalog["хром"] = catalog.get("chrome")
-        catalog["telegram"] = catalog.get("telegram") or catalog.get("telegram desktop") or "/Applications/Telegram.app"
-        catalog["телеграм"] = catalog.get("telegram")
-        catalog["телега"] = catalog.get("telegram")
-        catalog["тг"] = catalog.get("telegram")
-        catalog["discord"] = catalog.get("discord", "/Applications/Discord.app")
-        catalog["дискорд"] = catalog.get("discord")
-        catalog["whatsapp"] = catalog.get("whatsapp", "/Applications/WhatsApp.app")
-        catalog["ватсап"] = catalog.get("whatsapp")
-        catalog["vk"] = catalog.get("vk") or catalog.get("vk messenger") or "/Applications/VK.app"
-        catalog["вк"] = catalog.get("vk")
-        catalog["vscode"] = catalog.get("visual studio code", "/Applications/Visual Studio Code.app")
-        catalog["код"] = catalog.get("vscode")
-        catalog["вскод"] = catalog.get("vscode")
-        catalog["terminal"] = "/System/Applications/Utilities/Terminal.app"
-        catalog["терминал"] = "/System/Applications/Utilities/Terminal.app"
-        catalog["консоль"] = "/System/Applications/Utilities/Terminal.app"
-        catalog["калькулятор"] = "/System/Applications/Calculator.app"
-        catalog["calculator"] = "/System/Applications/Calculator.app"
-        catalog["музыка"] = "/System/Applications/Music.app"
-        catalog["music"] = "/System/Applications/Music.app"
-        catalog["spotify"] = catalog.get("spotify", "/Applications/Spotify.app")
-        catalog["спотифай"] = catalog.get("spotify")
-        catalog["заметки"] = "/System/Applications/Notes.app"
-        catalog["notes"] = "/System/Applications/Notes.app"
-        catalog["напоминания"] = "/System/Applications/Reminders.app"
-        catalog["reminders"] = "/System/Applications/Reminders.app"
-        catalog["календарь"] = "/System/Applications/Calendar.app"
-        catalog["calendar"] = "/System/Applications/Calendar.app"
-        catalog["почта"] = "/System/Applications/Mail.app"
-        catalog["mail"] = "/System/Applications/Mail.app"
-        catalog["фото"] = "/System/Applications/Photos.app"
-        catalog["photos"] = "/System/Applications/Photos.app"
-        catalog["блокнот"] = "/System/Applications/TextEdit.app"
-        catalog["textedit"] = "/System/Applications/TextEdit.app"
-        catalog["текстовый редактор"] = "/System/Applications/TextEdit.app"
-        catalog["настройки"] = "/System/Applications/System Settings.app" if os.path.exists("/System/Applications/System Settings.app") else "/System/Applications/System Preferences.app"
-        catalog["settings"] = catalog["настройки"]
-        catalog["параметры"] = catalog["настройки"]
-        catalog["мониторинг"] = "/System/Applications/Utilities/Activity Monitor.app"
-        catalog["диспетчер задач"] = "/System/Applications/Utilities/Activity Monitor.app"
-        catalog["activity monitor"] = "/System/Applications/Utilities/Activity Monitor.app"
-        catalog["finder"] = "/System/Library/CoreServices/Finder.app"
-        catalog["файндер"] = "/System/Library/CoreServices/Finder.app"
-        catalog["проводник"] = "/System/Library/CoreServices/Finder.app"
+        def _reg_mac(k, p):
+            if p and os.path.exists(p):
+                catalog[k] = p
+                return True
+            return False
+
+        _reg_mac("safari", "/Applications/Safari.app")
+        _reg_mac("сафари", "/Applications/Safari.app")
+        _reg_mac("браузер", "/Applications/Safari.app")
+        _reg_mac("browser", "/Applications/Safari.app")
+
+        ch_p = catalog.get("google chrome") or "/Applications/Google Chrome.app"
+        if _reg_mac("chrome", ch_p):
+            catalog["хром"] = ch_p
+
+        tg_p = catalog.get("telegram") or catalog.get("telegram desktop") or "/Applications/Telegram.app"
+        if _reg_mac("telegram", tg_p):
+            catalog["телеграм"] = tg_p
+            catalog["телега"] = tg_p
+            catalog["тг"] = tg_p
+
+        dc_p = catalog.get("discord") or "/Applications/Discord.app"
+        if _reg_mac("discord", dc_p):
+            catalog["дискорд"] = dc_p
+
+        wa_p = catalog.get("whatsapp") or "/Applications/WhatsApp.app"
+        if _reg_mac("whatsapp", wa_p):
+            catalog["ватсап"] = wa_p
+
+        vk_p = catalog.get("vk") or catalog.get("vk messenger") or "/Applications/VK.app"
+        if _reg_mac("vk", vk_p):
+            catalog["вк"] = vk_p
+
+        vs_p = catalog.get("visual studio code") or "/Applications/Visual Studio Code.app"
+        if _reg_mac("vscode", vs_p):
+            catalog["код"] = vs_p
+            catalog["вскод"] = vs_p
+
+        _reg_mac("terminal", "/System/Applications/Utilities/Terminal.app")
+        _reg_mac("терминал", "/System/Applications/Utilities/Terminal.app")
+        _reg_mac("консоль", "/System/Applications/Utilities/Terminal.app")
+        _reg_mac("калькулятор", "/System/Applications/Calculator.app")
+        _reg_mac("calculator", "/System/Applications/Calculator.app")
+        _reg_mac("музыка", "/System/Applications/Music.app")
+        _reg_mac("music", "/System/Applications/Music.app")
+
+        sp_p = catalog.get("spotify") or "/Applications/Spotify.app"
+        if _reg_mac("spotify", sp_p):
+            catalog["спотифай"] = sp_p
+
+        _reg_mac("заметки", "/System/Applications/Notes.app")
+        _reg_mac("notes", "/System/Applications/Notes.app")
+        _reg_mac("напоминания", "/System/Applications/Reminders.app")
+        _reg_mac("reminders", "/System/Applications/Reminders.app")
+        _reg_mac("календарь", "/System/Applications/Calendar.app")
+        _reg_mac("calendar", "/System/Applications/Calendar.app")
+        _reg_mac("почта", "/System/Applications/Mail.app")
+        _reg_mac("mail", "/System/Applications/Mail.app")
+        _reg_mac("фото", "/System/Applications/Photos.app")
+        _reg_mac("photos", "/System/Applications/Photos.app")
+        _reg_mac("блокнот", "/System/Applications/TextEdit.app")
+        _reg_mac("textedit", "/System/Applications/TextEdit.app")
+        _reg_mac("текстовый редактор", "/System/Applications/TextEdit.app")
+
+        st_p = "/System/Applications/System Settings.app" if os.path.exists("/System/Applications/System Settings.app") else "/System/Applications/System Preferences.app"
+        if _reg_mac("настройки", st_p):
+            catalog["settings"] = st_p
+            catalog["параметры"] = st_p
+
+        _reg_mac("мониторинг", "/System/Applications/Utilities/Activity Monitor.app")
+        _reg_mac("диспетчер задач", "/System/Applications/Utilities/Activity Monitor.app")
+        _reg_mac("activity monitor", "/System/Applications/Utilities/Activity Monitor.app")
+        _reg_mac("finder", "/System/Library/CoreServices/Finder.app")
+        _reg_mac("файндер", "/System/Library/CoreServices/Finder.app")
+        _reg_mac("проводник", "/System/Library/CoreServices/Finder.app")
         _APP_CATALOG = catalog
         _LAST_SCAN_TIME = now
         return _APP_CATALOG
@@ -1086,7 +1138,36 @@ WEB_SERVICE_FALLBACKS = {
     "yandex": "https://yandex.ru",
     "яндекс": "https://yandex.ru",
     "google": "https://google.com",
-    "гугл": "https://google.com"
+    "гугл": "https://google.com",
+    "figma": "https://www.figma.com",
+    "фигма": "https://www.figma.com",
+    "notion": "https://www.notion.so",
+    "ноушен": "https://www.notion.so",
+    "нотион": "https://www.notion.so",
+    "slack": "https://app.slack.com",
+    "слак": "https://app.slack.com",
+    "canva": "https://www.canva.com",
+    "канва": "https://www.canva.com",
+    "zoom": "https://zoom.us",
+    "зум": "https://zoom.us",
+    "reddit": "https://www.reddit.com",
+    "реддит": "https://www.reddit.com",
+    "twitter": "https://x.com",
+    "твиттер": "https://x.com",
+    "x": "https://x.com",
+    "pinterest": "https://www.pinterest.com",
+    "пинтерест": "https://www.pinterest.com",
+    "applemusic": "https://music.apple.com",
+    "apple music": "https://music.apple.com",
+    "эпл музыка": "https://music.apple.com",
+    "trello": "https://trello.com",
+    "трелло": "https://trello.com",
+    "miro": "https://miro.com",
+    "миро": "https://miro.com",
+    "claude": "https://claude.ai",
+    "клод": "https://claude.ai",
+    "postman": "https://web.postman.co",
+    "постман": "https://web.postman.co"
 }
 
 def launch_application(app_name: str) -> Dict[str, Any]:
@@ -1341,6 +1422,31 @@ def launch_application(app_name: str) -> Dict[str, Any]:
                 return {"success": True, "launched": close_cat[0].capitalize(), "type": "executable", "path": cat_path}
             except Exception:
                 pass
+
+    # Universal Browser Fallback:
+    # "вот когда человек просит что то запустить/открыть то пусть проверяется система на наличие приложения этого и если его нету то открывается в браузере как есть !"
+    clean_target = (clean_app or app_name).strip()
+    if clean_target:
+        if "." in clean_target and " " not in clean_target:
+            target_url = f"https://{clean_target}" if not clean_target.startswith("http") else clean_target
+        elif re.match(r'^[a-zA-Z0-9_\-]+$', clean_target):
+            target_url = f"https://{clean_target.lower()}.com"
+        else:
+            import urllib.parse
+            target_url = f"https://www.google.com/search?q={urllib.parse.quote(clean_target)}"
+
+        try:
+            open_url(target_url)
+            disp_name = clean_target.capitalize()
+            return {
+                "success": True,
+                "launched": f"{disp_name} (в браузере)",
+                "type": "web_service",
+                "url": target_url,
+                "note": f"Приложение {disp_name} не найдено локально — открыта веб-версия в браузере"
+            }
+        except Exception as e:
+            return {"success": False, "error": f"Не удалось открыть в браузере: {e}"}
 
     return {"success": False, "error": f"Приложение '{app_name}' не найдено на вашем компьютере"}
 
@@ -3698,12 +3804,57 @@ def get_popular_and_installed_apps() -> List[Dict[str, Any]]:
         ]
 
     result = []
+    seen_keys = set()
+
     for app in curated:
         app_id = app["id"]
         canonical = APP_CANONICAL_KEYS.get(app_id, app_id)
-        is_installed = app.get("installed", False) or canonical in detected_catalog or app_id in detected_catalog
-        app_copy = dict(app)
-        app_copy["installed"] = is_installed
-        result.append(app_copy)
+        p = detected_catalog.get(canonical) or detected_catalog.get(app_id)
+        
+        is_installed = False
+        if p and os.path.exists(p):
+            is_installed = True
+        elif is_mac and app_id in ["safari", "notes", "calc", "activity_monitor", "terminal", "finder", "settings"]:
+            is_installed = True
+        elif not is_mac and app_id in ["notepad", "explorer", "taskmgr", "calc", "settings", "paint", "msedge", "terminal"]:
+            is_installed = True
+
+        if is_installed:
+            app_copy = dict(app)
+            app_copy["installed"] = True
+            if p:
+                app_copy["path"] = p
+            result.append(app_copy)
+            seen_keys.add(app_id.lower())
+            seen_keys.add(canonical.lower())
+
+    # Add other dynamically found real applications
+    for cat_name, cat_path in detected_catalog.items():
+        if len(cat_name) <= 2:
+            continue
+        if cat_name in APP_CANONICAL_KEYS or cat_name in ["браузер", "browser", "интернет", "музыка", "код", "терминал"]:
+            continue
+        if cat_name.lower() in seen_keys:
+            continue
+        if os.path.exists(cat_path):
+            disp = cat_name.capitalize()
+            if cat_path.endswith('.app'):
+                disp = os.path.splitext(os.path.basename(cat_path))[0]
+            elif cat_path.endswith('.lnk'):
+                disp = os.path.splitext(os.path.basename(cat_path))[0]
+            elif cat_path.endswith('.exe'):
+                disp = os.path.splitext(os.path.basename(cat_path))[0].capitalize()
+
+            seen_keys.add(cat_name.lower())
+            seen_keys.add(disp.lower())
+            result.append({
+                "id": cat_name,
+                "name": disp,
+                "desc": f"Установленное приложение ({disp})",
+                "category": "system",
+                "icon": "AppWindow",
+                "installed": True,
+                "path": cat_path
+            })
 
     return result

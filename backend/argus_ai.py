@@ -295,6 +295,8 @@ def execute_single_action(act: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]
             app_title = app_disp if (not res.get("launched") or res.get("launched").lower() == app.lower()) else res.get("launched")
             if app_title.lower() == "chrome":
                 app_title = "Chrome"
+            if res.get("type") == "web_service":
+                return f"Открыл {app_disp} в браузере: {res.get('url', '')}", "launch_app", res
             return f"Открыл {app_title}", "launch_app", res
         else:
             return f"Не удалось открыть {app_disp}: {res.get('error', 'приложение не найдено')}", "launch_app", res
@@ -878,7 +880,7 @@ def clean_clause_text(text: str) -> str:
         r'\bблять?\b', r'\bблядь\b', r'\bбля\b', r'\bнахуй\b', r'\bнах\b', r'\bпохуй\b',
         r'\bсука\b', r'\bсуки\b', r'\bпид[оа]р(?:ас|аз)?(?:а|у|ом|ы|ов)?\b',
         r'\bг[оа]ндон(?:а|у|ом|ы)?\b', r'\b[её]бан(?:ый|ая|ое|ые|ого)?\b', r'\b[её]бать\b',
-        r'\bза[её]бал(?:а|и)?\b', r'\bхуй(?:ня|ни|ню|нем|не|я)?\b', r'\bхер(?:ня|ни)?\b',
+        r'\bза[её]бал(?:а|и)?\b', r'\bхуй(?:ня|ни|ню|нем|не|я)?\b', r'\bху[йи]л[аоые]?\b', r'\bчлен\b', r'\bпизд[аеыуой]?\b', r'\bхер(?:ня|ни)?\b',
         r'\bмудак(?:а|у|ом|и)?\b', r'\bмудила\b', r'\bдебил(?:а|у|ом|ы)?\b',
         r'\bидиот(?:а|у|ом|ы)?\b', r'\bпридурок(?:а|у|ом|и)?\b',
         # English profanities
@@ -1205,22 +1207,22 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         "заскринь", "заскринить", "сфоткать", "screenshot", "screen shot", "print screen"
     ]):
         folder = "desktop"
-        if any(f in c for f in ["загрузк", "загруз", "download"]):
+        if any(f in c for f in ["загрузк", "загруз", "download", "сохарн", "сохран"]):
             folder = "downloads"
         elif any(f in c for f in ["документ", "document"]):
             folder = "documents"
-        elif any(f in c for f in ["изображен", "картинк", "picture"]):
+        elif any(f in c for f in ["изображен", "картинк", "picture", "фото"]):
             folder = "pictures"
         return {"type": "screenshot", "folder": folder}
 
-    # 1.1 Save destination specification (e.g. "сохрани его в папку загрузки")
-    if any(k in c for k in ["сохрани", "сохранить", "save"]) and not any(k in c for k in ["файл", "file", "код", "папку", "папка", "создай", "создать"]):
+    # 1.1 Save destination specification (e.g. "сохрани его в папку загрузки", "сохарни в загрузки")
+    if any(k in c for k in ["сохрани", "сохранить", "сохарни", "сохарнить", "засейвь", "save"]) and not any(k in c for k in ["файл", "file", "код", "папку", "папка", "создай", "создать"]):
         folder = "desktop"
-        if any(f in c for f in ["загрузк", "загруз", "download"]):
+        if any(f in c for f in ["загрузк", "загруз", "download", "сохарн", "сохран"]):
             folder = "downloads"
         elif any(f in c for f in ["документ", "document"]):
             folder = "documents"
-        elif any(f in c for f in ["изображен", "картинк", "picture"]):
+        elif any(f in c for f in ["изображен", "картинк", "picture", "фото"]):
             folder = "pictures"
         return {"type": "save_destination", "folder": folder}
 
@@ -2452,7 +2454,7 @@ def local_multi_action_planner(user_text: str) -> List[Dict[str, Any]]:
     """
     # 0. If user_text directly maps to a unified action (e.g. messenger_send), execute directly without splitting
     single_act = parse_single_clause(user_text)
-    if single_act and single_act.get("type") in ["messenger_send", "type_text", "search_web", "clarify", "browser_choice", "terminal_command", "play_music", "create_timer", "delete_timer", "create_task", "delete_task", "complete_task", "create_note", "delete_note", "list_tasks", "list_notes", "list_timers", "search_notes"]:
+    if single_act and single_act.get("type") in ["screenshot", "messenger_send", "type_text", "search_web", "clarify", "browser_choice", "terminal_command", "play_music", "create_timer", "delete_timer", "create_task", "delete_task", "complete_task", "create_note", "delete_note", "list_tasks", "list_notes", "list_timers", "search_notes"]:
         return [single_act]
 
     # 1. Normalize verb boundaries to avoid missing clauses without punctuation
