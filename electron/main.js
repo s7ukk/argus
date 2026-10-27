@@ -24,6 +24,7 @@ if (!gotTheLock) {
 let mainWindow = null;
 let pythonProcess = null;
 let dictationHudWindow = null;
+let prodHttpServer = null;
 let logFilePath = null;
 let isAppQuitting = false;
 let isDictationPollerActive = true;
@@ -89,10 +90,12 @@ function shutdownApp() {
     mainWindow = null;
   }
 
-  if (prodHttpServer) {
-    try { prodHttpServer.close(); } catch {}
-    prodHttpServer = null;
-  }
+  try {
+    if (typeof prodHttpServer !== 'undefined' && prodHttpServer) {
+      prodHttpServer.close();
+      prodHttpServer = null;
+    }
+  } catch {}
 
   killBackendProcessesSync();
   try {
