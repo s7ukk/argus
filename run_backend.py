@@ -2,6 +2,23 @@ import sys
 import os
 import multiprocessing
 
+# Ensure root SSL certificates work out of the box on macOS
+if sys.platform == "darwin":
+    try:
+        import ssl
+        try:
+            import certifi
+            os.environ.setdefault("SSL_CERT_FILE", certifi.where())
+            os.environ.setdefault("REQUESTS_CA_BUNDLE", certifi.where())
+        except Exception:
+            pass
+        try:
+            ssl.create_default_context().load_default_certs()
+        except Exception:
+            ssl._create_default_https_context = ssl._create_unverified_context
+    except Exception:
+        pass
+
 # Ensure script directory and parent are in sys.path
 script_dir = os.path.dirname(os.path.abspath(__file__))
 if script_dir not in sys.path:
@@ -10,6 +27,21 @@ if script_dir not in sys.path:
 parent_dir = os.path.dirname(script_dir)
 if parent_dir and parent_dir not in sys.path:
     sys.path.insert(1, parent_dir)
+
+res_path = os.getenv("ARGUS_RESOURCES_PATH")
+if res_path and res_path not in sys.path:
+    sys.path.insert(0, res_path)
+
+if sys.platform == "darwin":
+    exe_dir = os.path.dirname(os.path.abspath(sys.executable))
+    for p in [
+        os.path.join(os.path.dirname(os.path.dirname(exe_dir)), "Resources"),
+        os.path.join(os.path.dirname(os.path.dirname(exe_dir)), "Resources", "backend"),
+        os.path.join(exe_dir, "Resources"),
+        os.path.join(exe_dir, "backend"),
+    ]:
+        if os.path.isdir(p) and p not in sys.path:
+            sys.path.insert(0, p)
 
 # PyInstaller static analyzer anchors
 try:

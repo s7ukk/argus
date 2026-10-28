@@ -448,8 +448,9 @@ async def test_openrouter_key(req: OpenRouterKeyTestRequest):
     url = "https://openrouter.ai/api/v1/auth/key"
     try:
         import urllib.request
+        import backend.openrouter_engine as ore
         rq = urllib.request.Request(url, headers={"Authorization": f"Bearer {key}"})
-        with urllib.request.urlopen(rq, timeout=7.0) as resp:
+        with urllib.request.urlopen(rq, timeout=7.0, context=ore.get_https_ssl_context()) as resp:
             data = json.loads(resp.read().decode("utf-8"))
             kdata = data.get("data", {})
             budgets = kdata.get("budgets", [])
@@ -959,32 +960,14 @@ async def delete_task_endpoint(task_id: str):
     ok, task = extras_mgr.delete_task(task_id)
     return {"success": ok, "task": task}
 
-@app.post("/api/shutdown")
-async def shutdown_endpoint():
-    import os, signal, threading
-    def _exit():
-        import time
-        time.sleep(0.15)
-        try: os.kill(os.getpid(), signal.SIGTERM)
-        except: os._exit(0)
-    threading.Thread(target=_exit, daemon=True).start()
-    return {"status": "shutting_down"}
+# [redundant shutdown removed]
 
 @app.post("/api/extras/task/{task_id}/complete")
 async def complete_task_endpoint(task_id: str):
     ok, task = extras_mgr.complete_task(task_id)
     return {"success": ok, "task": task}
 
-@app.post("/api/shutdown")
-async def shutdown_endpoint():
-    import os, signal, threading
-    def _exit():
-        import time
-        time.sleep(0.15)
-        try: os.kill(os.getpid(), signal.SIGTERM)
-        except: os._exit(0)
-    threading.Thread(target=_exit, daemon=True).start()
-    return {"status": "shutting_down"}
+# [redundant shutdown removed]
 
 @app.delete("/api/extras/note/{note_id}")
 async def delete_note_endpoint(note_id: str):

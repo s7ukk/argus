@@ -64,7 +64,7 @@ export async function smartFetch(endpointPath: string, options: RequestInit = {}
 
     const isHeavyEndpoint = isScenarioRun || normPath.startsWith('/api/voice') || normPath.startsWith('/api/ai') || normPath.startsWith('/api/plugins') || normPath.startsWith('/api/scenarios') || normPath.startsWith('/api/system');
 
-    const timeoutMs = isScenarioRun ? 35000 : (isHeavyEndpoint ? 15000 : 2500);
+    const timeoutMs = isScenarioRun ? 35000 : (isHeavyEndpoint ? 30000 : 2500);
 
     const timer = setTimeout(() => controller.abort(), timeoutMs);
 

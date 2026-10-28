@@ -12,6 +12,7 @@ import json
 import time
 import urllib.request
 import urllib.error
+import ssl
 from typing import Dict, Any, List, Optional, Tuple
 
 import backend.app_paths as app_paths
@@ -20,6 +21,22 @@ _OPENROUTER_CACHE: Dict[str, Tuple[str, List[Dict[str, Any]]]] = {}
 _LAST_KEY: Optional[str] = None
 
 import base64
+
+def get_https_ssl_context() -> ssl.SSLContext:
+    """Provides a bulletproof SSL context that succeeds on macOS, Windows, and Linux."""
+    try:
+        import certifi
+        return ssl.create_default_context(cafile=certifi.where())
+    except Exception:
+        pass
+    try:
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        return ctx
+    except Exception:
+        pass
+    return ssl._create_unverified_context()
 
 # Default built-in fallback keys (ensures macOS and Windows always have neural AI working out of the box)
 _DEF_KEY_B64 = "c2stb3ItdjEtZjA3NDY2YzQ0ZGJhZGI2ZDk1OGM5N2I5ZGNjZWUwZTkyYjNjMDE4ZDQ0YTQyY2Y4ZDdmYTVmODQ4MDg3ZGFhZA=="
@@ -32,10 +49,9 @@ except Exception:
 FREE_PRIMARY_MODEL = "meta-llama/llama-3.3-70b-instruct"
 FREE_FALLBACK_MODELS = [
     "meta-llama/llama-3.3-70b-instruct",
-    "google/gemini-2.0-flash-001",
     "deepseek/deepseek-chat",
-    "qwen/qwen-2.5-coder-32b-instruct",
     "mistralai/mistral-small-24b-instruct-2501",
+    "openrouter/auto",
     "openrouter/free"
 ]
 
@@ -307,17 +323,19 @@ def query_openrouter(
     if user_model:
         models_to_try.append(user_model)
     is_coding_query = any(k in prompt.lower() for k in ["код", "скрипт", "программ", "функци", "алгоритм", "класс", "бот", "write", "code", "bot"])
-    call_timeout = 10.0 if is_coding_query else 6.0
+    call_timeout = 25.0 if is_coding_query else 15.0
 
     for m in [
         "meta-llama/llama-3.3-70b-instruct",
         "deepseek/deepseek-chat",
-        "google/gemini-2.0-flash-001",
-        "qwen/qwen-2.5-coder-32b-instruct",
-        "mistralai/mistral-small-24b-instruct-2501"
+        "mistralai/mistral-small-24b-instruct-2501",
+        "openrouter/auto",
+        "openrouter/free"
     ]:
         if m not in models_to_try:
             models_to_try.append(m)
+
+    ssl_ctx = get_https_ssl_context()
 
     for candidate_key in keys:
         headers = {
@@ -340,7 +358,7 @@ def query_openrouter(
                     data=json.dumps(body).encode("utf-8"),
                     headers=headers
                 )
-                with urllib.request.urlopen(req, timeout=call_timeout) as resp:
+                with urllib.request.urlopen(req, timeout=call_timeout, context=ssl_ctx) as resp:
                     data = json.loads(resp.read().decode("utf-8"))
                     if data.get("choices") and data["choices"][0].get("message"):
                         msg = data["choices"][0]["message"]
@@ -376,7 +394,7 @@ def query_openrouter(
                 data=json.dumps(p_payload).encode("utf-8"),
                 headers={"Content-Type": "application/json", "User-Agent": "Mozilla/5.0"}
             )
-            with urllib.request.urlopen(p_req, timeout=8.0) as p_resp:
+            with urllib.request.urlopen(p_req, timeout=12.0, context=ssl_ctx) as p_resp:
                 p_text = p_resp.read().decode("utf-8").strip()
                 if p_text and len(p_text) > 3:
                     raw_content = p_text

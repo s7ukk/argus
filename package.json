@@ -88,6 +88,18 @@
       "category": "public.app-category.productivity",
       "hardenedRuntime": false,
       "gatekeeperAssess": false,
+      "binaries": [
+        "backend-dist/argus-backend/argus-backend"
+      ],
+      "extraFiles": [
+        {
+          "from": "backend-dist/argus-backend",
+          "to": "MacOS/argus-backend",
+          "filter": [
+            "**/*"
+          ]
+        }
+      ],
       "extendInfo": {
         "NSMicrophoneUsageDescription": "Argus AI requires microphone access for voice control and wake word detection.",
         "NSScreenCaptureUsageDescription": "Argus AI requires screen recording permissions for autonomous desktop interactions and screenshots.",

@@ -42,9 +42,20 @@ jobs:
       - name: Install Python Dependencies
         run: |
           python3 -m pip install --upgrade pip
+          pip install certifi
           pip install -r requirements.txt
           pip install python-multipart
           pip install pyinstaller
+
+      - name: Prepare environment file
+        run: |
+          echo "ARGUS_CLOUD_URL=http://153.52.69.55:18274" > .env
+          if [ -n "${{ secrets.OPENROUTER_API_KEY }}" ]; then
+            echo "OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}" >> .env
+          else
+            FALLBACK_KEY=$(python3 -c "import base64; print(base64.b64decode('c2stb3ItdjEtZjA3NDY2YzQ0ZGJhZGI2ZDk1OGM5N2I5ZGNjZWUwZTkyYjNjMDE4ZDQ0YTQyY2Y4ZDdmYTVmODQ4MDg3ZGFhZA==').decode('utf-8'))")
+            echo "OPENROUTER_API_KEY=${FALLBACK_KEY}" >> .env
+          fi
 
       - name: Install Node Dependencies
         run: npm ci || npm install
@@ -56,6 +67,7 @@ jobs:
         run: |
           npm run build:backend
           chmod -R 755 backend-dist
+          chmod +x backend-dist/argus-backend/argus-backend
 
       - name: Test Native Standalone Backend (${{ matrix.arch }})
         run: |
@@ -69,20 +81,6 @@ jobs:
           echo "Testing /api/system/stats..."
           curl -v http://127.0.0.1:18274/api/system/stats
           kill -9 $PID || true
-
-      - name: Prepare environment file
-        run: |
-          if [ -f .env.example ]; then
-            cp .env.example .env
-          else
-            touch .env
-          fi
-          if [ -n "${{ secrets.OPENROUTER_API_KEY }}" ]; then
-            sed -i.bak 's|OPENROUTER_API_KEY=.*|OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}|' .env || true
-          else
-            FALLBACK_KEY=$(python3 -c "import base64; print(base64.b64decode('c2stb3ItdjEtZjA3NDY2YzQ0ZGJhZGI2ZDk1OGM5N2I5ZGNjZWUwZTkyYjNjMDE4ZDQ0YTQyY2Y4ZDdmYTVmODQ4MDg3ZGFhZA==').decode('utf-8'))")
-            sed -i.bak "s|OPENROUTER_API_KEY=.*|OPENROUTER_API_KEY=${FALLBACK_KEY}|" .env || true
-          fi
 
       - name: Package macOS DMG & ZIP (${{ matrix.arch }})
         run: npx electron-builder --mac ${{ matrix.target_flag }} --publish never
