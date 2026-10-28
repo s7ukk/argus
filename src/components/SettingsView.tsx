@@ -42,6 +42,7 @@ export const SettingsView: React.FC = () => {
     trigger_words: 'джарвис, jarvis, аргус, argus, эй джарвис, эй аргус',
     ptt_hotkey: 'Space',
     voice_provider: 'edge-tts',
+    native_voice: 'default',
     fish_api_key: '',
     fish_model_id: '',
     edge_voice: 'jarvis',
@@ -74,6 +75,28 @@ export const SettingsView: React.FC = () => {
   const [testingFish, setTestingFish] = useState(false);
   const [fishTestError, setFishTestError] = useState<string | null>(null);
 
+  // Native in-app speech synthesis state
+  const [nativeVoices, setNativeVoices] = useState<SpeechSynthesisVoice[]>([]);
+
+  const handleTestNativeVoice = () => {
+    if (typeof window === 'undefined' || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const isEn = settings.native_voice?.toLowerCase().includes('en') || false;
+    const testPhrase = isEn
+      ? 'System built-in speech synthesis is functioning with zero latency.'
+      : 'Встроенный системный голос работает мгновенно без задержки.';
+    const utt = new SpeechSynthesisUtterance(testPhrase);
+    utt.rate = settings.voice_speed || 1.05;
+    utt.pitch = 0.95;
+    if (settings.native_voice && settings.native_voice !== 'default') {
+      const match = nativeVoices.find(
+        (v) => v.name === settings.native_voice || v.voiceURI === settings.native_voice
+      );
+      if (match) utt.voice = match;
+    }
+    window.speechSynthesis.speak(utt);
+  };
+
   // Edge-TTS preview test state
   const [testingEdge, setTestingEdge] = useState(false);
   const [edgeTestError, setEdgeTestError] = useState<string | null>(null);
@@ -95,6 +118,13 @@ export const SettingsView: React.FC = () => {
         ]);
         if (savedSet) setSettings((prev) => ({ ...prev, ...savedSet }));
         setBrowsers(brList);
+        if (typeof window !== 'undefined' && window.speechSynthesis) {
+          const v = window.speechSynthesis.getVoices() || [];
+          if (v.length > 0) setNativeVoices(v);
+          window.speechSynthesis.onvoiceschanged = () => {
+            setNativeVoices(window.speechSynthesis.getVoices() || []);
+          };
+        }
       } catch (e) {
         console.error('Settings load error:', e);
       } finally {
@@ -685,52 +715,146 @@ export const SettingsView: React.FC = () => {
           </div>
 
           {/* Voice Provider Switch */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
             <button
+              type="button"
+              onClick={() => setSettings({ ...settings, voice_provider: 'native' })}
+              style={{
+                padding: '10px 6px',
+                borderRadius: 12,
+                cursor: 'pointer',
+                border:
+                  settings.voice_provider === 'native'
+                    ? '1px solid rgba(255, 255, 255, 0.35)'
+                    : '1px solid rgba(255, 255, 255, 0.06)',
+                background:
+                  settings.voice_provider === 'native'
+                    ? 'rgba(255, 255, 255, 0.12)'
+                    : 'rgba(255, 255, 255, 0.02)',
+                color: settings.voice_provider === 'native' ? '#ffffff' : '#94a3b8',
+                fontWeight: 700,
+                fontSize: 12,
+                textAlign: 'center',
+              }}
+            >
+              Встроенный (0ms оффлайн)
+            </button>
+            <button
+              type="button"
               onClick={() => setSettings({ ...settings, voice_provider: 'edge-tts' })}
               style={{
-                padding: '10px',
+                padding: '10px 6px',
                 borderRadius: 12,
                 cursor: 'pointer',
                 border:
                   settings.voice_provider === 'edge-tts'
-                    ? '1px solid rgba(255, 255, 255, 0.3)'
+                    ? '1px solid rgba(255, 255, 255, 0.35)'
                     : '1px solid rgba(255, 255, 255, 0.06)',
                 background:
                   settings.voice_provider === 'edge-tts'
-                    ? 'rgba(255, 255, 255, 0.08)'
+                    ? 'rgba(255, 255, 255, 0.12)'
                     : 'rgba(255, 255, 255, 0.02)',
                 color: settings.voice_provider === 'edge-tts' ? '#ffffff' : '#94a3b8',
                 fontWeight: 700,
-                fontSize: 12.5,
+                fontSize: 12,
+                textAlign: 'center',
               }}
             >
-              Neural Edge-TTS (Бесплатно)
+              Neural J.A.R.V.I.S. (Студийный)
             </button>
             <button
+              type="button"
               onClick={() => setSettings({ ...settings, voice_provider: 'fish-audio' })}
               style={{
-                padding: '10px',
+                padding: '10px 6px',
                 borderRadius: 12,
                 cursor: 'pointer',
                 border:
                   settings.voice_provider === 'fish-audio'
-                    ? '1px solid rgba(255, 255, 255, 0.2)'
+                    ? '1px solid rgba(255, 255, 255, 0.35)'
                     : '1px solid rgba(255, 255, 255, 0.06)',
                 background:
                   settings.voice_provider === 'fish-audio'
-                    ? 'rgba(255, 255, 255, 0.08)'
+                    ? 'rgba(255, 255, 255, 0.12)'
                     : 'rgba(255, 255, 255, 0.02)',
                 color: settings.voice_provider === 'fish-audio' ? '#ffffff' : '#94a3b8',
                 fontWeight: 700,
-                fontSize: 12.5,
+                fontSize: 12,
+                textAlign: 'center',
               }}
             >
-              Fish Audio API (Клонирование)
+              Fish Audio (Клонирование)
             </button>
           </div>
 
-          {settings.voice_provider === 'fish-audio' ? (
+          {settings.voice_provider === 'native' ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#cbd5e1', display: 'block', marginBottom: 6 }}>
+                  Встроенный системный голос (Мгновенный старт / 0 мс задержки)
+                </label>
+                <select
+                  value={settings.native_voice || 'default'}
+                  onChange={(e) => setSettings({ ...settings, native_voice: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px',
+                    borderRadius: 10,
+                    background: '#0d0918',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    color: '#ffffff',
+                    fontSize: 13,
+                    outline: 'none',
+                  }}
+                >
+                  <option value="default">Автоматический системный выбор (лучший для языка)</option>
+                  {nativeVoices.map((v, i) => (
+                    <option key={i} value={v.name}>
+                      {v.name} ({v.lang}){v.default ? ' — По умолчанию' : ''}
+                    </option>
+                  ))}
+                </select>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10 }}>
+                  <button
+                    type="button"
+                    onClick={handleTestNativeVoice}
+                    className="btn-secondary"
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: 10,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    <Play size={13} />
+                    <span>Прослушать системный голос (Тест)</span>
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: '#cbd5e1' }}>Скорость речи</label>
+                  <span style={{ fontSize: 12, color: 'var(--accent, #ffffff)', fontWeight: 700 }}>
+                    {settings.voice_speed}x
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="0.8"
+                  max="1.5"
+                  step="0.05"
+                  value={settings.voice_speed}
+                  onChange={(e) => setSettings({ ...settings, voice_speed: parseFloat(e.target.value) })}
+                  style={{ width: '100%', accentColor: 'var(--accent, #ffffff)' }}
+                />
+              </div>
+            </div>
+          ) : settings.voice_provider === 'fish-audio' ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
                 <label style={{ fontSize: 12, fontWeight: 600, color: '#cbd5e1', display: 'block', marginBottom: 6 }}>

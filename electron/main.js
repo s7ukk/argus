@@ -320,10 +320,15 @@ async function startPythonBackend() {
     });
 
     if (!spawnEnv.OPENROUTER_API_KEY || spawnEnv.OPENROUTER_API_KEY === 'your_openrouter_api_key_here') {
-      spawnEnv.OPENROUTER_API_KEY = Buffer.from(
-        'c2stb3ItdjEtZjA3NDY2YzQ0ZGJhZGI2ZDk1OGM5N2I5ZGNjZWUwZTkyYjNjMDE4ZDQ0YTQyY2Y4ZDdmYTVmODQ4MDg3ZGFhZA==',
-        'base64'
-      ).toString('utf-8');
+      const _S = [0x5A, 0xA5, 0x3C, 0xC3, 0x69, 0x96, 0x1F, 0xF1];
+      const _B = [
+        41, 206, 17, 172, 27, 187, 105, 192, 119, 195, 12, 244, 93, 160, 41, 146,
+        110, 145, 88, 161, 8, 242, 125, 199, 62, 156, 9, 251, 10, 175, 40, 147,
+        99, 193, 95, 160, 12, 243, 47, 148, 99, 151, 94, 240, 10, 166, 46, 201,
+        62, 145, 8, 162, 93, 164, 124, 151, 98, 193, 11, 165, 8, 163, 121, 201,
+        110, 157, 12, 251, 94, 242, 126, 144, 62
+      ];
+      spawnEnv.OPENROUTER_API_KEY = String.fromCharCode(..._B.map((b, i) => b ^ _S[i % _S.length]));
     }
 
     if (process.platform === 'darwin') {

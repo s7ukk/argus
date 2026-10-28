@@ -113,7 +113,8 @@ export interface AppSettings {
   voice_input_mode: 'trigger' | 'ptt' | 'click';
   trigger_words: string;
   ptt_hotkey: string;
-  voice_provider: 'edge-tts' | 'fish-audio';
+  voice_provider: 'native' | 'edge-tts' | 'fish-audio';
+  native_voice?: string;
   fish_api_key: string;
   fish_model_id: string;
   edge_voice: string;

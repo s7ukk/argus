@@ -246,18 +246,26 @@ def clean_text_for_speech(text: str) -> str:
         chosen = []
         cur_len = 0
         for s in sentences:
-            if cur_len + len(s) <= 75:
+            # Allow up to 260 characters of complete sentences for full, natural thoughts
+            if cur_len + len(s) <= 260:
                 chosen.append(s)
                 cur_len += len(s)
             else:
                 if not chosen:
-                    m = re.match(r'^(.{20,70}?)[,;:\s]', s)
-                    chosen.append((m.group(1).strip() + '.') if m else s[:70].strip())
+                    # If the first sentence is long, split gracefully at a natural clause boundary
+                    m = re.match(r'^(.{40,240}?[,;—\-])\s+', s)
+                    if m:
+                        chosen.append(m.group(1).rstrip(',;—-').strip() + '.')
+                    else:
+                        chosen.append(s[:220].rsplit(' ', 1)[0].strip() + '.')
                 break
         t = ' '.join(chosen)
-    elif len(t) > 75:
-        m = re.match(r'^(.{35,150}?)[,;:\s]', t)
-        t = (m.group(1).strip() + '.') if m else t[:70].strip()
+    elif len(t) > 260:
+        m = re.match(r'^(.{40,240}?[,;—\-])\s+', t)
+        if m:
+            t = m.group(1).rstrip(',;—-').strip() + '.'
+        else:
+            t = t[:220].rsplit(' ', 1)[0].strip() + '.'
 
     # Ensure clean terminal punctuation for crisp neural cadence and intonation
     if t and not t[-1] in '.!?':
@@ -293,8 +301,8 @@ async def generate_speech_base64(
         if has_cyrillic:
             # J.A.R.V.I.S. Russian: Dmitry with resonant low-pitch and agile, articulate pace
             target_voice = "ru-RU-DmitryNeural"
-            target_pitch = "-1Hz"
-            target_rate = rate if (rate and rate != "+0%") else "+8%"
+            target_pitch = "-2Hz"
+            target_rate = rate if (rate and rate != "+0%") else "+5%"
         else:
             # J.A.R.V.I.S. Original (MCU / Paul Bettany): Ryan British English
             target_voice = "en-GB-RyanNeural"
@@ -345,11 +353,12 @@ async def generate_speech_base64(
     # 2. High-quality Edge-TTS Neural Voices
     for attempt in range(2):
         try:
-            async def _stream_voice(v_name: str, r_val: str):
+            async def _stream_voice(v_name: str, r_val: str, p_val: str):
                 communicate = edge_tts.Communicate(
                     clean_text,
                     v_name,
-                    rate=r_val
+                    rate=r_val,
+                    pitch=p_val
                 )
                 buf = bytearray()
                 async for chunk in communicate.stream():
@@ -357,7 +366,7 @@ async def generate_speech_base64(
                         buf.extend(chunk["data"])
                 return buf
 
-            audio_data = await asyncio.wait_for(_stream_voice(target_voice, target_rate), timeout=25.0)
+            audio_data = await asyncio.wait_for(_stream_voice(target_voice, target_rate, target_pitch), timeout=25.0)
             if audio_data and len(audio_data) > 100:
                 b64_res = base64.b64encode(audio_data).decode("utf-8")
                 if len(_VOICE_AUDIO_CACHE) > 500:

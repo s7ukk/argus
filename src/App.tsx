@@ -391,34 +391,37 @@ export const App: React.FC = () => {
       // Synthesize neural voice concurrently with chat message so playback begins with ZERO delay
       const res = await sendChatMessage(targetChatId, activeProf.key_code, textToSend, isVoiceActive, controller.signal);
 
-      // Start audio playback IMMEDIATELY at the exact moment the text begins rendering
+      // Instant audio playback: 0ms delay with built-in voice or studio neural voice
       if (voiceAssistantRef.current && isVoiceActive) {
-        if (res.audio_base64) {
-          voiceAssistantRef.current.playBase64Audio(res.audio_base64, res.reply);
+        let appSettings: any = null;
+        try {
+          const sStr = localStorage.getItem('argus_settings');
+          if (sStr) appSettings = JSON.parse(sStr);
+        } catch {}
+
+        const voiceProv = appSettings?.voice_provider || 'edge-tts';
+        if (voiceProv === 'native') {
+          // Instant 0ms built-in system voice playback
+          voiceAssistantRef.current.speakInstantNative(
+            res.reply,
+            appSettings?.native_voice,
+            appSettings?.voice_speed || 1.05
+          );
+        } else if (res.audio_base64) {
+          // Studio Edge-TTS / Fish Audio playback
+          voiceAssistantRef.current.playBase64Audio(
+            res.audio_base64,
+            res.reply,
+            appSettings?.native_voice,
+            appSettings?.voice_speed || 1.05
+          );
         } else {
-          let currentVoice = 'jarvis';
-          try {
-            const sStr = localStorage.getItem('argus_settings');
-            if (sStr) {
-              const s = JSON.parse(sStr);
-              if (s.edge_voice) currentVoice = s.edge_voice;
-            }
-          } catch {}
-          smartFetch('/api/voice/tts', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              text: res.reply,
-              voice: currentVoice
-            })
-          })
-            .then((r) => (r.ok ? r.json() : null))
-            .then((data) => {
-              if (data && data.audio_base64 && voiceAssistantRef.current) {
-                voiceAssistantRef.current.playBase64Audio(data.audio_base64, res.reply);
-              }
-            })
-            .catch(() => {});
+          // Seamless fallback so assistant speaks with zero delay
+          voiceAssistantRef.current.speakInstantNative(
+            res.reply,
+            appSettings?.native_voice,
+            appSettings?.voice_speed || 1.05
+          );
         }
       }
 

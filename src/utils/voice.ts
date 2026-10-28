@@ -420,7 +420,140 @@ export class VoiceAssistant {
     return btoa(binary);
   }
 
-  public async playBase64Audio(base64Mp3?: string | null, fallbackText?: string) {
+  public getNativeVoices(): SpeechSynthesisVoice[] {
+    if (typeof window === 'undefined' || !window.speechSynthesis) return [];
+    return window.speechSynthesis.getVoices() || [];
+  }
+
+  public cleanTextForSpeechLocal(text: string): string {
+    if (!text || !text.trim()) return '';
+
+    // If code block present, never read code aloud
+    if (text.includes('```')) {
+      const parts = text.split('```');
+      const intro = parts[0].replace(/[#*`_~]/g, '').trim();
+      if (intro.length >= 8) {
+        const first = intro.split(/[.!?\n]/)[0].trim();
+        if (first.length >= 8) return first + '. Код выведен на экран.';
+      }
+      return 'Код программы подготовлен и выведен на экран.';
+    }
+
+    let t = text;
+    t = t.replace(/`[^`]+`/g, ' ');
+    t = t.replace(/https?:\/\/[^\s)]+/g, '');
+    t = t.replace(/\*\*([^*]+)\*\*/g, '$1');
+    t = t.replace(/\*([^*]+)\*/g, '$1');
+    t = t.replace(/[#_~•]/g, ' ');
+    t = t.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+    t = t.replace(/—/g, ', ');
+    t = t.replace(/\s+/g, ' ').trim();
+
+    const sentences = t.split(/(?<=[.!?])\s+|\n+/).map((s) => s.trim()).filter(Boolean);
+    if (sentences.length > 0) {
+      const chosen: string[] = [];
+      let curLen = 0;
+      for (const s of sentences) {
+        if (curLen + s.length <= 260) {
+          chosen.push(s);
+          curLen += s.length;
+        } else {
+          if (chosen.length === 0) {
+            const m = s.match(/^(.{40,240}?[,;])\s+/);
+            if (m) chosen.push(m[1].replace(/[,;]/g, '').trim() + '.');
+            else chosen.push(s.slice(0, 220).trim() + '.');
+          }
+          break;
+        }
+      }
+      t = chosen.join(' ');
+    } else if (t.length > 260) {
+      t = t.slice(0, 240).trim() + '.';
+    }
+
+    if (t && !/[.!?]$/.test(t)) {
+      t += '.';
+    }
+    return t.trim();
+  }
+
+  public speakInstantNative(text: string, preferredVoice?: string, speed = 1.05) {
+    if (typeof window === 'undefined' || !window.speechSynthesis) return;
+    this.stopSpeaking();
+
+    const clean = this.cleanTextForSpeechLocal(text);
+    if (!clean) return;
+
+    try {
+      window.speechSynthesis.cancel();
+    } catch (e) {}
+
+    const utterance = new SpeechSynthesisUtterance(clean);
+    utterance.rate = Math.max(0.8, Math.min(1.6, speed));
+    utterance.pitch = 0.95;
+
+    const hasCyrillic = /[а-яА-ЯёЁ]/.test(clean);
+    utterance.lang = hasCyrillic ? 'ru-RU' : 'en-US';
+
+    const voices = window.speechSynthesis.getVoices();
+    if (voices && voices.length > 0) {
+      if (preferredVoice && preferredVoice !== 'default') {
+        const found = voices.find(
+          (v) => v.name === preferredVoice || v.voiceURI === preferredVoice
+        );
+        if (found) {
+          utterance.voice = found;
+        }
+      }
+      if (!utterance.voice) {
+        const targetLang = hasCyrillic ? 'ru' : 'en';
+        const matched =
+          voices.find(
+            (v) =>
+              v.lang.toLowerCase().startsWith(targetLang) &&
+              (v.name.toLowerCase().includes('dmitry') ||
+                v.name.toLowerCase().includes('yuri') ||
+                v.name.toLowerCase().includes('pavel') ||
+                v.name.toLowerCase().includes('alex') ||
+                v.name.toLowerCase().includes('male'))
+          ) ||
+          voices.find((v) => v.lang.toLowerCase().startsWith(targetLang)) ||
+          voices[0];
+
+        if (matched) {
+          utterance.voice = matched;
+        }
+      }
+    }
+
+    this.isSpeaking = true;
+    this.onSpeakingChange(true);
+
+    utterance.onstart = () => {
+      this.isSpeaking = true;
+      this.onSpeakingChange(true);
+    };
+
+    utterance.onend = () => {
+      this.isSpeaking = false;
+      this.onSpeakingChange(false);
+    };
+
+    utterance.onerror = (e) => {
+      console.warn('[Argus Voice]: Native speech notice:', e);
+      this.isSpeaking = false;
+      this.onSpeakingChange(false);
+    };
+
+    window.speechSynthesis.speak(utterance);
+  }
+
+  public async playBase64Audio(
+    base64Mp3?: string | null,
+    fallbackText?: string,
+    preferredVoice?: string,
+    speed = 1.05
+  ) {
     this.stopSpeaking();
 
     if (base64Mp3 && base64Mp3.length > 50) {
@@ -442,16 +575,27 @@ export class VoiceAssistant {
           this.currentAudio = null;
         };
         audio.onerror = (e) => {
-          console.warn('[Argus Voice]: Audio playback error:', e);
-          this.isSpeaking = false;
-          this.onSpeakingChange(false);
+          console.warn('[Argus Voice]: Audio playback error, falling back to instant native speech:', e);
           this.currentAudio = null;
+          if (fallbackText) {
+            this.speakInstantNative(fallbackText, preferredVoice, speed);
+          } else {
+            this.isSpeaking = false;
+            this.onSpeakingChange(false);
+          }
         };
         await audio.play();
         return;
       } catch (e) {
-        console.warn('[Argus Voice]: HTML5 Audio play notice:', e);
+        console.warn('[Argus Voice]: HTML5 Audio play notice, falling back to native speech:', e);
+        if (fallbackText) {
+          this.speakInstantNative(fallbackText, preferredVoice, speed);
+          return;
+        }
       }
+    } else if (fallbackText) {
+      this.speakInstantNative(fallbackText, preferredVoice, speed);
+      return;
     }
 
     this.isSpeaking = false;
@@ -459,6 +603,11 @@ export class VoiceAssistant {
   }
 
   public stopSpeaking() {
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch (e) {}
+    }
     if (this.currentAudio) {
       try {
         this.currentAudio.pause();
