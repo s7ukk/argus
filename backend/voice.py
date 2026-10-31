@@ -296,47 +296,71 @@ async def generate_speech_base64(
 
     v_lower = (voice or "").strip().lower()
 
-    # 0. J.A.R.V.I.S. and Named Voice Resolution
+# 0. Intelligent Named Voice & Intonation Resolution
+    # Ensures exact matching while guaranteeing language compatibility
     if not v_lower or v_lower in ["jarvis", "jarvis-ru", "default", "auto"]:
         if has_cyrillic:
-            # J.A.R.V.I.S. Russian: Dmitry with resonant low-pitch and agile, articulate pace
             target_voice = "ru-RU-DmitryNeural"
-            target_pitch = "-2Hz"
+            target_pitch = "-1Hz"
             target_rate = rate if (rate and rate != "+0%") else "+5%"
         else:
-            # J.A.R.V.I.S. Original (MCU / Paul Bettany): Ryan British English
             target_voice = "en-GB-RyanNeural"
             target_pitch = "-1Hz"
             target_rate = rate if (rate and rate != "+0%") else "+6%"
     elif v_lower in ["jarvis-en", "ryan", "en-gb-ryanneural"]:
-        target_voice = "en-GB-RyanNeural"
-        target_pitch = "-1Hz"
-        target_rate = rate if (rate and rate != "+0%") else "+6%"
+        if has_cyrillic:
+            target_voice = "ru-RU-DmitryNeural"
+            target_pitch = "-1Hz"
+            target_rate = rate if (rate and rate != "+0%") else "+5%"
+        else:
+            target_voice = "en-GB-RyanNeural"
+            target_pitch = "-1Hz"
+            target_rate = rate if (rate and rate != "+0%") else "+6%"
     elif "dmitry" in v_lower:
         target_voice = "ru-RU-DmitryNeural"
-        target_pitch = pitch or "+0Hz"
-        target_rate = rate or "+0%"
+        target_pitch = pitch or "-1Hz"
+        target_rate = rate if (rate and rate != "+0%") else "+5%"
     elif "svetlana" in v_lower:
         target_voice = "ru-RU-SvetlanaNeural"
         target_pitch = pitch or "+0Hz"
-        target_rate = rate or "+0%"
+        target_rate = rate if (rate and rate != "+0%") else "+4%"
     elif "christopher" in v_lower:
-        target_voice = "en-US-ChristopherNeural"
-        target_pitch = pitch or "+0Hz"
-        target_rate = rate or "+0%"
+        if has_cyrillic:
+            target_voice = "ru-RU-DmitryNeural"
+            target_pitch = pitch or "-1Hz"
+            target_rate = rate if (rate and rate != "+0%") else "+5%"
+        else:
+            target_voice = "en-US-ChristopherNeural"
+            target_pitch = pitch or "+0Hz"
+            target_rate = rate or "+0%"
     elif "jenny" in v_lower:
-        target_voice = "en-US-JennyNeural"
-        target_pitch = pitch or "+0Hz"
-        target_rate = rate or "+0%"
+        if has_cyrillic:
+            target_voice = "ru-RU-SvetlanaNeural"
+            target_pitch = pitch or "+0Hz"
+            target_rate = rate if (rate and rate != "+0%") else "+4%"
+        else:
+            target_voice = "en-US-JennyNeural"
+            target_pitch = pitch or "+0Hz"
+            target_rate = rate or "+0%"
     elif "sonia" in v_lower:
-        target_voice = "en-GB-SoniaNeural"
-        target_pitch = pitch or "+0Hz"
-        target_rate = rate or "+0%"
+        if has_cyrillic:
+            target_voice = "ru-RU-SvetlanaNeural"
+            target_pitch = pitch or "+0Hz"
+            target_rate = rate if (rate and rate != "+0%") else "+4%"
+        else:
+            target_voice = "en-GB-SoniaNeural"
+            target_pitch = pitch or "+0Hz"
+            target_rate = rate or "+0%"
     else:
-        target_voice = voice.strip()
+        if has_cyrillic and ("en-us" in v_lower or "en-gb" in v_lower):
+            if any(fem in v_lower for fem in ["jenny", "sonia", "aria", "female"]):
+                target_voice = "ru-RU-SvetlanaNeural"
+            else:
+                target_voice = "ru-RU-DmitryNeural"
+        else:
+            target_voice = voice.strip()
         target_pitch = pitch or "+0Hz"
         target_rate = rate or "+0%"
-
     cache_key = f"{clean_text}_{target_voice}_{target_rate}_{target_pitch}"
     if cache_key in _VOICE_AUDIO_CACHE:
         return _VOICE_AUDIO_CACHE[cache_key]
@@ -366,7 +390,9 @@ async def generate_speech_base64(
                         buf.extend(chunk["data"])
                 return buf
 
-            audio_data = await asyncio.wait_for(_stream_voice(target_voice, target_rate, target_pitch), timeout=25.0)
+            curr_rate = target_rate if attempt == 0 else "+0%"
+            curr_pitch = target_pitch if attempt == 0 else "+0Hz"
+            audio_data = await asyncio.wait_for(_stream_voice(target_voice, curr_rate, curr_pitch), timeout=20.0)
             if audio_data and len(audio_data) > 100:
                 b64_res = base64.b64encode(audio_data).decode("utf-8")
                 if len(_VOICE_AUDIO_CACHE) > 500:
@@ -412,17 +438,28 @@ def warmup_voice_cache():
     """Pre-generates in-memory audio for the most common responses in background thread for 0ms voice latency."""
     def _worker():
         common_phrases = [
-            ("Здравствуйте! Чем могу быть полезен?", "ru-RU-DmitryNeural", "+8%", "-1Hz"),
-            ("Слушаю Вас.", "ru-RU-DmitryNeural", "+8%", "-1Hz"),
-            ("Все системы работают в штатном режиме.", "ru-RU-DmitryNeural", "+8%", "-1Hz"),
-            ("Готово.", "ru-RU-DmitryNeural", "+8%", "-1Hz"),
-            ("Выполняю.", "ru-RU-DmitryNeural", "+8%", "-1Hz"),
-            ("Секунду.", "ru-RU-DmitryNeural", "+8%", "-1Hz"),
-            ("Код выведен на экран.", "ru-RU-DmitryNeural", "+8%", "-1Hz"),
-            ("Вкладка закрыта.", "ru-RU-DmitryNeural", "+8%", "-1Hz"),
-            ("Скриншот сделан.", "ru-RU-DmitryNeural", "+8%", "-1Hz"),
-            ("Действие успешно выполнено.", "ru-RU-DmitryNeural", "+8%", "-1Hz"),
-            ("Остановил выполнение.", "ru-RU-DmitryNeural", "+8%", "-1Hz"),
+            ("Здравствуйте! Чем могу быть полезен?", "ru-RU-DmitryNeural", "+5%", "-1Hz"),
+            ("Слушаю Вас.", "ru-RU-DmitryNeural", "+5%", "-1Hz"),
+            ("Все системы работают в штатном режиме.", "ru-RU-DmitryNeural", "+5%", "-1Hz"),
+            ("Готово.", "ru-RU-DmitryNeural", "+5%", "-1Hz"),
+            ("Выполняю.", "ru-RU-DmitryNeural", "+5%", "-1Hz"),
+            ("Секунду.", "ru-RU-DmitryNeural", "+5%", "-1Hz"),
+            ("Код выведен на экран.", "ru-RU-DmitryNeural", "+5%", "-1Hz"),
+            ("Вкладка закрыта.", "ru-RU-DmitryNeural", "+5%", "-1Hz"),
+            ("Скриншот сделан.", "ru-RU-DmitryNeural", "+5%", "-1Hz"),
+            ("Действие успешно выполнено.", "ru-RU-DmitryNeural", "+5%", "-1Hz"),
+            ("Остановил выполнение.", "ru-RU-DmitryNeural", "+5%", "-1Hz"),
+            ("Перехожу в настройки.", "ru-RU-DmitryNeural", "+5%", "-1Hz"),
+            ("Создаю новый диалог.", "ru-RU-DmitryNeural", "+5%", "-1Hz"),
+            ("История диалога очищена.", "ru-RU-DmitryNeural", "+5%", "-1Hz"),
+            ("Здравствуйте! Чем могу быть полезна?", "ru-RU-SvetlanaNeural", "+4%", "+0Hz"),
+            ("Слушаю Вас.", "ru-RU-SvetlanaNeural", "+4%", "+0Hz"),
+            ("Все системы работают в штатном режиме.", "ru-RU-SvetlanaNeural", "+4%", "+0Hz"),
+            ("Готово.", "ru-RU-SvetlanaNeural", "+4%", "+0Hz"),
+            ("Выполняю.", "ru-RU-SvetlanaNeural", "+4%", "+0Hz"),
+            ("Секунду.", "ru-RU-SvetlanaNeural", "+4%", "+0Hz"),
+            ("Код выведен на экран.", "ru-RU-SvetlanaNeural", "+4%", "+0Hz"),
+            ("Перехожу в настройки.", "ru-RU-SvetlanaNeural", "+4%", "+0Hz"),
             ("At your service, sir.", "en-GB-RyanNeural", "+6%", "-1Hz"),
             ("All systems are fully operational.", "en-GB-RyanNeural", "+6%", "-1Hz")
         ]
@@ -451,4 +488,4 @@ def warmup_voice_cache():
     threading.Thread(target=_worker, daemon=True).start()
 
 # Launch audio pre-warming upon module load
-# warmup_voice_cache()
+warmup_voice_cache()

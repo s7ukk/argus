@@ -588,34 +588,40 @@ export async function fetchMessages(chatId: string): Promise<ChatMessage[]> {
 
 
 
-export async function sendChatMessage(chatId: string, keyCode: string, message: string, voice = true, signal?: AbortSignal) {
-
+export async function sendChatMessage(
+  chatId: string,
+  keyCode: string,
+  message: string,
+  voice = true,
+  signal?: AbortSignal,
+  voiceSettings?: {
+    voice_provider?: string;
+    edge_voice?: string;
+    voice_speed?: number;
+    native_voice?: string;
+    fish_api_key?: string;
+    fish_model_id?: string;
+  }
+) {
   const res = await smartFetch('/api/ai/chat', {
-
     method: 'POST',
-
     headers: { 'Content-Type': 'application/json' },
-
     signal,
-
     body: JSON.stringify({
-
       chat_id: chatId,
-
       key_code: keyCode,
-
       message,
-
-      voice
-
+      voice,
+      voice_provider: voiceSettings?.voice_provider,
+      voice_name: voiceSettings?.edge_voice,
+      voice_speed: voiceSettings?.voice_speed,
+      native_voice: voiceSettings?.native_voice,
+      fish_api_key: voiceSettings?.fish_api_key,
+      fish_model_id: voiceSettings?.fish_model_id,
     })
-
   });
-
   if (!res.ok) throw new Error('Ошибка отправки сообщения');
-
   return res.json();
-
 }
 
 

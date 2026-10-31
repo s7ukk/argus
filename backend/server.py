@@ -150,6 +150,12 @@ class ChatMessageRequest(BaseModel):
     key_code: str
     message: str
     voice: bool = True
+    voice_provider: Optional[str] = None
+    voice_name: Optional[str] = None
+    voice_speed: Optional[float] = None
+    native_voice: Optional[str] = None
+    fish_api_key: Optional[str] = None
+    fish_model_id: Optional[str] = None
 
 class VolumeRequest(BaseModel):
     level: Optional[int] = None
@@ -655,32 +661,35 @@ async def ai_chat(req: ChatMessageRequest):
     except Exception:
         pass
     
-    # 5. Generate Neural Voice (Male Dmitry Neural Argus)
+    # 5. Generate Neural Voice (Respects exact client/settings selection with instant fallback)
     audio_base64 = None
     if req.voice and ver.get("voice_enabled", True):
-        speech_text = clean_text_for_speech(reply)
-        if speech_text and len(speech_text) > 1:
-            try:
-                settings = _load_settings()
-                provider = settings.get("voice_provider") or "edge-tts"
-                if provider != "native":
-                    voice_name = settings.get("edge_voice") or "jarvis"
-                    speed_val = float(settings.get("voice_speed", 1.05))
+        settings = _load_settings()
+        provider = req.voice_provider or settings.get("voice_provider") or "edge-tts"
+        # If client selected Native OS synthesis, skip remote TTS entirely for instantaneous response
+        if provider != "native":
+            speech_text = clean_text_for_speech(reply)
+            if speech_text and len(speech_text) > 1:
+                try:
+                    voice_name = req.voice_name or settings.get("edge_voice") or "jarvis"
+                    speed_val = float(req.voice_speed if req.voice_speed is not None else settings.get("voice_speed", 1.05))
                     rate_str = f"+{int((speed_val - 1.0) * 100)}%" if speed_val >= 1.0 else f"{int((speed_val - 1.0) * 100)}%"
-                    
+                    fish_key = req.fish_api_key or (settings.get("fish_api_key") if provider == "fish-audio" else None)
+                    fish_mid = req.fish_model_id or (settings.get("fish_model_id") if provider == "fish-audio" else None)
+
                     audio_base64 = await asyncio.wait_for(
                         voice_engine.generate_speech_base64(
                             speech_text,
                             voice=voice_name,
                             rate=rate_str,
-                            fish_api_key=settings.get("fish_api_key") if provider == "fish-audio" else None,
-                            fish_model_id=settings.get("fish_model_id") if provider == "fish-audio" else None,
+                            fish_api_key=fish_key,
+                            fish_model_id=fish_mid,
                         ),
                         timeout=5.0
                     )
-            except Exception as e:
-                print(f"[Argus TTS Notice]: {e}")
-                audio_base64 = None
+                except Exception as e:
+                    print(f"[Argus TTS Notice]: {e}")
+                    audio_base64 = None
         
     return {
         "reply": reply,

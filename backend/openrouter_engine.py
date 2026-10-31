@@ -20,6 +20,36 @@ import backend.app_paths as app_paths
 _OPENROUTER_CACHE: Dict[str, Tuple[str, List[Dict[str, Any]]]] = {}
 _LAST_KEY: Optional[str] = None
 
+import http.client
+import threading
+
+_OPENROUTER_HOST = "openrouter.ai"
+_OPENROUTER_CONN: Optional[http.client.HTTPSConnection] = None
+_CONN_LOCK = threading.Lock()
+_LAST_WORKING_MODEL: Optional[str] = None
+
+def _get_persistent_https_conn(ssl_ctx: ssl.SSLContext, timeout: float) -> http.client.HTTPSConnection:
+    global _OPENROUTER_CONN
+    with _CONN_LOCK:
+        if _OPENROUTER_CONN is None:
+            _OPENROUTER_CONN = http.client.HTTPSConnection(
+                _OPENROUTER_HOST,
+                443,
+                context=ssl_ctx,
+                timeout=timeout
+            )
+        return _OPENROUTER_CONN
+
+def _reset_persistent_https_conn():
+    global _OPENROUTER_CONN
+    with _CONN_LOCK:
+        if _OPENROUTER_CONN:
+            try:
+                _OPENROUTER_CONN.close()
+            except Exception:
+                pass
+            _OPENROUTER_CONN = None
+
 import base64
 
 def get_https_ssl_context() -> ssl.SSLContext:
@@ -246,6 +276,9 @@ def build_system_prompt(user_name: str, os_name: str, memory_summary: str = "") 
    - complete_task: {{"type": "complete_task", "title": "название задачи"}}
    - create_note: {{"type": "create_note", "title": "заголовок", "content": "содержимое"}}
    - delete_note: {{"type": "delete_note", "title": "заголовок"}}
+   - app_navigate: {{"type": "app_navigate", "tab": "chat" | "settings" | "plugins" | "scenarios" | "system" | "extras" | "about"}}
+   - app_click: {{"type": "app_click", "target": "название_кнопки_или_текст"}}
+   - app_action: {{"type": "app_action", "action": "new_chat" | "clear_chat" | "open_profile" | "close_profile" | "toggle_voice" | "toggle_theme"}}
 
 4. ДЕЙСТВИЯ С ВКЛАДКАМИ И ОКНАМИ:
    - Для закрытия одной вкладки используй action: 'close_browser_tab' (или browser_tab с action: 'close').
@@ -329,17 +362,20 @@ def query_openrouter(
     url = "https://openrouter.ai/api/v1/chat/completions"
     raw_content = None
 
+    global _LAST_WORKING_MODEL
     user_key, user_model = get_user_settings_api_key_and_model()
     models_to_try = []
     if user_model:
         models_to_try.append(user_model)
+    if _LAST_WORKING_MODEL and _LAST_WORKING_MODEL not in models_to_try:
+        models_to_try.append(_LAST_WORKING_MODEL)
     is_coding_query = any(k in prompt.lower() for k in ["код", "скрипт", "программ", "функци", "алгоритм", "класс", "бот", "write", "code", "bot"])
-    call_timeout = 25.0 if is_coding_query else 15.0
+    call_timeout = 25.0 if is_coding_query else 14.0
 
     for m in [
         "meta-llama/llama-3.3-70b-instruct",
-        "deepseek/deepseek-chat",
         "mistralai/mistral-small-24b-instruct-2501",
+        "deepseek/deepseek-chat",
         "openrouter/auto",
         "openrouter/free"
     ]:
@@ -363,36 +399,59 @@ def query_openrouter(
                 "temperature": 0.7,
                 "max_tokens": 2500
             }
+            body_bytes = json.dumps(body).encode("utf-8")
+            data = None
+
+            # High-speed Keep-Alive connection attempt (<0.5s response)
             try:
-                req = urllib.request.Request(
-                    url,
-                    data=json.dumps(body).encode("utf-8"),
-                    headers=headers
-                )
-                with urllib.request.urlopen(req, timeout=call_timeout, context=ssl_ctx) as resp:
+                conn = _get_persistent_https_conn(ssl_ctx, call_timeout)
+                conn.request("POST", "/api/v1/chat/completions", body=body_bytes, headers=headers)
+                resp = conn.getresponse()
+                if resp.status == 200:
                     data = json.loads(resp.read().decode("utf-8"))
-                    if data.get("choices") and data["choices"][0].get("message"):
-                        msg = data["choices"][0]["message"]
-                        cnt = msg.get("content")
-                        if cnt and isinstance(cnt, str) and cnt.strip():
-                            cleaned_cnt = re.sub(r'<think>[\s\S]*?</think>', '', cnt, flags=re.IGNORECASE).strip()
-                            if cleaned_cnt:
-                                raw_content = cleaned_cnt
-                                break
-                        rsn = msg.get("reasoning")
-                        if rsn and isinstance(rsn, str) and rsn.strip():
-                            raw_content = rsn.strip()
-                            break
-            except urllib.error.HTTPError as e:
-                # 429 means rate limit exceeded on this model (e.g. daily free limit), rotate model
-                if e.code == 429:
-                    continue
-                # 401 or 403 means bad key, break to try next key
-                if e.code in (401, 403):
+                elif resp.status in (401, 403):
+                    _reset_persistent_https_conn()
                     break
-                continue
+                elif resp.status == 429:
+                    continue
+                else:
+                    _reset_persistent_https_conn()
             except Exception:
-                continue
+                _reset_persistent_https_conn()
+
+            # Reliable urllib fallback
+            if not data:
+                try:
+                    req = urllib.request.Request(
+                        url,
+                        data=body_bytes,
+                        headers=headers
+                    )
+                    with urllib.request.urlopen(req, timeout=call_timeout, context=ssl_ctx) as resp:
+                        data = json.loads(resp.read().decode("utf-8"))
+                except urllib.error.HTTPError as e:
+                    if e.code == 429:
+                        continue
+                    if e.code in (401, 403):
+                        break
+                    continue
+                except Exception:
+                    continue
+
+            if data and data.get("choices") and data["choices"][0].get("message"):
+                msg = data["choices"][0]["message"]
+                cnt = msg.get("content")
+                if cnt and isinstance(cnt, str) and cnt.strip():
+                    cleaned_cnt = re.sub(r'<think>[\s\S]*?</think>', '', cnt, flags=re.IGNORECASE).strip()
+                    if cleaned_cnt:
+                        raw_content = cleaned_cnt
+                        _LAST_WORKING_MODEL = model_name
+                        break
+                rsn = msg.get("reasoning")
+                if rsn and isinstance(rsn, str) and rsn.strip():
+                    raw_content = rsn.strip()
+                    _LAST_WORKING_MODEL = model_name
+                    break
 
         if raw_content:
             break

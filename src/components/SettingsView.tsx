@@ -134,6 +134,17 @@ export const SettingsView: React.FC = () => {
     loadAll();
   }, []);
 
+  const updateAndSave = (patch: Partial<AppSettings>) => {
+    const updated = { ...settings, ...patch };
+    setSettings(updated);
+    try {
+      localStorage.setItem('argus_settings', JSON.stringify(updated));
+      window.dispatchEvent(new CustomEvent('argus_settings_updated', { detail: updated }));
+      window.dispatchEvent(new CustomEvent('argus_resume_audio'));
+    } catch (e) {}
+    updateSettings(updated).catch(() => {});
+  };
+
   const handleSave = async () => {
     // Immediately keep audio contexts alive within the trusted synchronous user click gesture
     window.dispatchEvent(new CustomEvent('argus_resume_audio'));
@@ -160,10 +171,10 @@ export const SettingsView: React.FC = () => {
     setEdgeTestError(null);
     setTestingEdge(true);
     try {
-      const isEnglish = settings.edge_voice === 'jarvis-en' || settings.edge_voice.includes('GB') || settings.edge_voice.includes('US');
+      const isEnglish = settings.edge_voice === 'jarvis-en' || settings.edge_voice.includes('GB') || settings.edge_voice.includes('US') || settings.edge_voice.includes('en-');
       const testPhrase = isEnglish
-        ? 'At your service, sir.'
-        : 'На связи, сэр.';
+        ? 'At your service, sir. All systems are operational.'
+        : 'Система активна и готова к работе.';
       const res = await testEdgeTTS(
         settings.edge_voice,
         settings.voice_speed,
@@ -718,7 +729,7 @@ export const SettingsView: React.FC = () => {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
             <button
               type="button"
-              onClick={() => setSettings({ ...settings, voice_provider: 'native' })}
+              onClick={() => updateAndSave({ voice_provider: 'native' })}
               style={{
                 padding: '10px 6px',
                 borderRadius: 12,
@@ -741,7 +752,7 @@ export const SettingsView: React.FC = () => {
             </button>
             <button
               type="button"
-              onClick={() => setSettings({ ...settings, voice_provider: 'edge-tts' })}
+              onClick={() => updateAndSave({ voice_provider: 'edge-tts' })}
               style={{
                 padding: '10px 6px',
                 borderRadius: 12,
@@ -764,7 +775,7 @@ export const SettingsView: React.FC = () => {
             </button>
             <button
               type="button"
-              onClick={() => setSettings({ ...settings, voice_provider: 'fish-audio' })}
+              onClick={() => updateAndSave({ voice_provider: 'fish-audio' })}
               style={{
                 padding: '10px 6px',
                 borderRadius: 12,
@@ -795,7 +806,7 @@ export const SettingsView: React.FC = () => {
                 </label>
                 <select
                   value={settings.native_voice || 'default'}
-                  onChange={(e) => setSettings({ ...settings, native_voice: e.target.value })}
+                  onChange={(e) => updateAndSave({ native_voice: e.target.value })}
                   style={{
                     width: '100%',
                     padding: '10px 14px',
@@ -849,7 +860,7 @@ export const SettingsView: React.FC = () => {
                   max="1.5"
                   step="0.05"
                   value={settings.voice_speed}
-                  onChange={(e) => setSettings({ ...settings, voice_speed: parseFloat(e.target.value) })}
+                  onChange={(e) => updateAndSave({ voice_speed: parseFloat(e.target.value) })}
                   style={{ width: '100%', accentColor: 'var(--accent, #ffffff)' }}
                 />
               </div>
@@ -951,7 +962,7 @@ export const SettingsView: React.FC = () => {
                 </label>
                 <select
                   value={settings.edge_voice}
-                  onChange={(e) => setSettings({ ...settings, edge_voice: e.target.value })}
+                  onChange={(e) => updateAndSave({ edge_voice: e.target.value })}
                   style={{
                     width: '100%',
                     padding: '10px 14px',
@@ -1012,7 +1023,7 @@ export const SettingsView: React.FC = () => {
                   max="1.5"
                   step="0.05"
                   value={settings.voice_speed}
-                  onChange={(e) => setSettings({ ...settings, voice_speed: parseFloat(e.target.value) })}
+                  onChange={(e) => updateAndSave({ voice_speed: parseFloat(e.target.value) })}
                   style={{ width: '100%', accentColor: 'var(--accent, #ffffff)' }}
                 />
               </div>

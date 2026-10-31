@@ -18,6 +18,7 @@ import { UserProfile, ChatSession, ChatMessage, NavTab } from './types';
 import {
   verifyKey,
   fetchCurrentSession,
+  fetchSettings,
   logoutSession,
   fetchChats,
   createChatSession,
@@ -53,6 +54,32 @@ export const App: React.FC = () => {
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
   const [dictationState, setDictationState] = useState<{ active: boolean; text?: string; success?: boolean } | null>(null);
   const [themeConfig, setThemeConfig] = useState<ThemeConfig>(() => loadThemeConfig());
+  const [appSettings, setAppSettings] = useState<any>(() => {
+    try {
+      const sStr = localStorage.getItem('argus_settings');
+      return sStr ? JSON.parse(sStr) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  useEffect(() => {
+    const handleSettingsUpdated = (e: any) => {
+      if (e.detail) {
+        setAppSettings(e.detail);
+      }
+    };
+    window.addEventListener('argus_settings_updated', handleSettingsUpdated);
+    fetchSettings().then((s) => {
+      if (s) {
+        setAppSettings(s);
+        localStorage.setItem('argus_settings', JSON.stringify(s));
+      }
+    }).catch(() => {});
+    return () => {
+      window.removeEventListener('argus_settings_updated', handleSettingsUpdated);
+    };
+  }, []);
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const voiceAssistantRef = useRef<VoiceAssistant | null>(null);
@@ -337,6 +364,69 @@ export const App: React.FC = () => {
     } catch (e) { console.error(e); }
   };
 
+  const executeInAppClick = (targetText: string): boolean => {
+    if (!targetText || !targetText.trim()) return false;
+    const search = targetText.trim().toLowerCase();
+    
+    const candidates = Array.from(
+      document.querySelectorAll<HTMLElement>(
+        'button, a, input[type="button"], input[type="submit"], [role="button"], [data-clickable="true"]'
+      )
+    );
+
+    let bestMatch: HTMLElement | null = null;
+    let bestScore = 0;
+
+    for (const el of candidates) {
+      const rect = el.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) continue;
+      const style = window.getComputedStyle(el);
+      if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') continue;
+
+      const text = (el.innerText || el.textContent || el.getAttribute('aria-label') || el.getAttribute('title') || '').trim().toLowerCase();
+      if (!text) continue;
+
+      if (text === search) {
+        bestMatch = el;
+        bestScore = 100;
+        break;
+      }
+      if (text.includes(search) || search.includes(text)) {
+        const score = text.length > 0 ? (Math.min(search.length, text.length) / Math.max(search.length, text.length)) * 80 : 0;
+        if (score > bestScore) {
+          bestScore = score;
+          bestMatch = el;
+        }
+      }
+    }
+
+    if (bestMatch) {
+      bestMatch.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const origOutline = bestMatch.style.outline;
+      const origBoxShadow = bestMatch.style.boxShadow;
+      const origTransition = bestMatch.style.transition;
+      bestMatch.style.transition = 'all 0.25s ease';
+      bestMatch.style.outline = '2px solid #a855f7';
+      bestMatch.style.boxShadow = '0 0 16px rgba(168, 85, 247, 0.7)';
+      
+      setTimeout(() => {
+        try {
+          bestMatch?.click();
+        } catch (e) {}
+      }, 300);
+
+      setTimeout(() => {
+        if (bestMatch) {
+          bestMatch.style.outline = origOutline;
+          bestMatch.style.boxShadow = origBoxShadow;
+          bestMatch.style.transition = origTransition;
+        }
+      }, 900);
+      return true;
+    }
+    return false;
+  };
+
   const handleStop = () => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -388,40 +478,37 @@ export const App: React.FC = () => {
 
     try {
       const isVoiceActive = activeProf.voice_enabled !== false;
-      // Synthesize neural voice concurrently with chat message so playback begins with ZERO delay
-      const res = await sendChatMessage(targetChatId, activeProf.key_code, textToSend, isVoiceActive, controller.signal);
+      const currentVoiceSettings = {
+        voice_provider: appSettings?.voice_provider || 'edge-tts',
+        edge_voice: appSettings?.edge_voice || 'jarvis',
+        voice_speed: Number(appSettings?.voice_speed || 1.05),
+        native_voice: appSettings?.native_voice || 'default',
+        fish_api_key: appSettings?.fish_api_key,
+        fish_model_id: appSettings?.fish_model_id,
+      };
 
-      // Instant audio playback: 0ms delay with built-in voice or studio neural voice
+      // Query AI assistant passing active user voice configuration
+      const res = await sendChatMessage(
+        targetChatId,
+        activeProf.key_code,
+        textToSend,
+        isVoiceActive,
+        controller.signal,
+        currentVoiceSettings
+      );
+
+      // Instant audio playback with exact chosen voice
       if (voiceAssistantRef.current && isVoiceActive) {
-        let appSettings: any = null;
-        try {
-          const sStr = localStorage.getItem('argus_settings');
-          if (sStr) appSettings = JSON.parse(sStr);
-        } catch {}
-
         const voiceProv = appSettings?.voice_provider || 'edge-tts';
+        const speed = Number(appSettings?.voice_speed || 1.05);
+        const nativeVoice = appSettings?.native_voice || 'default';
+
         if (voiceProv === 'native') {
-          // Instant 0ms built-in system voice playback
-          voiceAssistantRef.current.speakInstantNative(
-            res.reply,
-            appSettings?.native_voice,
-            appSettings?.voice_speed || 1.05
-          );
+          voiceAssistantRef.current.speakInstantNative(res.reply, nativeVoice, speed);
         } else if (res.audio_base64) {
-          // Studio Edge-TTS / Fish Audio playback
-          voiceAssistantRef.current.playBase64Audio(
-            res.audio_base64,
-            res.reply,
-            appSettings?.native_voice,
-            appSettings?.voice_speed || 1.05
-          );
+          voiceAssistantRef.current.playBase64Audio(res.audio_base64, res.reply, nativeVoice, speed);
         } else {
-          // Seamless fallback so assistant speaks with zero delay
-          voiceAssistantRef.current.speakInstantNative(
-            res.reply,
-            appSettings?.native_voice,
-            appSettings?.voice_speed || 1.05
-          );
+          voiceAssistantRef.current.speakInstantNative(res.reply, nativeVoice, speed);
         }
       }
 
@@ -442,6 +529,30 @@ export const App: React.FC = () => {
       };
       setMessages((prev) => [...prev, asstMsg]);
       setStreamingMessageId(null);
+
+      // In-App Action & Navigation Execution
+      if (res.action_type === 'app_navigate' && res.action_data?.tab) {
+        const targetTab = res.action_data.tab as NavTab;
+        setActiveTab(targetTab);
+      } else if (res.action_type === 'app_click') {
+        const targetText = res.action_data?.target || res.action_data?.text || res.action_data?.button || '';
+        executeInAppClick(targetText);
+      } else if (res.action_type === 'app_action') {
+        const subAct = res.action_data?.action || '';
+        if (subAct === 'new_chat') {
+          handleCreateChat();
+        } else if (subAct === 'clear_chat') {
+          setMessages([]);
+        } else if (subAct === 'open_profile') {
+          setIsProfileOpen(true);
+        } else if (subAct === 'close_profile') {
+          setIsProfileOpen(false);
+        } else if (subAct === 'toggle_voice') {
+          if (profile) {
+            setProfile({ ...profile, voice_enabled: !profile.voice_enabled });
+          }
+        }
+      }
 
       // Client-Side Action Execution Guarantee (Only for remote Cloud server responses)
       if (res.action_type && (res as any).is_cloud) {

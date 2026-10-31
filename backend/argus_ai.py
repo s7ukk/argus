@@ -259,6 +259,37 @@ def execute_single_action(act: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]
     Returns: (status_message, action_type, data)
     """
     act_type = act.get("type", "").lower()
+
+    if act_type == "app_navigate":
+        tab = act.get("tab", "chat")
+        tab_names = {
+            "settings": "настройки",
+            "plugins": "раздел плагинов",
+            "scenarios": "раздел сценариев",
+            "system": "системный мониторинг",
+            "extras": "утилиты и заметки",
+            "chat": "чат",
+            "about": "информацию о программе"
+        }
+        tab_title = tab_names.get(tab, tab)
+        return f"Перехожу в {tab_title}.", "app_navigate", {"tab": tab}
+
+    if act_type == "app_click":
+        target = act.get("target") or act.get("text") or act.get("button", "")
+        return f"Нажимаю кнопку «{target}».", "app_click", {"target": target}
+
+    if act_type == "app_action":
+        action_name = act.get("action", "")
+        action_msgs = {
+            "new_chat": "Создаю новый диалог.",
+            "clear_chat": "История диалога очищена.",
+            "open_profile": "Открываю окно профиля.",
+            "close_profile": "Закрываю окно профиля.",
+            "toggle_voice": "Переключаю голосовой режим.",
+            "toggle_theme": "Переключаю тему оформления."
+        }
+        msg = action_msgs.get(action_name, "Действие в приложении выполнено.")
+        return msg, "app_action", act
     
     if act_type == "clarify":
         return act.get("message", "Уточните, пожалуйста: укажите команду, приложение или действие."), "clarify", act
@@ -914,6 +945,52 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
     coding_langs = ["node", "nodejs", "node.js", "js", "javascript", "python", "питон", "typescript", "ts", "c++", "c#", "java", "джав", "go", "golang", "rust", "html", "css", "sql", "php"]
     if (any(n in c for n in coding_nouns) and (any(v in c for v in coding_verbs) or any(l in c for l in coding_langs))) or ("бот на" in c or "бота на" in c or "телеграм бота" in c or "telegram bot" in c or "телеграм бот" in c):
         return None
+
+    # 0.1 In-App Navigation and Tab Switching inside Argus AI
+    m_app_nav = re.match(
+        r'^(?:перейди|перейти|открой|открыть|покажи|показать|включи|включить|зайди|зайти|вернись|вернуться)\s+(?:в|во|на)?\s*(настройк\w*|плагин\w*|сценари\w*|систем\w*|мониторинг\w*|утилит\w*|экстрас|заметк\w*|таймер\w*|задач\w*|чат|диалог|о программе|о приложении|информаци\w* о программе)$',
+        c, re.IGNORECASE
+    )
+    if m_app_nav:
+        target_word = m_app_nav.group(1).lower()
+        if "настройк" in target_word:
+            return {"type": "app_navigate", "tab": "settings"}
+        elif "плагин" in target_word:
+            return {"type": "app_navigate", "tab": "plugins"}
+        elif "сценари" in target_word:
+            return {"type": "app_navigate", "tab": "scenarios"}
+        elif "систем" in target_word or "мониторинг" in target_word:
+            return {"type": "app_navigate", "tab": "system"}
+        elif any(k in target_word for k in ["утилит", "экстрас", "заметк", "таймер", "задач"]):
+            return {"type": "app_navigate", "tab": "extras"}
+        elif "чат" in target_word or "диалог" in target_word:
+            return {"type": "app_navigate", "tab": "chat"}
+        elif "программ" in target_word or "приложени" in target_word:
+            return {"type": "app_navigate", "tab": "about"}
+
+    # In-App Button Click e.g.: "нажми кнопку Проверить", "нажми Сохранить настройки", "кликни на Создать плагин"
+    m_app_btn = re.match(
+        r'^(?:нажми|нажать|кликни|кликнуть|щелкни|щёлкни|выбери|выбрать)(?:\s+(?:на|по))?\s+(?:кнопк\w*|кнопку|ссылк\w*|элемент)?\s*(?:«([^»]+)»|\"([^\"]+)\"|\'([^\']+)\'|(.+))$',
+        clean_orig_c, re.IGNORECASE
+    )
+    if m_app_btn and not any(k in c for k in ["пауза", "пробел", "энтер", "enter", "space", "esc", "горячую клавишу"]):
+        raw_target = m_app_btn.group(1) or m_app_btn.group(2) or m_app_btn.group(3) or m_app_btn.group(4)
+        if raw_target:
+            target_clean = raw_target.strip().strip('"\'«»')
+            if len(target_clean) >= 2 and not any(hk in target_clean.lower() for hk in ["ctrl", "alt", "shift", "мышь", "мышки", "лкм", "пкм"]):
+                return {"type": "app_click", "target": target_clean}
+
+    # In-App Chat Actions e.g.: "новый чат", "создай новый чат", "очисти чат", "очисти историю", "открой профиль", "смени тему"
+    if re.search(r'\b(?:создай|создать|открой|открыть|начни|начать)?\s*новый\s+(?:чат|диалог)\b', c, re.IGNORECASE):
+        return {"type": "app_action", "action": "new_chat"}
+    if re.search(r'\b(?:очисти|очистить|удали|удалить)\s+(?:чат|диалог|истори\w*|переписк\w*)\b', c, re.IGNORECASE):
+        return {"type": "app_action", "action": "clear_chat"}
+    if re.search(r'\b(?:открой|открыть|покажи|показать)\s+(?:мой\s+)?профиль\b', c, re.IGNORECASE):
+        return {"type": "app_action", "action": "open_profile"}
+    if re.search(r'\b(?:закрой|закрыть)\s+профиль\b', c, re.IGNORECASE):
+        return {"type": "app_action", "action": "close_profile"}
+    if re.search(r'\b(?:смени|сменить|поменяй|поменять|переключи|переключить)\s+тему\b', c, re.IGNORECASE):
+        return {"type": "app_action", "action": "toggle_theme"}
 
     # 0. "Закрой все кроме X" (Negative Exclusion Filter)
     if any(k in c for k in ["кроме", "except", "не закрывай", "за исключением"]):
