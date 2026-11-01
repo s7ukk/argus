@@ -92,10 +92,13 @@ def load_extras_data() -> Dict[str, Any]:
         if not isinstance(tm, dict):
             continue
         tm_copy = dict(tm)
-        tm_copy["is_running"] = False
         if tm_copy.get("remaining_seconds", 0) <= 0 or tm_copy.get("is_completed"):
             tm_copy["remaining_seconds"] = 0
             tm_copy["is_completed"] = True
+            tm_copy["is_running"] = False
+        else:
+            # Active timer: preserve running state so requested timers tick down
+            tm_copy["is_running"] = bool(tm_copy.get("is_running", True))
         sanitized_timers.append(tm_copy)
     res["timers"] = sanitized_timers
     return res

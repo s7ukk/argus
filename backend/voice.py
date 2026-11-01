@@ -301,8 +301,8 @@ async def generate_speech_base64(
     if not v_lower or v_lower in ["jarvis", "jarvis-ru", "default", "auto"]:
         if has_cyrillic:
             target_voice = "ru-RU-DmitryNeural"
-            target_pitch = "-1Hz"
-            target_rate = rate if (rate and rate != "+0%") else "+5%"
+            target_pitch = "+0Hz"
+            target_rate = rate or "+0%"
         else:
             target_voice = "en-GB-RyanNeural"
             target_pitch = "-1Hz"
@@ -310,16 +310,16 @@ async def generate_speech_base64(
     elif v_lower in ["jarvis-en", "ryan", "en-gb-ryanneural"]:
         if has_cyrillic:
             target_voice = "ru-RU-DmitryNeural"
-            target_pitch = "-1Hz"
-            target_rate = rate if (rate and rate != "+0%") else "+5%"
+            target_pitch = "+0Hz"
+            target_rate = rate or "+0%"
         else:
             target_voice = "en-GB-RyanNeural"
             target_pitch = "-1Hz"
             target_rate = rate if (rate and rate != "+0%") else "+6%"
     elif "dmitry" in v_lower:
         target_voice = "ru-RU-DmitryNeural"
-        target_pitch = pitch or "-1Hz"
-        target_rate = rate if (rate and rate != "+0%") else "+5%"
+        target_pitch = pitch or "+0Hz"
+        target_rate = rate or "+0%"
     elif "svetlana" in v_lower:
         target_voice = "ru-RU-SvetlanaNeural"
         target_pitch = pitch or "+0Hz"
@@ -378,11 +378,16 @@ async def generate_speech_base64(
     for attempt in range(2):
         try:
             async def _stream_voice(v_name: str, r_val: str, p_val: str):
+                kwargs = {}
+                # Only pass rate/pitch if strictly different from default to avoid MS server rejection
+                if r_val and r_val != "+0%":
+                    kwargs["rate"] = r_val
+                if p_val and p_val != "+0Hz":
+                    kwargs["pitch"] = p_val
                 communicate = edge_tts.Communicate(
                     clean_text,
                     v_name,
-                    rate=r_val,
-                    pitch=p_val
+                    **kwargs
                 )
                 buf = bytearray()
                 async for chunk in communicate.stream():
@@ -488,4 +493,4 @@ def warmup_voice_cache():
     threading.Thread(target=_worker, daemon=True).start()
 
 # Launch audio pre-warming upon module load
-warmup_voice_cache()
+# warmup_voice_cache()  # Disabled to prevent socket exhaustion

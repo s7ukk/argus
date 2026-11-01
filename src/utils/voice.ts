@@ -575,23 +575,18 @@ export class VoiceAssistant {
           this.currentAudio = null;
         };
         audio.onerror = (e) => {
-          console.warn('[Argus Voice]: Audio playback error, falling back to instant native speech:', e);
+          console.warn('[Argus Voice]: Audio playback error notice:', e);
           this.currentAudio = null;
-          if (fallbackText) {
-            this.speakInstantNative(fallbackText, preferredVoice, speed);
-          } else {
-            this.isSpeaking = false;
-            this.onSpeakingChange(false);
-          }
+          this.isSpeaking = false;
+          this.onSpeakingChange(false);
         };
         await audio.play();
         return;
       } catch (e) {
-        console.warn('[Argus Voice]: HTML5 Audio play notice, falling back to native speech:', e);
-        if (fallbackText) {
-          this.speakInstantNative(fallbackText, preferredVoice, speed);
-          return;
-        }
+        console.warn('[Argus Voice]: HTML5 Audio play notice:', e);
+        this.currentAudio = null;
+        this.isSpeaking = false;
+        this.onSpeakingChange(false);
       }
     } else if (fallbackText) {
       this.speakInstantNative(fallbackText, preferredVoice, speed);

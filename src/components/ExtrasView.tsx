@@ -64,8 +64,7 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
         if (Array.isArray(parsed)) {
           return parsed.map((t: any) => ({
             ...t,
-            // Never automatically run on mount/reload
-            is_running: false,
+            is_running: t.remaining_seconds > 0 ? (t.is_running !== false) : false,
             remaining_seconds: t.remaining_seconds <= 0 ? 0 : t.remaining_seconds,
             is_completed: t.remaining_seconds <= 0 ? true : Boolean(t.is_completed)
           }));
@@ -210,7 +209,7 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
           if (data.timers !== undefined && Array.isArray(data.timers)) {
             const sanitized = data.timers.map((t) => ({
               ...t,
-              is_running: false,
+              is_running: t.remaining_seconds > 0 ? (t.is_running !== false) : false,
               remaining_seconds: t.remaining_seconds <= 0 ? 0 : t.remaining_seconds,
               is_completed: t.remaining_seconds <= 0 ? true : Boolean(t.is_completed)
             }));
@@ -226,8 +225,15 @@ export const ExtrasView: React.FC<ExtrasViewProps> = ({ onNotifyTimerFinish }) =
     };
     fetchBackendData();
     window.addEventListener('argus_extras_updated', fetchBackendData);
+    const handleTimerTicked = (e: any) => {
+      if (e.detail && Array.isArray(e.detail)) {
+        setTimers(e.detail);
+      }
+    };
+    window.addEventListener('argus_timer_ticked', handleTimerTicked);
     return () => {
       window.removeEventListener('argus_extras_updated', fetchBackendData);
+      window.removeEventListener('argus_timer_ticked', handleTimerTicked);
     };
   }, []);
 

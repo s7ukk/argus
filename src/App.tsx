@@ -14,7 +14,7 @@ import { AboutView } from './components/AboutView';
 import { SettingsView } from './components/SettingsView';
 import { DynamicIsland } from './components/DynamicIsland';
 import { loadThemeConfig, applyThemeConfig, ThemeConfig } from './utils/theme';
-import { UserProfile, ChatSession, ChatMessage, NavTab } from './types';
+import { UserProfile, ChatSession, ChatMessage, NavTab, TimerItem } from './types';
 import {
   verifyKey,
   fetchCurrentSession,
@@ -506,9 +506,7 @@ export const App: React.FC = () => {
         if (voiceProv === 'native') {
           voiceAssistantRef.current.speakInstantNative(res.reply, nativeVoice, speed);
         } else if (res.audio_base64) {
-          voiceAssistantRef.current.playBase64Audio(res.audio_base64, res.reply, nativeVoice, speed);
-        } else {
-          voiceAssistantRef.current.speakInstantNative(res.reply, nativeVoice, speed);
+          voiceAssistantRef.current.playBase64Audio(res.audio_base64, res.reply, undefined, speed);
         }
       }
 
@@ -578,7 +576,30 @@ export const App: React.FC = () => {
       }
 
       if (['create_timer', 'delete_timer', 'create_task', 'delete_task', 'complete_task', 'create_note', 'delete_note'].includes(res.action_type || '')) {
-        if (res.action_type === 'delete_timer') {
+        if (res.action_type === 'create_timer') {
+          const title = res.action_data?.title || 'Таймер';
+          const secs = Number(res.action_data?.seconds || 300);
+          try {
+            const raw = localStorage.getItem('argus_extras_timers');
+            const list: TimerItem[] = raw ? JSON.parse(raw) : [];
+            const newTimer: TimerItem = {
+              id: 'timer_' + Date.now(),
+              title: title,
+              total_seconds: secs,
+              remaining_seconds: secs,
+              is_running: true,
+              is_completed: false,
+              created_at: new Date().toISOString()
+            };
+            const updated = [newTimer, ...list.filter((t) => t.id !== newTimer.id)];
+            localStorage.setItem('argus_extras_timers', JSON.stringify(updated));
+            smartFetch('/api/extras/timer', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ title, seconds: secs })
+            }).catch(() => {});
+          } catch (e) {}
+        } else if (res.action_type === 'delete_timer') {
           try {
             const raw = localStorage.getItem('argus_extras_timers');
             if (raw) {
@@ -698,32 +719,74 @@ export const App: React.FC = () => {
 
     // Synchronize Active Timer to Electron OS Overlay Dynamic Island
   useEffect(() => {
-    if (!Boolean((window as any).electronAPI?.isElectron)) return;
-    const syncTimer = () => {
+    const tickGlobalTimers = () => {
       try {
         const raw = localStorage.getItem('argus_extras_timers');
-        if (raw) {
-          const list: TimerItem[] = JSON.parse(raw);
-          const running = list.find((t) => t.is_running && t.remaining_seconds > 0);
-          if (running) {
-            (window as any).electronAPI?.updateIslandTimer?.({
-              id: running.id,
-              title: running.title,
-              remaining_seconds: running.remaining_seconds,
-              is_running: true,
-            });
-            return;
-          }
+        if (!raw) {
+          (window as any).electronAPI?.updateIslandTimer?.(null);
+          return;
         }
-        (window as any).electronAPI?.updateIslandTimer?.(null);
-      } catch {
+        const list: TimerItem[] = JSON.parse(raw);
+        let hasChanges = false;
+        let activeRunningTimer: TimerItem | null = null;
+
+        const updated = list.map((t) => {
+          if (t.is_running && t.remaining_seconds > 0) {
+            hasChanges = true;
+            const nextSecs = t.remaining_seconds - 1;
+            if (nextSecs <= 0) {
+              try {
+                const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+                const now = ctx.currentTime;
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(523.25, now);
+                osc.frequency.exponentialRampToValueAtTime(880, now + 0.3);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.6);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.6);
+              } catch (e) {}
+              window.dispatchEvent(new CustomEvent('argus_island_notify', {
+                detail: { text: `Время вышло: ${t.title}!`, type: 'timer' }
+              }));
+              return { ...t, remaining_seconds: 0, is_running: false, is_completed: true };
+            }
+            const updatedTimer = { ...t, remaining_seconds: nextSecs };
+            if (!activeRunningTimer) {
+              activeRunningTimer = updatedTimer;
+            }
+            return updatedTimer;
+          }
+          return t;
+        });
+
+        if (hasChanges) {
+          localStorage.setItem('argus_extras_timers', JSON.stringify(updated));
+          window.dispatchEvent(new CustomEvent('argus_timer_ticked', { detail: updated }));
+        }
+
+        if (activeRunningTimer) {
+          (window as any).electronAPI?.updateIslandTimer?.({
+            id: activeRunningTimer.id,
+            title: activeRunningTimer.title,
+            remaining_seconds: activeRunningTimer.remaining_seconds,
+            is_running: true,
+          });
+        } else {
+          (window as any).electronAPI?.updateIslandTimer?.(null);
+        }
+      } catch (e) {
         (window as any).electronAPI?.updateIslandTimer?.(null);
       }
     };
 
-    syncTimer();
-    const interval = setInterval(syncTimer, 1000);
-    window.addEventListener('argus_extras_updated', syncTimer);
+    tickGlobalTimers();
+    const interval = setInterval(tickGlobalTimers, 1000);
+    window.addEventListener('argus_extras_updated', tickGlobalTimers);
 
     // Listen for Island action cancellation (stop timer, cancel AI thinking)
     const handleStopTimer = async () => {

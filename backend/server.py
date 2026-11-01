@@ -685,7 +685,7 @@ async def ai_chat(req: ChatMessageRequest):
                             fish_api_key=fish_key,
                             fish_model_id=fish_mid,
                         ),
-                        timeout=5.0
+                        timeout=18.0
                     )
                 except Exception as e:
                     print(f"[Argus TTS Notice]: {e}")
