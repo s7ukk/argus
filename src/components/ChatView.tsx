@@ -74,7 +74,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const handlePlayMessageAudio = async (msg: ChatMessage) => {
     if (playingAudioId === msg.id) {
       if (audioPlayerRef.current) {
-        audioPlayerRef.current.pause();
+        try { audioPlayerRef.current.pause(); } catch (e) {}
         audioPlayerRef.current = null;
       }
       setPlayingAudioId(null);
@@ -82,28 +82,41 @@ export const ChatView: React.FC<ChatViewProps> = ({
     }
 
     if (audioPlayerRef.current) {
-      audioPlayerRef.current.pause();
+      try { audioPlayerRef.current.pause(); } catch (e) {}
       audioPlayerRef.current = null;
     }
 
+    let objectUrl: string | null = null;
     try {
       setPlayingAudioId(msg.id);
       let b64 = msg.audio_base64;
       if (!b64) {
         let currentVoice = 'jarvis';
+        let fishKey: string | undefined = undefined;
+        let fishMid: string | undefined = undefined;
         try {
           const sStr = localStorage.getItem('argus_settings');
           if (sStr) {
             const s = JSON.parse(sStr);
             if (s.edge_voice) currentVoice = s.edge_voice;
+            if (s.fish_api_key) fishKey = s.fish_api_key;
+            if (s.fish_model_id) fishMid = s.fish_model_id;
           }
         } catch {}
+
+        // Strip heavy markdown code blocks from speech payload
+        let speechPayload = msg.content || '';
+        speechPayload = speechPayload.replace(/```[\s\S]*?```/g, ' [программный код] ');
+        speechPayload = speechPayload.replace(/`[^`]+`/g, ' ');
+
         const res = await smartFetch('/api/voice/tts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            text: msg.content,
-            voice: currentVoice
+            text: speechPayload.trim() || msg.content,
+            voice: currentVoice,
+            fish_api_key: fishKey,
+            fish_model_id: fishMid
           })
         });
         if (res.ok) {
@@ -114,23 +127,43 @@ export const ChatView: React.FC<ChatViewProps> = ({
         }
       }
 
-      if (b64) {
+      if (b64 && b64.length > 50) {
         const cleanB64 = b64.replace(/\s+/g, '');
-        const audio = new Audio(`data:audio/mpeg;base64,${cleanB64}`);
+        const byteCharacters = atob(cleanB64);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: 'audio/mpeg' });
+        objectUrl = URL.createObjectURL(blob);
+
+        const audio = new Audio(objectUrl);
         audioPlayerRef.current = audio;
-        audio.onended = () => {
+
+        const cleanup = () => {
           setPlayingAudioId(null);
           audioPlayerRef.current = null;
+          if (objectUrl) {
+            try { URL.revokeObjectURL(objectUrl); } catch (e) {}
+            objectUrl = null;
+          }
         };
-        audio.onerror = () => {
-          setPlayingAudioId(null);
-          audioPlayerRef.current = null;
-        };
-        await audio.play();
+
+        audio.onended = cleanup;
+        audio.onerror = cleanup;
+        try {
+          await audio.play();
+        } catch (playErr) {
+          cleanup();
+        }
       } else {
         setPlayingAudioId(null);
       }
     } catch {
+      if (objectUrl) {
+        try { URL.revokeObjectURL(objectUrl); } catch (e) {}
+      }
       setPlayingAudioId(null);
     }
   };

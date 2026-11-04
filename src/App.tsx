@@ -499,14 +499,15 @@ export const App: React.FC = () => {
 
       // Instant audio playback with exact chosen voice
       if (voiceAssistantRef.current && isVoiceActive) {
-        const voiceProv = appSettings?.voice_provider || 'edge-tts';
-        const speed = Number(appSettings?.voice_speed || 1.05);
-        const nativeVoice = appSettings?.native_voice || 'default';
+        const s = appSettings || loadSettings();
+        const voiceProv = s?.voice_provider || 'edge-tts';
+        const speed = Number(s?.voice_speed || 1.05);
+        const nativeVoice = s?.native_voice || 'default';
 
         if (voiceProv === 'native') {
           voiceAssistantRef.current.speakInstantNative(res.reply, nativeVoice, speed);
-        } else if (res.audio_base64) {
-          voiceAssistantRef.current.playBase64Audio(res.audio_base64, res.reply, undefined, speed);
+        } else {
+          voiceAssistantRef.current.playBase64Audio(res.audio_base64, res.reply, nativeVoice, speed);
         }
       }
 

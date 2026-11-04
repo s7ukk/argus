@@ -2437,6 +2437,40 @@ def open_url(url: str, browser: Optional[str] = None) -> bool:
     webbrowser.open(url)
     return True
 
+def resolve_first_youtube_video(query: str) -> Optional[str]:
+    """
+    Attempts to rapidly resolve direct YouTube watch URL for the top search result.
+    Falls back gracefully if network probe times out or is unreachable.
+    """
+    if not query or not query.strip():
+        return None
+    try:
+        import urllib.request
+        import urllib.parse
+        import re
+        import ssl
+        
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        
+        search_target = f"https://www.youtube.com/results?search_query={urllib.parse.quote_plus(query.strip())}"
+        req = urllib.request.Request(
+            search_target,
+            headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7"
+            }
+        )
+        with urllib.request.urlopen(req, timeout=1.8, context=ctx) as resp:
+            html = resp.read().decode("utf-8", errors="ignore")
+            vids = re.findall(r'"videoId":"([a-zA-Z0-9_-]{11})"', html)
+            if vids:
+                return f"https://www.youtube.com/watch?v={vids[0]}"
+    except Exception:
+        pass
+    return None
+
 # ─── HARDWARE TELEMETRY ─────────────────────────────────────────
 def get_system_stats() -> Dict[str, Any]:
     """Retrieve full system hardware health and metrics across Windows, macOS, and Linux."""

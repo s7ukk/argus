@@ -284,6 +284,10 @@ def build_system_prompt(user_name: str, os_name: str, memory_summary: str = "") 
    - Для закрытия одной вкладки используй action: 'close_browser_tab' (или browser_tab с action: 'close').
    - Для закрытия всех вкладок используй action: 'close_all_browser_tabs'.
    - Для закрытия конкретной программы используй action: 'close_app'.
+4.1. ПОИСК И ВОСПРОИЗВЕДЕНИЕ ВИДЕО И МУЗЫКИ:
+   - Если пользователь просит открыть, включить или найти видео, клип, ролик или трек (например «открой первое попавшееся видео с названием jealous madk1d», «включи видео X», «найди клип Y»):
+   - ВСЕГДА очищай поисковый запрос! В поле 'query' указывай ТОЛЬКО чистое название контента (например: «jealous madk1d»), КАТЕГОРИЧЕСКИ БЕЗ слов «первое попавшееся видео», «с названием», «открой видео», «в ии подборке». Поле 'engine' строго 'youtube'.
+   - В поле 'reply' подтверждай кратко: «Включаю видео «jealous madk1d» на YouTube.».
 5. ФОРМАТ И СТИЛЬ:
    - Возвращай ТОЛЬКО чистый JSON строго формата {{"reply": "...", "actions": [...]}}.
    - КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО выводить рассуждения, шаги анализа или черновики (Analyze the Request, Thinking, Constraints, Looking at the personal notes и т.д.). Сразу готовый результат!
@@ -370,14 +374,14 @@ def query_openrouter(
     if _LAST_WORKING_MODEL and _LAST_WORKING_MODEL not in models_to_try:
         models_to_try.append(_LAST_WORKING_MODEL)
     is_coding_query = any(k in prompt.lower() for k in ["код", "скрипт", "программ", "функци", "алгоритм", "класс", "бот", "write", "code", "bot"])
-    call_timeout = 25.0 if is_coding_query else 14.0
+    call_timeout = 20.0 if is_coding_query else 9.0
+    target_max_tokens = 3000 if is_coding_query else 600
 
     for m in [
         "meta-llama/llama-3.3-70b-instruct",
-        "mistralai/mistral-small-24b-instruct-2501",
         "deepseek/deepseek-chat",
-        "openrouter/auto",
-        "openrouter/free"
+        "mistralai/mistral-small-24b-instruct-2501",
+        "openrouter/auto"
     ]:
         if m not in models_to_try:
             models_to_try.append(m)
@@ -397,7 +401,7 @@ def query_openrouter(
                 "model": model_name,
                 "messages": messages,
                 "temperature": 0.7,
-                "max_tokens": 2500
+                "max_tokens": target_max_tokens
             }
             body_bytes = json.dumps(body).encode("utf-8")
             data = None

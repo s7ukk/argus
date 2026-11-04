@@ -228,8 +228,9 @@ def clean_text_for_speech(text: str) -> str:
     if "успешно отправлено" in t.lower():
         return "Сообщение успешно отправлено."
 
-    # Strip bullet points, numbered lists and examples from speech
-    t = re.sub(r'(?m)^\s*\d+[\.\)]\s+.*$', '', t)
+    # Strip list prefixes but keep the actual spoken items
+    t = re.sub(r'(?m)^\s*\d+[\.\)]\s*', '', t)
+    t = re.sub(r'(?m)^\s*[\-\*•]\s*', '', t)
     t = re.sub(r'Например:.*', '', t, flags=re.DOTALL)
     t = re.sub(r'Нажмите кнопку ниже.*', '', t)
     t = re.sub(r'\s+', ' ', t).strip()
@@ -379,10 +380,10 @@ async def generate_speech_base64(
         try:
             async def _stream_voice(v_name: str, r_val: str, p_val: str):
                 kwargs = {}
-                # Only pass rate/pitch if strictly different from default to avoid MS server rejection
+                # Only pass rate/pitch if strictly supported and different from default
                 if r_val and r_val != "+0%":
                     kwargs["rate"] = r_val
-                if p_val and p_val != "+0Hz":
+                if p_val and p_val != "+0Hz" and not v_name.startswith("ru-RU"):
                     kwargs["pitch"] = p_val
                 communicate = edge_tts.Communicate(
                     clean_text,
@@ -396,7 +397,7 @@ async def generate_speech_base64(
                 return buf
 
             curr_rate = target_rate if attempt == 0 else "+0%"
-            curr_pitch = target_pitch if attempt == 0 else "+0Hz"
+            curr_pitch = (target_pitch if not target_voice.startswith("ru-RU") else "+0Hz") if attempt == 0 else "+0Hz"
             audio_data = await asyncio.wait_for(_stream_voice(target_voice, curr_rate, curr_pitch), timeout=20.0)
             if audio_data and len(audio_data) > 100:
                 b64_res = base64.b64encode(audio_data).decode("utf-8")

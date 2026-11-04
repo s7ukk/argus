@@ -589,10 +589,17 @@ def execute_single_action(act: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]
             url = f"https://yandex.ru/search/?text={urllib.parse.quote_plus(q)}"
             eng_name = "в Яндекс"
         elif "youtube" in engine or "ютуб" in engine:
-            url = f"https://www.youtube.com/results?search_query={urllib.parse.quote_plus(q)}"
             is_play = act.get("is_play", False)
+            open_first = act.get("open_first", False)
+            url = None
+            if open_first:
+                direct_url = sc.resolve_first_youtube_video(q)
+                if direct_url:
+                    url = direct_url
+            if not url:
+                url = f"https://www.youtube.com/results?search_query={urllib.parse.quote_plus(q)}"
             sc.open_url(url)
-            verb = "Включаю на YouTube" if is_play else "Выполнен поиск в YouTube"
+            verb = "Включаю первое видео на YouTube" if open_first else ("Включаю на YouTube" if is_play else "Выполнен поиск в YouTube")
             return f"{verb}: «{q}»", "open_url", {"url": url, "query": q, "engine": "youtube"}
         elif "wildberries" in engine or "вайлдберриз" in engine or "вб" in engine:
             url = f"https://www.wildberries.ru/catalog/0/search.aspx?search={urllib.parse.quote_plus(q)}"
@@ -867,6 +874,47 @@ KNOWN_KEYBOARD_KEYS = {
     "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10", "f11", "f12",
     "ctrl", "alt", "shift", "win", "windows"
 }
+
+def extract_video_or_media_query(text: str) -> Tuple[Optional[str], bool, bool]:
+    """
+    Intelligently cleans and extracts pure media/video queries from natural commands,
+    stripping conversational noise, filler words, preambles, and platform indicators.
+    Returns: (clean_query, is_video, is_first_requested)
+    e.g. 'открыть первое попавшееся видео с названием jealous madk1d' -> ('jealous madk1d', True, True)
+         'в ии подборке попросил открыть первое попавшееся видео с названием jealous madk1d' -> ('jealous madk1d', True, True)
+         'открой видео с названием jealous madk1d' -> ('jealous madk1d', True, False)
+         'включи видео jealous madk1d' -> ('jealous madk1d', True, False)
+         'найди на ютубе первое видео jealous madk1d' -> ('jealous madk1d', True, True)
+    """
+    q = text.strip()
+    q = re.sub(r'^\s*(?:а\s+ну|а\s+ну-ка|а|ну-ка|ну|так|слушай|слушай-ка|эй|давай|пожалуйста|пж)[,\s:]+', '', q, flags=re.IGNORECASE).strip()
+    q = re.sub(r'^\s*(?:аргус|argus)[,\s:]+', '', q, flags=re.IGNORECASE).strip()
+
+    video_indicators = [
+        "видео", "ролик", "видеоролик", "клип", "youtube", "ютуб", "ютубе", "фильм", "сериал", "стрим", "мультфильм"
+    ]
+    has_video_indicator = any(re.search(rf'\b{k}\w*\b', q, re.IGNORECASE) for k in video_indicators)
+    is_first = bool(re.search(r'\b(?:перво[еяй]|первый\s+попавшийся|первое\s+попавшееся|любо[еяй]|како[еяй]-нибудь|рандомно[еяй]|случайно[еяй])\b', q, re.IGNORECASE))
+
+    if not has_video_indicator and not (is_first and any(v in q.lower() for v in ["включи", "открой", "найди", "поставь", "запусти", "покажи", "посмотри"])):
+        return None, False, False
+
+    for _ in range(6):
+        before = q
+        q = re.sub(r'^(?:в\s+ии\s+подборке|из\s+ии\s+подборки|в\s+подборке|из\s+подборки|попросил|хочу|можешь|прошу|давай)\s+', '', q, flags=re.IGNORECASE).strip()
+        q = re.sub(r'^(?:открой|открыть|перейди|зайди|включи|включить|поставь|поставить|запусти|запустить|вруби|врубить|сыграй|сыграть|найди|найти|поищи|поискать|покажи|показать|послушай|послушать|посмотри|посмотреть|play|search|open)\s+', '', q, flags=re.IGNORECASE).strip()
+        q = re.sub(r'\b(?:в|на|через|по)?\s*(?:ютуб[еауи]?|youtube|в\s+ютубе|на\s+ютубе|на\s+youtube|в\s+youtube)\b', '', q, flags=re.IGNORECASE).strip()
+        q = re.sub(r'^(?:перво[еяй]\s+попавше[еяй]ся|первый\s+попавшийся|перво[еяй]|первый|любо[еяй]|како[еяй]-нибудь|рандомно[еяй]|случайно[еяй])\s+', '', q, flags=re.IGNORECASE).strip()
+        q = re.sub(r'^(?:видео|ролик|видеоролик|клип|фильм|сериал|мультфильм|трек|песню|музыку|запись|стрим)\s+', '', q, flags=re.IGNORECASE).strip()
+        q = re.sub(r'^(?:с\s+названием|под\s+названием|по\s+названию|которое\s+называется|которая\s+называется|называется|с\s+заголовком|с\s+именем|по\s+имени|под\s+именем|про|на\s+тему)\s+', '', q, flags=re.IGNORECASE).strip()
+        q = re.sub(r'\s+(?:на\s+ютубе|в\s+ютубе|на\s+youtube|в\s+youtube)$', '', q, flags=re.IGNORECASE).strip()
+        if q == before:
+            break
+
+    clean_q = q.strip('"\'«»“” .,:;!?')
+    if clean_q and len(clean_q) > 1:
+        return clean_q, True, is_first
+    return None, False, False
 
 def extract_youtube_query(text: str) -> str:
     """
@@ -1828,6 +1876,18 @@ def parse_single_clause(clause: str) -> Optional[Dict[str, Any]]:
         return {"type": "open_url", "url": "https://reddit.com"}
 
     # 12. Web Searches across Popular Platforms (YouTube, Google, Yandex, Wildberries, Ozon, Avito, GitHub)
+    # 12.1 Dedicated Neural Media & Video Command Parser (YouTube)
+    # Catches e.g. "открыть первое попавшееся видео с названием jealous madk1d", "первое видео X", "включи ролик Y"
+    vid_q, is_video_cmd, is_first_vid = extract_video_or_media_query(orig_c)
+    if is_video_cmd and vid_q and not any(k in c for k in ["закрой", "закрыть", "close", "выключи", "заверши", "адресн", "строк", "ссылк", "вставить", "напечатай в"]):
+        return {
+            "type": "search_web",
+            "query": vid_q,
+            "engine": "youtube",
+            "is_play": True,
+            "open_first": is_first_vid
+        }
+
     if any(k in c for k in ["ютуб", "youtube", "ютубе", "ютуби"]) and not any(k in c for k in ["закрой", "закрыть", "close", "выключи", "заверши", "адресн", "строк", "ссылк", "вставить", "напечатай в"]):
         q = extract_youtube_query(orig_c)
         if q:

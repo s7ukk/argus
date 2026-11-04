@@ -92,16 +92,22 @@ export class VoiceAssistant {
   public async startListening(autoStopOnSilence = true) {
     if (this.isListening) return;
     this.stopSpeaking();
+    this.resumeAudioContext();
 
     try {
-      this.mediaStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          channelCount: 1,
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        }
-      });
+      try {
+        this.mediaStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            channelCount: 1,
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }
+        });
+      } catch (micErr) {
+        // High-compatibility audio fallback for macOS / AirPods / aggregate devices
+        this.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
 
       this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
       if (this.audioContext.state === 'suspended') {
@@ -130,7 +136,7 @@ export class VoiceAssistant {
           }
           const rms = Math.sqrt(sum / inputData.length);
 
-          if (rms > 0.005) {
+          if (rms > 0.0018) {
             this.commandSpeakingDetected = true;
             if (this.commandSilenceTimer) {
               clearTimeout(this.commandSilenceTimer);
@@ -250,13 +256,14 @@ export class VoiceAssistant {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ audio_base64: wavBase64 }),
-          signal: AbortSignal.timeout(5000)
+          signal: AbortSignal.timeout(14000)
         });
       } catch {
         res = await fetch(`${API_BASE}/voice/stt`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ audio_base64: wavBase64 })
+          body: JSON.stringify({ audio_base64: wavBase64 }),
+          signal: AbortSignal.timeout(14000)
         });
       }
 
@@ -555,38 +562,73 @@ export class VoiceAssistant {
     speed = 1.05
   ) {
     this.stopSpeaking();
+    this.resumeAudioContext();
 
     if (base64Mp3 && base64Mp3.length > 50) {
+      let objectUrl: string | null = null;
       try {
         const cleanB64 = base64Mp3.replace(/\s+/g, '');
-        const audio = new Audio(`data:audio/mpeg;base64,${cleanB64}`);
+        const byteCharacters = atob(cleanB64);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: 'audio/mpeg' });
+        objectUrl = URL.createObjectURL(blob);
+
+        const audio = new Audio(objectUrl);
         audio.volume = 1.0;
         this.currentAudio = audio;
         this.isSpeaking = true;
         this.onSpeakingChange(true);
 
+        const cleanup = () => {
+          this.isSpeaking = false;
+          this.onSpeakingChange(false);
+          this.currentAudio = null;
+          if (objectUrl) {
+            try { URL.revokeObjectURL(objectUrl); } catch (e) {}
+            objectUrl = null;
+          }
+        };
+
         audio.onplay = () => {
           this.isSpeaking = true;
           this.onSpeakingChange(true);
         };
-        audio.onended = () => {
-          this.isSpeaking = false;
-          this.onSpeakingChange(false);
-          this.currentAudio = null;
-        };
+        audio.onended = cleanup;
         audio.onerror = (e) => {
           console.warn('[Argus Voice]: Audio playback error notice:', e);
-          this.currentAudio = null;
-          this.isSpeaking = false;
-          this.onSpeakingChange(false);
+          cleanup();
+          if (fallbackText) {
+            this.speakInstantNative(fallbackText, preferredVoice, speed);
+          }
         };
-        await audio.play();
-        return;
+
+        try {
+          await audio.play();
+          return;
+        } catch (playErr) {
+          console.warn('[Argus Voice]: HTML5 Audio play promise rejection:', playErr);
+          cleanup();
+          if (fallbackText) {
+            this.speakInstantNative(fallbackText, preferredVoice, speed);
+            return;
+          }
+        }
       } catch (e) {
         console.warn('[Argus Voice]: HTML5 Audio play notice:', e);
+        if (objectUrl) {
+          try { URL.revokeObjectURL(objectUrl); } catch (err) {}
+        }
         this.currentAudio = null;
         this.isSpeaking = false;
         this.onSpeakingChange(false);
+        if (fallbackText) {
+          this.speakInstantNative(fallbackText, preferredVoice, speed);
+          return;
+        }
       }
     } else if (fallbackText) {
       this.speakInstantNative(fallbackText, preferredVoice, speed);
