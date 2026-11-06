@@ -126,7 +126,34 @@ export interface AppSettings {
   default_shell: string;
   openrouter_api_key?: string;
   openrouter_model?: string;
+  ai_engine_mode?: 'cloud' | 'local';
+  local_model_name?: string;
+  auto_download_local_model?: boolean;
 }
+
+export interface LocalLLMStatus {
+  model_installed: boolean;
+  runner_installed: boolean;
+  is_ready: boolean;
+  is_running: boolean;
+  engine_type: 'embedded_llama_server' | 'ollama' | 'none';
+  model_name: string;
+  ram_usage_mb: number;
+  ram_limit_mb: number;
+  ai_engine_mode?: 'cloud' | 'local';
+  download: {
+    is_downloading: boolean;
+    stage: 'idle' | 'runner' | 'model' | 'extracting' | 'ready' | 'error' | 'cancelled';
+    current_file: string;
+    downloaded_bytes: number;
+    total_bytes: number;
+    progress_percent: number;
+    speed_mb_s: number;
+    eta_seconds: number;
+    error_message?: string | null;
+  };
+}
+
 
 export interface SystemAppInfo {
   id: string;

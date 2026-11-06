@@ -1,4 +1,4 @@
-import { UserProfile, ChatSession, ChatMessage, SystemStats, Scenario } from './types';
+import { UserProfile, ChatSession, ChatMessage, SystemStats, Scenario, LocalLLMStatus } from './types';
 
 
 
@@ -1198,3 +1198,32 @@ export async function parseScenarioTZ(prompt: string): Promise<any[]> {
 
 }
 
+
+
+export async function fetchLocalLLMStatus(): Promise<LocalLLMStatus> {
+  const res = await smartFetch('/api/llm/status');
+  if (!res.ok) throw new Error('Ошибка получения статуса локального ИИ');
+  return res.json();
+}
+
+export async function setLocalLLMMode(mode: 'cloud' | 'local'): Promise<LocalLLMStatus> {
+  const res = await smartFetch('/api/llm/mode', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mode })
+  });
+  if (!res.ok) throw new Error('Ошибка переключения режима ИИ');
+  return res.json();
+}
+
+export async function startLocalLLMDownload(): Promise<any> {
+  const res = await smartFetch('/api/llm/download', { method: 'POST' });
+  if (!res.ok) throw new Error('Ошибка запуска скачивания модели');
+  return res.json();
+}
+
+export async function cancelLocalLLMDownload(): Promise<any> {
+  const res = await smartFetch('/api/llm/cancel-download', { method: 'POST' });
+  if (!res.ok) throw new Error('Ошибка отмены скачивания модели');
+  return res.json();
+}

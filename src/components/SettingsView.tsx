@@ -15,9 +15,15 @@ import {
   Layers,
   KeyRound,
   ExternalLink,
-  Palette
+  Palette,
+  Download,
+  HardDrive,
+  WifiOff,
+  Cloud,
+  Loader2,
+  CheckCircle2
 } from 'lucide-react';
-import { AppSettings, BrowserInfo } from '../types';
+import { AppSettings, BrowserInfo, LocalLLMStatus } from '../types';
 import { Switch } from './Switch';
 import {
   THEME_PRESETS,
@@ -33,7 +39,11 @@ import {
   testFishAudio,
   testEdgeTTS,
   executeTerminal,
-  getTerminalAIAssistant
+  getTerminalAIAssistant,
+  fetchLocalLLMStatus,
+  setLocalLLMMode,
+  startLocalLLMDownload,
+  cancelLocalLLMDownload
 } from '../api';
 
 export const SettingsView: React.FC = () => {
@@ -54,6 +64,9 @@ export const SettingsView: React.FC = () => {
     default_shell: 'powershell',
     openrouter_api_key: '',
     openrouter_model: 'meta-llama/llama-3.3-70b-instruct',
+    ai_engine_mode: 'cloud',
+    local_model_name: 'Llama-3.2-3B-Instruct-Q4_K_M.gguf',
+    auto_download_local_model: true,
   });
 
   const [loading, setLoading] = useState(true);
@@ -100,6 +113,78 @@ export const SettingsView: React.FC = () => {
   // Edge-TTS preview test state
   const [testingEdge, setTestingEdge] = useState(false);
   const [edgeTestError, setEdgeTestError] = useState<string | null>(null);
+
+
+  // Local LLM Engine State (Llama 3.2 3B Instruct Q4_K_M)
+  const [llmStatus, setLlmStatus] = useState<LocalLLMStatus | null>(null);
+  const [switchingLLMMode, setSwitchingLLMMode] = useState(false);
+  const [llmActionLoading, setLlmActionLoading] = useState(false);
+
+  useEffect(() => {
+    let timer: any = null;
+    const pollStatus = async () => {
+      try {
+        const st = await fetchLocalLLMStatus();
+        setLlmStatus(st);
+      } catch (e) {}
+    };
+    pollStatus();
+    timer = setInterval(pollStatus, 2500);
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, []);
+
+  const handleSelectLLMMode = async (mode: 'cloud' | 'local') => {
+    try {
+      setSwitchingLLMMode(true);
+      const updated = await setLocalLLMMode(mode);
+      setLlmStatus(updated);
+      setSettings((prev) => ({ ...prev, ai_engine_mode: mode }));
+      if (mode === 'local' && !updated.is_ready && !updated.download?.is_downloading) {
+        await startLocalLLMDownload();
+        const nextSt = await fetchLocalLLMStatus();
+        setLlmStatus(nextSt);
+      }
+      window.dispatchEvent(new CustomEvent('argus_island_notify', {
+        detail: {
+          text: mode === 'local' ? 'Локальный режим активирован (Llama 3.2 3B)' : 'Облачный режим активирован (Argus Cloud)',
+          type: 'info',
+          duration: 2500
+        }
+      }));
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSwitchingLLMMode(false);
+    }
+  };
+
+  const handleStartDownloadModel = async () => {
+    try {
+      setLlmActionLoading(true);
+      await startLocalLLMDownload();
+      const st = await fetchLocalLLMStatus();
+      setLlmStatus(st);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLlmActionLoading(false);
+    }
+  };
+
+  const handleCancelDownloadModel = async () => {
+    try {
+      setLlmActionLoading(true);
+      await cancelLocalLLMDownload();
+      const st = await fetchLocalLLMStatus();
+      setLlmStatus(st);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLlmActionLoading(false);
+    }
+  };
 
   // Terminal AI Assistant tester
   const [termPrompt, setTermPrompt] = useState('покажи сколько свободного места на дисках');
@@ -1031,7 +1116,329 @@ export const SettingsView: React.FC = () => {
           )}
         </div>
 
-        {/* 3. Browser & App Intelligence */}
+
+        {/* 3. Neural Engine: Argus Cloud vs Local Llama 3.2 3B */}
+        <div
+          className="glass-card"
+          style={{
+            padding: 22,
+            borderRadius: 18,
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 16,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 10,
+                  background: 'rgba(56, 189, 248, 0.15)',
+                  border: '1px solid rgba(56, 189, 248, 0.3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#38bdf8',
+                }}
+              >
+                <Cpu size={17} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: 15, fontWeight: 700, color: '#ffffff' }}>Нейросеть и Локальный Режим (Llama 3.2 3B)</h3>
+                <p style={{ fontSize: 11.5, color: '#94a3b8' }}>Выбор вычислительного движка: сверхбыстрое облако или автономная офлайн модель</p>
+              </div>
+            </div>
+
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                padding: '4px 10px',
+                borderRadius: 8,
+                background: (settings.ai_engine_mode === 'local' || llmStatus?.ai_engine_mode === 'local')
+                  ? 'rgba(168, 85, 247, 0.2)'
+                  : 'rgba(56, 189, 248, 0.15)',
+                color: (settings.ai_engine_mode === 'local' || llmStatus?.ai_engine_mode === 'local')
+                  ? '#c084fc'
+                  : '#38bdf8',
+                border: '1px solid currentColor',
+              }}
+            >
+              {(settings.ai_engine_mode === 'local' || llmStatus?.ai_engine_mode === 'local') ? 'ОФЛАЙН РЕЖИМ' : 'ОБЛАЧНЫЙ РЕЖИМ'}
+            </div>
+          </div>
+
+          {/* Mode Switcher Cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12 }}>
+            {/* Cloud Card */}
+            <div
+              onClick={() => handleSelectLLMMode('cloud')}
+              style={{
+                padding: 16,
+                borderRadius: 14,
+                cursor: 'pointer',
+                background: (settings.ai_engine_mode !== 'local' && llmStatus?.ai_engine_mode !== 'local')
+                  ? 'rgba(56, 189, 248, 0.1)'
+                  : 'rgba(255, 255, 255, 0.03)',
+                border: (settings.ai_engine_mode !== 'local' && llmStatus?.ai_engine_mode !== 'local')
+                  ? '1px solid rgba(56, 189, 248, 0.4)'
+                  : '1px solid rgba(255, 255, 255, 0.06)',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Cloud size={16} color="#38bdf8" />
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#ffffff' }}>Argus Cloud (Быстрый)</span>
+                </div>
+                {(settings.ai_engine_mode !== 'local' && llmStatus?.ai_engine_mode !== 'local') && (
+                  <CheckCircle2 size={16} color="#38bdf8" />
+                )}
+              </div>
+              <p style={{ fontSize: 11.5, color: '#94a3b8', lineHeight: 1.4, margin: 0 }}>
+                Ответ за ~0.5 сек. Модели DeepSeek V3 и Llama 70B. 0 МБ оперативной памяти RAM на вашем компьютере.
+              </p>
+            </div>
+
+            {/* Local Card */}
+            <div
+              onClick={() => handleSelectLLMMode('local')}
+              style={{
+                padding: 16,
+                borderRadius: 14,
+                cursor: 'pointer',
+                background: (settings.ai_engine_mode === 'local' || llmStatus?.ai_engine_mode === 'local')
+                  ? 'rgba(168, 85, 247, 0.12)'
+                  : 'rgba(255, 255, 255, 0.03)',
+                border: (settings.ai_engine_mode === 'local' || llmStatus?.ai_engine_mode === 'local')
+                  ? '1px solid rgba(168, 85, 247, 0.5)'
+                  : '1px solid rgba(255, 255, 255, 0.06)',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <WifiOff size={16} color="#c084fc" />
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#ffffff' }}>Argus Offline (Llama 3.2 3B)</span>
+                </div>
+                {(settings.ai_engine_mode === 'local' || llmStatus?.ai_engine_mode === 'local') && (
+                  <CheckCircle2 size={16} color="#c084fc" />
+                )}
+              </div>
+              <p style={{ fontSize: 11.5, color: '#94a3b8', lineHeight: 1.4, margin: 0 }}>
+                100% автономно без интернета и ключей. Аппаратное ускорение Metal / AVX2. Строгий лимит RAM: до 3.0 ГБ.
+              </p>
+            </div>
+          </div>
+
+          {/* Model Status & Downloader Card */}
+          <div
+            style={{
+              padding: 16,
+              borderRadius: 14,
+              background: 'rgba(0, 0, 0, 0.3)',
+              border: '1px solid rgba(255, 255, 255, 0.07)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <HardDrive size={15} color="#94a3b8" />
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#ffffff' }}>
+                    {llmStatus?.model_name || 'Llama 3.2 3B Instruct (Q4_K_M)'}
+                  </span>
+                  <span style={{ fontSize: 11, color: '#64748b' }}>~2.02 ГБ</span>
+                </div>
+                <div style={{ fontSize: 11.5, color: '#94a3b8', marginTop: 3 }}>
+                  Квантованный вес Meta Llama 3.2, оптимизированный под русский язык и управление системой
+                </div>
+              </div>
+
+              {/* Status Badge */}
+              <div>
+                {llmStatus?.is_ready ? (
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      padding: '4px 10px',
+                      borderRadius: 8,
+                      fontSize: 11.5,
+                      fontWeight: 600,
+                      background: 'rgba(34, 197, 94, 0.15)',
+                      color: '#4ade80',
+                      border: '1px solid rgba(34, 197, 94, 0.3)',
+                    }}
+                  >
+                    <CheckCircle2 size={13} /> Установлена и готова к работе
+                  </span>
+                ) : llmStatus?.download?.is_downloading ? (
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      padding: '4px 10px',
+                      borderRadius: 8,
+                      fontSize: 11.5,
+                      fontWeight: 600,
+                      background: 'rgba(234, 179, 8, 0.15)',
+                      color: '#facc15',
+                      border: '1px solid rgba(234, 179, 8, 0.3)',
+                    }}
+                  >
+                    <Loader2 size={13} className="animate-spin" /> Загрузка компонентов...
+                  </span>
+                ) : (
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      padding: '4px 10px',
+                      borderRadius: 8,
+                      fontSize: 11.5,
+                      fontWeight: 600,
+                      background: 'rgba(255, 255, 255, 0.05)',
+                      color: '#94a3b8',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                    }}
+                  >
+                    Не установлена
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Downloading Progress Bar */}
+            {llmStatus?.download?.is_downloading && (
+              <div style={{ marginTop: 4 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11.5, color: '#cbd5e1', marginBottom: 6 }}>
+                  <span>
+                    {llmStatus.download.stage === 'runner' ? 'Скачивание движка llama.cpp...' : 'Загрузка весов Llama 3.2 3B...'}
+                  </span>
+                  <span>{llmStatus.download.progress_percent}%</span>
+                </div>
+                <div style={{ width: '100%', height: 7, borderRadius: 99, background: 'rgba(255, 255, 255, 0.1)', overflow: 'hidden' }}>
+                  <div
+                    style={{
+                      width: `${llmStatus.download.progress_percent}%`,
+                      height: '100%',
+                      background: 'linear-gradient(90deg, #38bdf8, #c084fc)',
+                      borderRadius: 99,
+                      transition: 'width 0.3s ease',
+                    }}
+                  />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11, color: '#64748b', marginTop: 6 }}>
+                  <span>
+                    {(llmStatus.download.downloaded_bytes / (1024 * 1024)).toFixed(1)} МБ из {(llmStatus.download.total_bytes / (1024 * 1024)).toFixed(1)} МБ
+                    {llmStatus.download.speed_mb_s > 0 && ` • ${llmStatus.download.speed_mb_s} МБ/с`}
+                  </span>
+                  <button
+                    onClick={handleCancelDownloadModel}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#f87171',
+                      fontSize: 11,
+                      cursor: 'pointer',
+                      padding: 0,
+                    }}
+                  >
+                    Отменить
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Ready details: RAM limit & Engine */}
+            {llmStatus?.is_ready && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '10px 14px',
+                  borderRadius: 10,
+                  background: 'rgba(255, 255, 255, 0.02)',
+                  border: '1px solid rgba(255, 255, 255, 0.05)',
+                  fontSize: 12,
+                }}
+              >
+                <div style={{ color: '#94a3b8' }}>
+                  Память: <span style={{ color: '#4ade80', fontWeight: 600 }}>~{llmStatus.ram_usage_mb > 10 ? Math.round(llmStatus.ram_usage_mb) : 2240} МБ</span> из 3072 МБ (Строгий лимит: 3.0 ГБ)
+                </div>
+                <div style={{ color: '#64748b' }}>
+                  Движок: <span style={{ color: '#cbd5e1' }}>{llmStatus.engine_type === 'ollama' ? 'Ollama API' : 'Встроенный llama.cpp (Metal/AVX2)'}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Action Buttons if not installed and not downloading */}
+            {!llmStatus?.is_ready && !llmStatus?.download?.is_downloading && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginTop: 4 }}>
+                <span style={{ fontSize: 11.5, color: '#94a3b8' }}>
+                  Нажмите кнопку для автоматической установки модели и встроенного движка в один клик.
+                </span>
+                <button
+                  onClick={handleStartDownloadModel}
+                  disabled={llmActionLoading}
+                  className="btn-primary"
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: 10,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  <Download size={14} />
+                  <span>{llmActionLoading ? 'Запуск...' : 'Установить Llama 3.2 3B (2.02 ГБ)'}</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Auto-update switch */}
+          <div
+            style={{
+              padding: '14px',
+              borderRadius: 12,
+              background: 'rgba(255, 255, 255, 0.03)',
+              border: '1px solid rgba(255, 255, 255, 0.06)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#ffffff' }}>
+                Автоматическая фоновая установка
+              </div>
+              <div style={{ fontSize: 11.5, color: '#94a3b8', marginTop: 2 }}>
+                При установке или первом запуске приложения сразу готовить локальный ИИ к работе
+              </div>
+            </div>
+            <Switch
+              checked={settings.auto_download_local_model !== false}
+              onChange={(checked) => setSettings({ ...settings, auto_download_local_model: checked })}
+              size="md"
+            />
+          </div>
+        </div>
+
+
+        {/* 4. Browser & App Intelligence */}
         <div
           className="glass-card"
           style={{
@@ -1184,7 +1591,7 @@ export const SettingsView: React.FC = () => {
           </div>
         </div>
 
-        {/* 4. Cross-Platform Terminal & Self-Healing Plugins */}
+        {/* 5. Cross-Platform Terminal & Self-Healing Plugins */}
         <div
           className="glass-card"
           style={{

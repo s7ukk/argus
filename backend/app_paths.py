@@ -34,3 +34,20 @@ def get_data_file_path(filename: str) -> str:
             except Exception:
                 pass
     return target_path
+
+def get_argus_models_dir() -> str:
+    models_dir = os.path.join(get_argus_data_dir(), "models")
+    try:
+        os.makedirs(models_dir, exist_ok=True)
+    except Exception:
+        pass
+    return models_dir
+
+def get_argus_bin_dir() -> str:
+    bin_dir = os.path.join(get_argus_data_dir(), "bin")
+    try:
+        os.makedirs(bin_dir, exist_ok=True)
+    except Exception:
+        pass
+    return bin_dir
+

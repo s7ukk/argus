@@ -20,6 +20,7 @@ import backend.argus_ai as argus
 import backend.plugins_manager as pm
 import backend.scenarios_manager as sc_mgr
 import backend.app_paths as app_paths
+import backend.local_llm as local_llm
 
 _LOCAL_SESSION: Dict[str, Any] = {}
 SETTINGS_FILE = app_paths.get_data_file_path("user_settings.json")
@@ -51,7 +52,10 @@ DEFAULT_SETTINGS = {
     "default_shell": "zsh" if sys.platform == "darwin" else "powershell",
     "default_music_app": "auto",
     "openrouter_api_key": "",
-    "openrouter_model": "meta-llama/llama-3.3-70b-instruct"
+    "openrouter_model": "meta-llama/llama-3.3-70b-instruct",
+    "ai_engine_mode": "cloud",
+    "local_model_name": "Llama-3.2-3B-Instruct-Q4_K_M.gguf",
+    "auto_download_local_model": True
 }
 
 def _load_settings() -> dict:
@@ -217,6 +221,9 @@ class AppSettingsRequest(BaseModel):
     default_music_app: Optional[str] = None
     openrouter_api_key: Optional[str] = None
     openrouter_model: Optional[str] = None
+    ai_engine_mode: Optional[str] = None
+    local_model_name: Optional[str] = None
+    auto_download_local_model: Optional[bool] = None
 
 class OpenRouterKeyTestRequest(BaseModel):
     api_key: str
@@ -480,6 +487,39 @@ async def test_openrouter_key(req: OpenRouterKeyTestRequest):
 @app.get("/api/settings")
 async def get_settings():
     return _load_settings()
+
+
+# Local LLM Engine Endpoints (Llama 3.2 3B Instruct)
+@app.get("/api/llm/status")
+async def get_llm_status():
+    settings = _load_settings()
+    st = local_llm.get_local_status()
+    st["ai_engine_mode"] = settings.get("ai_engine_mode", "cloud")
+    return st
+
+@app.post("/api/llm/mode")
+async def set_llm_mode(req: Dict[str, Any]):
+    mode = req.get("mode", "cloud")
+    _save_settings({"ai_engine_mode": mode})
+    if mode == "local":
+        import threading
+        threading.Thread(target=local_llm.start_local_engine, daemon=True).start()
+    else:
+        local_llm.stop_local_engine()
+    st = local_llm.get_local_status()
+    st["ai_engine_mode"] = mode
+    return st
+
+@app.post("/api/llm/download")
+async def start_local_model_download():
+    local_llm.start_download_async()
+    return {"status": "started", "download": local_llm.get_local_status()["download"]}
+
+@app.post("/api/llm/cancel-download")
+async def cancel_local_model_download():
+    local_llm.cancel_download()
+    return {"status": "cancelled"}
+
 
 @app.post("/api/settings")
 async def update_settings(req: AppSettingsRequest):

@@ -29,6 +29,10 @@ try:
     import backend.smart_knowledge as smart_knowledge
 except ImportError:
     import smart_knowledge
+try:
+    import backend.local_llm as local_llm
+except ImportError:
+    import local_llm
 
 _AI_QUERY_CACHE: Dict[str, str] = {}
 _MESSENGER_WIZARD_STATE: Dict[str, Dict[str, Any]] = {}
@@ -2652,7 +2656,7 @@ def neural_action_planner(user_text: str) -> Optional[List[Dict[str, Any]]]:
 
     # 1. Primary high-intelligence OpenRouter Free Engine
     try:
-        _, acts = openrouter_engine.query_openrouter(user_text)
+        _, acts = query_ai_engine(user_text)
         if acts and len(acts) > 0:
             wants_close = any(k in user_text.lower() for k in ["закрой", "выйди", "выруби", "close", "kill", "exit", "quit"])
             if not wants_close:
@@ -2742,7 +2746,7 @@ def query_free_ai(prompt: str, user_name: str = "Пользователь", hist
 
     # 1. Primary high-intelligence OpenRouter Free Assistant
     try:
-        reply, _ = openrouter_engine.query_openrouter(prompt, user_name=user_name, history=history)
+        reply, _ = query_ai_engine(prompt, user_name=user_name, history=history)
         if reply and len(reply.strip()) > 1:
             if len(_AI_QUERY_CACHE) > 200:
                 _AI_QUERY_CACHE.clear()
@@ -3116,7 +3120,7 @@ def get_conversational_reply(raw_text: str, en: bool, user_name: str = "Поль
     """Provides high-quality, crisp, intelligent answers without default emojis."""
     # 1. Primary: High-Intelligence Neural Engine (OpenRouter + Pollinations) for real, dynamic AI replies
     try:
-        or_reply, _ = openrouter_engine.query_openrouter(raw_text, user_name=user_name, history=history)
+        or_reply, _ = query_ai_engine(raw_text, user_name=user_name, history=history)
         if or_reply and len(or_reply.strip()) > 1 and not openrouter_engine.is_reasoning_leak(or_reply):
             return or_reply.strip()
     except Exception as e:
@@ -3259,6 +3263,28 @@ def is_coding_or_creative_request(text: str) -> bool:
         if not any(op in low for op in ["открой", "запусти", "закрой", "выйди", "удали", "включи музыку", "поставь музыку", "сделай скриншот", "почисти корзину"]):
             return True
     return False
+
+
+def query_ai_engine(prompt: str, user_name: str = "Пользователь", history: Optional[List[Dict[str, Any]]] = None) -> Tuple[Optional[str], List[Dict[str, Any]]]:
+    """
+    Intelligently routes inference to local Llama 3.2 3B or Argus Cloud.
+    If local engine is selected and ready, queries Llama 3.2 3B on localhost with < 3 GB RAM.
+    Otherwise gracefully falls back to Argus Cloud (OpenRouter) with zero error.
+    """
+    try:
+        settings_file = app_paths.get_data_file_path("user_settings.json")
+        if os.path.exists(settings_file):
+            with open(settings_file, "r", encoding="utf-8") as f:
+                sett = json.load(f)
+                if sett.get("ai_engine_mode") == "local":
+                    loc_reply, loc_acts = local_llm.query_local_llama(prompt, user_name=user_name, history=history)
+                    if loc_reply and len(loc_reply.strip()) > 1:
+                        return loc_reply, loc_acts
+    except Exception as e:
+        print(f"[Argus Local LLM Router Notice]: {e}")
+
+    # Seamless cloud fallback
+    return openrouter_engine.query_openrouter(prompt, user_name=user_name, history=history)
 
 def process_command(user_text: str, user_name: str = "Пользователь", history: Optional[List[Dict[str, Any]]] = None) -> Tuple[str, Optional[str], Optional[Dict[str, Any]]]:
     """
@@ -3638,7 +3664,7 @@ def process_command(user_text: str, user_name: str = "Пользователь",
     if is_coding_or_creative_request(resolved_text):
         # 1. Fast Neural AI (OpenRouter + Pollinations) for real, custom, intelligent code generation
         try:
-            or_reply, _ = openrouter_engine.query_openrouter(resolved_text, user_name=user_name, history=history)
+            or_reply, _ = query_ai_engine(resolved_text, user_name=user_name, history=history)
             if or_reply and len(or_reply.strip()) > 10 and not openrouter_engine.is_reasoning_leak(or_reply):
                 return or_reply.strip(), "general", {}
         except Exception as e:
@@ -3684,7 +3710,7 @@ def process_command(user_text: str, user_name: str = "Пользователь",
     # 3. If no local action, consult OpenRouter Free Engine for smart desktop assistance / action planning
     if not actions_to_run:
         try:
-            or_reply, or_acts = openrouter_engine.query_openrouter(resolved_text, user_name=user_name, history=history)
+            or_reply, or_acts = query_ai_engine(resolved_text, user_name=user_name, history=history)
             if or_acts and len(or_acts) > 0:
                 wants_close = any(k in resolved_text.lower() for k in ["закрой", "выйди", "выруби", "close", "kill", "exit", "quit"])
                 if not wants_close:
